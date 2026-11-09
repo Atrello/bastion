@@ -28,7 +28,11 @@ try to break in. This is what it protects, from whom, and how.
 | A repository address used to run something | Only `https://` and `ssh` addresses are accepted (`GIT_ALLOW_PROTOCOL`), never `file://` or `ext::`; options can't be slipped in; the compose file's path can't leave the checkout or follow a link |
 | Deploy keys | One per stack, made by the panel and kept in its database (keep the data folder private); sent to that stack's agent only while it fetches, written to a file only root can read and deleted after |
 | Vulnerable dependencies | Few dependencies, each listed in `docs/plan.md`; `make check` runs `govulncheck` and `npm audit` and must pass. The Go toolchain is pinned to a patched release in `go.mod` |
-| A request too big, or slow | Bodies are capped at 64 KB, headers at 64 KB and must arrive within 10 seconds |
+| A friend reaching more than they were given | A friend's account (made from a one-time invite link, with two-factor sign-in) gets only their account and the game servers shared with them: every other route is owner-only by default, and a game not shared with them answers as if it didn't exist. They can't change a game's limits, image or ports, delete or share it, or change the settings its egg keeps from players |
+| A game server breaking out | Games run as user 988 (never root), with no new privileges, Pterodactyl's dropped capabilities also dropped, memory, swap, CPU and process limits, and only their own folder mounted. What a game does inside its container is up to the game, as with Pterodactyl |
+| An egg used to attack the server | Eggs are imported by hand, by the owner, and checked: image names, variable names, the installer's shell, and config file paths (which can't leave the game's folder). An egg can't add mounts, privileges or host networking: only the agent decides how containers are made |
+| A file path escaping a game's folder | Every file and backup operation goes through Go's `os.Root`, which refuses `..`, absolute paths and links leading out. Restoring a backup unpacks only files and folders |
+| A request too big, or slow | JSON bodies are capped (64 KB for most, 1 MB for an egg, 2 MB for a file saved from the editor), uploads at 1 GB; headers at 64 KB and must arrive within 10 seconds |
 | Flooding sign-in | Sign-in steps in progress are capped, so they can't use up the panel's memory |
 
 ## Things to know
@@ -44,6 +48,10 @@ try to break in. This is what it protects, from whom, and how.
 - **NPM's password is kept.** Bastion signs in to NPM again when its token expires, so the NPM user's
   password is in Bastion's database (with deploy keys and alert settings: keep the data folder private).
   Give Bastion its own NPM user rather than yours, so it can be removed on its own.
+- **Game servers' ports are open to whoever can reach the server.** Each game's ports are published on all
+  of the server's addresses, as players need. Your firewall or router decides who can reach them.
+- **An egg link is fetched by the panel.** Importing an egg from a link makes the panel download it (https
+  only, up to 1 MB). Only the owner can do this.
 - **Proxy host checks don't check certificates.** They ask whether a site answers, not whether to trust
   it, so a self-signed certificate doesn't count as down. Expiry is watched separately.
 

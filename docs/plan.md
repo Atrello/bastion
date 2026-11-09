@@ -39,8 +39,8 @@ One Go module for the panel and the agent, so they share the protocol's types:
 cmd/bastion/          the panel's program
 cmd/bastion-agent/    the agent's program
 internal/protocol/    the messages between them
-internal/panel/...    the panel: store (database), auth, agents (connections), api (HTTP)
-internal/agent/...    the agent: connection, docker, metrics
+internal/panel/...    the panel: store (database), auth, agents (connections), api (HTTP), npm, eggs, cron
+internal/agent/...    the agent: connection, docker, metrics, git, games and their files
 web/                  the web app (Svelte), built into the panel's binary
 ```
 
@@ -125,6 +125,13 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.2 steps 1 and 2: linking NPM, and everything in it | Done: tested against a real NPM 2.16 (linking, a wrong password refused, proxy hosts with custom locations and an access list, redirects, streams, 404 hosts, access lists, enabling and disabling, a custom certificate uploaded, a Let's Encrypt request passed through). A Let's Encrypt certificate actually issued is on the testing list (it needs a public domain) |
 | 0.2 step 3: Expose this | Done; on the testing list, as it needs a domain pointing at NPM |
 | 0.2 step 4: health checks and expiry | Done: checks every 5 minutes and after changes, on the overview and as alerts (`host`, `certificate`) |
+| 0.3 step 1: eggs | Done: import from a file, pasted JSON or a link; checked (Pterodactyl's own Paper egg is in the tests); replacing asks first |
+| 0.3 step 2: install and run | Done: tested for real with a test egg in Docker (installer, config file filled in, runs as user 988 with limits). A real Paper or Valheim download is on the testing list (this sandbox's proxy breaks TLS inside containers) |
+| 0.3 step 3: console and power | Done: live output, commands, stop with the egg's stop command, warning players before a stop or restart, kill |
+| 0.3 step 4: file manager | Done: browse, edit, upload and download (5 MB in pieces tested), rename, delete, folders; paths can't leave the game's folder (tested, links included) |
+| 0.3 step 5: startup variables, schedules and backups | Done: variables checked against the egg's rules; schedules (cron) for restart, command and backup; backups made, locked, restored, downloaded, deleted (tested) |
+| 0.3 step 6: sharing | Done: an invite link makes a friend's account (two-factor required) that sees only that game; tested that every other route refuses them |
+| 0.3 step 7: done when Minecraft (Paper) and Valheim run from Bastion alone | On the testing list: needs a server with normal internet access |
 
 ## Changes to the plan
 
@@ -135,5 +142,10 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | One Go module at the top of the repo (`cmd/`, `internal/`, `web/`) instead of `panel/` and `agent/` | The panel and agent share the protocol's types |
 | 9 Nov 2026 | New stacks can be made from the web app (writing a compose file, or from Git) | It wasn't in the plan's screens, but stacks couldn't be created without it |
 | 9 Nov 2026 | Passkeys are off when the panel is reached by an IP address, rather than refusing to start | WebAuthn needs a name; authenticator apps still work |
+| 9 Nov 2026 | Game servers don't show players online | It needs each game's own query protocol; Pterodactyl doesn't either. Kept for later |
+| 9 Nov 2026 | A game's disk limit is enforced by the panel stopping it (within a minute) and refusing to start it or take files while over | Docker can't cap a folder's size without special filesystems |
+| 9 Nov 2026 | Eggs' config files are filled in for properties, ini, json, yaml and plain files; not xml | Few eggs use xml; it can come later |
+| 9 Nov 2026 | An egg's kind (Minecraft, Steam…) is chosen when it's imported | Eggs don't carry their nest; Pterodactyl sets it the same way |
+| 9 Nov 2026 | A friend can do everything with a shared game except change its limits, image or ports, delete or share it, or change settings the egg keeps from players. No finer permissions | Simple, and what sharing with a friend needs; Pterodactyl's per-permission subusers can come later |
 | 9 Nov 2026 | NPM's own users, audit log and default site settings stay in NPM | They're about running NPM itself, not your sites; Bastion's NPM user shouldn't be able to change them |
 | 9 Nov 2026 | Two-factor and passkeys with `go-webauthn` and `pquerna/otp`, not Better Auth | Better Auth is a JavaScript library and the panel is Go; these are its established Go equivalents |

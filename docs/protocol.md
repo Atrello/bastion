@@ -39,7 +39,7 @@ JSON, one per websocket message. Which fields are set says what a message is:
 |---|---|---|
 | `hello` | On connecting | The protocol version, the agent's version, hostname, OS, CPUs, Docker's version |
 | `state` | On connecting, whenever Docker reports a change (a little after, so a burst is one message), and every minute | Every stack and container on the server |
-| `metrics` | Every 10 seconds | CPU, memory, disk and uptime |
+| `metrics` | Every 10 seconds, and straight after any game request | CPU, memory, disk and uptime, and each game server's state and use |
 
 The panel keeps the latest `state` and `metrics` from each agent, so its pages never wait on the servers.
 
@@ -63,10 +63,31 @@ The agent does these and nothing else.
 | `updates.check` | | Checks the images' registries now (otherwise every 6 hours); the results come in the next `state` |
 | `logs.follow` | `stack` or `container`, `tail` | A stream of lines, until `stream.stop` |
 | `exec` | `container`, `cols`, `rows` | A terminal in the container (its shell), as a stream; keys arrive as `stream.input` |
+| `game.install` | A game's spec (below) | Starts its egg's installer in the background; its state is `installing`, then `stopped` or `install-failed` |
+| `game.start` | A game's spec | Fills in its config files, then makes its container afresh and starts it |
+| `game.power` | `id`, `action`, `command`, `stopWith` | `command` types a line into its console; `stop` stops it the egg's way (a command, or `^C`), then with Docker after 30 seconds; `kill` |
+| `game.delete` | `id` | Removes its container, files, backups and install log |
+| `game.files` | `id`, `op`, `path`, `to`, `data`, `offset` | `list`, `read`, `write`, `append`, `download`, `mkdir`, `rename`, `delete`, `install-log`. Pieces of up to 2 MB |
+| `game.backup` | `id`, `op`, `name`, `offset` | `make`, `restore`, `delete`, `download` |
 
 Stacks are found by name among those Docker knows and the folders in `/opt/stacks`; only their compose
 file and `.env` are ever read or written. Names are checked (`[a-z0-9][a-z0-9_-]*`), so a name can't reach
 anywhere else on the server.
+
+## Game servers
+
+A game's spec is everything worked out from its egg by the panel: the image, the startup command with its
+`{{VARIABLES}}` filled in, the egg's variables as environment variables, memory, CPU and disk limits, its
+ports, the config file settings to fill in, and the egg's installer (image, shell and script). The agent
+checks it again (image names, variable names, ports, the installer's shell) before using any of it.
+
+- Files are in `/var/lib/bastion/games/<id>`, seen in the container as `/home/container`. Every file
+  operation goes through Go's `os.Root` on that folder, so no path or link can reach outside it.
+- The installer runs as Pterodactyl's do: the script in `/mnt/install`, the game's files at `/mnt/server`.
+- The game runs as user 988 (not root), with no new privileges, the capabilities Pterodactyl also drops
+  taken away, memory and swap capped, at most 1024 processes, and each port published for TCP and UDP.
+- Its console's input is a `docker attach` kept open; its output is its container's log.
+- Backups are `.tar.gz` files in `/var/lib/bastion/backups/<id>`, of plain files and folders only.
 
 ## Image updates
 

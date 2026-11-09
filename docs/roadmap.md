@@ -26,21 +26,22 @@ from a stack, health checks on each host, and certificate expiry warnings.
 A section of its own in the panel, separate from Docker. Pterodactyl-style game servers, from
 Pterodactyl's own egg files, run as containers on any server with the agent:
 
-- **Game servers**: each one's state, players, address and memory at a glance, and starting a new one
+- **Game servers**: each one's state, address, CPU and memory at a glance, and starting a new one
   from an egg on any server.
-- **A game server's page**: a live console with commands, its CPU, memory, disk and players; a web file
+- **A game server's page**: a live console with commands, its CPU, memory and disk; a web file
   manager; startup settings (the egg's variables, like the game version); schedules (restarts with a
   warning to players, commands, backups); backups to restore or download.
 - **Eggs**: import Pterodactyl's egg files, grouped by game type.
 - **Sharing** one game server with a friend, who sees only that one.
 
-The screens are built (on demo data); the agent's side comes after 0.2.
+All three are built; see `docs/plan.md` for what's been tested and what's on the testing list.
 
 ## Later
 
-- Backups of volumes and game worlds, with schedules and restore.
-- Alerts (server offline, container down, disk filling, certificate expiring) to Discord, ntfy or email.
+- Backups of stack volumes, with schedules and restore (game servers have theirs).
 - An activity log of who did what.
+- Players online for game servers (each game's query protocol).
+- Finer permissions for friends, like Pterodactyl's subusers.
 
 ## Not planned
 

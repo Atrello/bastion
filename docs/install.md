@@ -49,6 +49,10 @@ found as it is, and new stacks go in `/opt/stacks/<name>`.
 
 To join a server again (a reinstall), use **New join command** on it in the panel and run that.
 
+Game servers' files are kept in `/var/lib/bastion/games` and their backups in `/var/lib/bastion/backups`,
+on the server each runs on. Players reach a game on its ports, which your firewall or router needs to let
+through.
+
 ## Updating
 
 - **The panel:** `git pull && docker compose up -d --build` in `deploy`.
@@ -64,7 +68,8 @@ rm -r /etc/bastion /var/lib/bastion
 ```
 
 Then remove the server in the panel. Its stacks keep running; Bastion never stops anything it didn't
-start.
+start. Delete its game servers in the panel first if you want them gone (their containers are
+`bastion-game-<id>`, their files in `/var/lib/bastion/games`).
 
 ## Building it yourself
 

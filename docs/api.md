@@ -122,23 +122,55 @@ Not for browsers: these refuse requests with an `Origin` header. See `docs/proto
 | `POST /agent/enrol` | `{"token", "hostname"}`: swaps a join token for the agent's `{"agentId", "secret"}` |
 | `GET /agent/connect` | The agent's websocket, with `Authorization: Bearer <agentId>.<secret>` |
 
-### Game servers
+### Eggs
+
+Owner only.
 
 | Method and path | What it does |
 |---|---|
-| `GET /games` | Every game server, with its state, players and memory |
-| `POST /games` | A new game server: `{"name", "eggId", "serverId", "memoryMb", "port"}`. The egg's installer runs first |
+| `GET /eggs` | Every egg: `id`, `name`, `category`, `author`, `description`, and how many game servers use it |
+| `GET /eggs/{id}` | Its `images` (in the egg's order; the first is the default), `startup` and `variables` |
+| `POST /eggs` | `{"json"}` or `{"url"}` (https only, up to 1 MB), with `category`. Checked first. An egg with the same name answers `409` with `existing`, unless `replace` is `true` |
+| `DELETE /eggs/{id}` | Only when no game server uses it |
+
+### Game servers
+
+The owner sees every game server. A friend (an account made from an invite link) sees only those shared
+with them, and gets `404` for the rest. Friends can use everything below except what's marked "owner".
+
+| Method and path | What it does |
+|---|---|
+| `GET /games` | The game servers the viewer can see, with state (`running`, `stopping`, `stopped`, `crashed`, `installing`, `install-failed`, `offline`), use and limits |
+| `POST /games` | Owner. `{"name", "eggId", "serverId", "image", "memoryMb", "cpuPercent", "diskMb", "ports", "warnCommand"}`. Ports are 1024 to 65535 and can't be another game's on the same server. The egg's installer starts straight away |
 | `GET /games/{id}` | One game server |
-| `POST /games/{id}/power/{action}` | `start`, `stop` (players are warned first), `restart` or `kill` |
-| `GET /games/{id}/console` | The console's recent output |
-| `POST /games/{id}/command` | Sends a console command: `{"command"}` |
-| `GET /games/{id}/files?path=/` | A folder's files |
-| `GET /games/{id}/startup` | The startup command, image and the egg's variables with their values |
-| `PUT /games/{id}/startup` | Saves variables' values: `{"KEY": "value"}`. They apply from the next restart |
-| `GET /games/{id}/schedules` | Its schedules |
-| `GET /games/{id}/backups` | Its backups |
-| `POST /games/{id}/backups` | Starts a backup |
-| `GET /eggs` | The egg library |
-| `POST /eggs` | Imports a Pterodactyl egg (its JSON file as exported) |
+| `PUT /games/{id}` | Owner. Its name, image, limits, ports and warning command. They apply from its next start |
+| `DELETE /games/{id}` | Owner. Removes its container, files and backups |
+| `POST /games/{id}/reinstall` | Owner. Runs its egg's installer again |
+| `POST /games/{id}/power/{action}` | `start`, `stop`, `restart` or `kill`. Stop and restart take `{"warn": seconds}` (up to 600): the warning command is typed into its console first, then it waits. A game over its disk limit won't start |
+| `GET /games/{id}/console` | Its recent output; the install log while it installs and until it first runs |
+| `POST /games/{id}/command` | `{"command"}`: one line typed into its console |
+| `GET /games/{id}/startup` | The startup command (filled in), image, the egg's images, and its variables. Friends see only the ones the egg lets players see |
+| `PUT /games/{id}/startup` | `{"KEY": "value"}`, checked against the egg's rules. Friends can only change the ones the egg lets players change |
+| `GET /games/{id}/files?path=/` | A folder's files, folders first |
+| `GET` / `PUT /games/{id}/files/content` | Reads (`?path=`) or saves (`{"path", "content"}`) a text file, up to 2 MB |
+| `POST /games/{id}/files/folder` | `{"path"}` |
+| `POST /games/{id}/files/rename` | `{"from", "to"}`; a path into another folder moves it |
+| `DELETE /games/{id}/files?path=` | A file, or a folder and everything in it |
+| `POST /games/{id}/files/upload?path=` | The file as the body (not JSON), up to 1 GB |
+| `GET /games/{id}/files/download?path=` | The file, as a download |
+| `GET` / `POST /games/{id}/backups` | Its backups; or starts one (`{"name"}`, optional), which shows as `making` until it's `done` or `failed` |
+| `PUT /games/{id}/backups/{backup}` | `{"locked"}`: a locked backup can't be deleted |
+| `POST /games/{id}/backups/{backup}/restore` | Empties its files and unpacks the backup. It has to be stopped |
+| `GET /games/{id}/backups/{backup}/download` | The backup as a `.tar.gz` |
+| `DELETE /games/{id}/backups/{backup}` | |
+| `GET` / `POST /games/{id}/schedules` | Its schedules; or a new one: `{"name", "when", "action", "payload", "enabled"}`. `when` is cron (minute hour day month weekday, in the panel's time zone); `action` is `restart` (players are warned a minute before), `command` (`payload` is the command) or `backup` |
+| `PUT` / `DELETE /games/{id}/schedules/{schedule}` | |
+| `POST /games/{id}/schedules/{schedule}/run` | Runs it now |
+| `GET /games/{id}/shares` | Owner. Who it's shared with |
+| `POST /games/{id}/shares` | Owner. `{"username"}` shares it with a friend who has an account; with no body, gives a one-time invite `link` (a week) for a new friend |
+| `DELETE /games/{id}/shares/{user}` | Owner. Stops sharing it with them |
+| `GET /streams/game?id=` | A websocket: its console output, live |
+
+Every minute the panel also stops any game over its disk limit: Docker can't cap a folder's size.
 
 The shapes of the answers are in `web/src/lib/types.ts`.
