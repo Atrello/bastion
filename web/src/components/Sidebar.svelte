@@ -34,6 +34,7 @@
       links: [
         { href: '/games', label: 'Game servers', icon: 'M6 9h4M8 7v4M15 8h.01M17 10h.01M7 4h10a5 5 0 0 1 5 5v3a5 5 0 0 1-9 3h-2a5 5 0 0 1-9-3V9a5 5 0 0 1 5-5z' },
         { href: '/eggs', label: 'Eggs', icon: 'M12 3c4 0 7 6 7 11a7 7 0 0 1-14 0c0-5 3-11 7-11z' },
+        { href: '/backup-storage', label: 'Backup storage', icon: 'M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3' },
       ],
     },
   ];

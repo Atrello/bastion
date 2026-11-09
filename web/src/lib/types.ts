@@ -109,6 +109,8 @@ export type GameServer = {
   warnCommand: string;
   /** The viewer is the panel's owner, who can change its limits, delete and share it. */
   owner: boolean;
+  /** Where its new backups go: a backup storage's ID, or 0 for its own server. */
+  backupStore: number;
 };
 
 export type Egg = {
@@ -165,7 +167,32 @@ export type Schedule = {
   lastError: string;
 };
 
-export type GameBackup = { id: number; name: string; size: number; createdAt: string; locked: boolean; state: 'making' | 'done' | 'failed' };
+export type GameBackup = {
+  id: number;
+  name: string;
+  size: number;
+  createdAt: string;
+  locked: boolean;
+  state: 'making' | 'done' | 'failed';
+  /** The backup storage it's in; empty when it's on the game's own server. */
+  store: string;
+};
+
+/** An S3 bucket (or a service that speaks S3) to keep game backups in. secretKey is only ever sent, never given back. */
+export type BackupStore = {
+  id: number;
+  name: string;
+  endpoint: string;
+  region: string;
+  bucket: string;
+  prefix: string;
+  accessKey: string;
+  secretKey?: string;
+  pathStyle: boolean;
+  plainHttp: boolean;
+  /** How many backups are in it. */
+  backups: number;
+};
 
 export type GameShare = { userId: number; username: string };
 

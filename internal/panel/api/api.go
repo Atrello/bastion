@@ -72,6 +72,7 @@ func (api *API) routes() {
 	api.eggRoutes()
 	api.gameRoutes()
 	api.jobRoutes()
+	api.backupStoreRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {

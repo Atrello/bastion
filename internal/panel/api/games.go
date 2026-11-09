@@ -34,6 +34,7 @@ type game struct {
 	Ports       []int
 	Variables   map[string]string
 	WarnCommand string
+	BackupStore int64 // where its new backups go (backup_stores), 0 for its own server
 }
 
 // gameState is what the panel is doing to games that their agents can't say: a stop counting down.
@@ -60,16 +61,17 @@ func (api *API) gameRoutes() {
 	m.Handle("GET /api/games/{id}/shares", api.gameOwner(api.gameShares))
 	m.Handle("POST /api/games/{id}/shares", api.gameOwner(api.inviteFriend))
 	m.Handle("DELETE /api/games/{id}/shares/{user}", api.gameOwner(api.unshareGame))
+	m.Handle("PUT /api/games/{id}/backup-store", api.gameOwner(api.setBackupStore))
 	api.gameFileRoutes()
 	api.scheduleRoutes()
 }
 
-const gameColumns = `g.id, g.name, g.egg_id, e.name, g.server_id, g.image, g.memory_mb, g.cpu_percent, g.disk_mb, g.ports, g.variables, g.warn_command`
+const gameColumns = `g.id, g.name, g.egg_id, e.name, g.server_id, g.image, g.memory_mb, g.cpu_percent, g.disk_mb, g.ports, g.variables, g.warn_command, coalesce(g.backup_store_id, 0)`
 
 func scanGame(row interface{ Scan(...any) error }) (*game, error) {
 	var g game
 	var ports, vars string
-	if err := row.Scan(&g.ID, &g.Name, &g.EggID, &g.EggName, &g.ServerID, &g.Image, &g.MemoryMB, &g.CPUPercent, &g.DiskMB, &ports, &vars, &g.WarnCommand); err != nil {
+	if err := row.Scan(&g.ID, &g.Name, &g.EggID, &g.EggName, &g.ServerID, &g.Image, &g.MemoryMB, &g.CPUPercent, &g.DiskMB, &ports, &vars, &g.WarnCommand, &g.BackupStore); err != nil {
 		return nil, err
 	}
 	_ = json.Unmarshal([]byte(ports), &g.Ports)
@@ -216,12 +218,13 @@ type gameView struct {
 	DiskLimit   uint64    `json:"diskLimit"`
 	UptimeSecs  int64     `json:"uptimeSecs"`
 	WarnCommand string    `json:"warnCommand"`
-	Owner       bool      `json:"owner"` // the viewer can change its limits, delete and share it
+	Owner       bool      `json:"owner"`       // the viewer can change its limits, delete and share it
+	BackupStore int64     `json:"backupStore"` // where new backups go: 0 for its own server
 }
 
 func (api *API) view(g *game, serverName string, owner bool) gameView {
 	v := gameView{ID: g.ID, Name: g.Name, Egg: g.EggName, EggID: g.EggID, ServerID: g.ServerID, ServerName: serverName,
-		State: "offline", Image: g.Image, Ports: g.Ports, CPULimit: g.CPUPercent, WarnCommand: g.WarnCommand, Owner: owner,
+		State: "offline", Image: g.Image, Ports: g.Ports, CPULimit: g.CPUPercent, WarnCommand: g.WarnCommand, Owner: owner, BackupStore: g.BackupStore,
 		MemLimit: uint64(g.MemoryMB) << 20, DiskLimit: uint64(g.DiskMB) << 20}
 	live := api.hub.Live(g.ServerID)
 	host := serverName
@@ -438,6 +441,29 @@ func (api *API) deleteGame(w http.ResponseWriter, r *http.Request, u *auth.User,
 	if err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameDelete, protocol.GameRef{ID: g.ID}, nil); err != nil {
 		api.agentFail(w, r, err)
 		return
+	}
+	// Its backups go with it, as those on its server just did: those in backup storage too.
+	rows, err := api.db.QueryContext(r.Context(), `SELECT file, store_id FROM game_backups WHERE game_id = ? AND store_id IS NOT NULL AND state = 'done'`, g.ID)
+	if err == nil {
+		type kept struct {
+			file  string
+			store sql.NullInt64
+		}
+		var list []kept
+		for rows.Next() {
+			var k kept
+			if rows.Scan(&k.file, &k.store) == nil {
+				list = append(list, k)
+			}
+		}
+		rows.Close()
+		for _, k := range list {
+			if target, terr := api.s3Target(r.Context(), k.store, g.ID, k.file); terr == nil {
+				if derr := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "delete", Name: k.file, S3: target}, nil); derr != nil {
+					api.log.Warn("a deleted game's backup couldn't be removed from its storage", "game", g.ID, "file", k.file, "err", derr)
+				}
+			}
+		}
 	}
 	if _, err := api.db.ExecContext(r.Context(), `DELETE FROM games WHERE id = ?`, g.ID); err != nil {
 		api.fail(w, r, err)

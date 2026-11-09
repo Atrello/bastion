@@ -12,6 +12,7 @@
   import { match, navigate, route } from './lib/router.svelte';
   import Containers from './pages/Containers.svelte';
   import Alerts from './pages/Alerts.svelte';
+  import BackupStorage from './pages/BackupStorage.svelte';
   import Eggs from './pages/Eggs.svelte';
   import Images from './pages/Images.svelte';
   import Volumes from './pages/Volumes.svelte';
@@ -115,6 +116,8 @@
       {#key route.path}<Game id={Number(game.id)} />{/key}
     {:else if route.path === '/eggs'}
       <Eggs />
+    {:else if route.path === '/backup-storage'}
+      <BackupStorage />
     {:else if route.path === '/account'}
       <Account passkeys={auth.passkeys} />
     {:else}

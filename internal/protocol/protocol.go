@@ -353,6 +353,20 @@ type GameBackupArgs struct {
 	Op     string `json:"op"`   // make, restore, delete or download
 	Name   string `json:"name"` // the backup's file name, chosen by the panel
 	Offset int64  `json:"offset,omitempty"`
+	// Where the backup is kept, if not on this server: made here, then uploaded and the copy here removed.
+	S3 *S3Target `json:"s3,omitempty"`
+}
+
+// S3Target is an S3 bucket (or a service that speaks S3) and the key a backup has in it.
+type S3Target struct {
+	Endpoint  string `json:"endpoint"` // host[:port]
+	Region    string `json:"region,omitempty"`
+	Bucket    string `json:"bucket"`
+	Key       string `json:"key"`
+	AccessKey string `json:"accessKey"`
+	SecretKey string `json:"secretKey"`
+	PathStyle bool   `json:"pathStyle,omitempty"`
+	PlainHTTP bool   `json:"plainHttp,omitempty"`
 }
 
 type GameBackupResult struct {

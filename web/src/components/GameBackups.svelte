@@ -43,7 +43,10 @@
 </script>
 
 <div class="row top">
-  <span class="muted small grow">Backups are kept on {game.serverName}, beside the game. A locked one can't be deleted.</span>
+  <span class="muted small grow">
+    {game.backupStore ? 'New backups go to backup storage (set in Settings).' : `New backups are kept on ${game.serverName}, beside the game.`}
+    A locked one can't be deleted.
+  </span>
   <button class="primary" onclick={make}>Back up now</button>
 </div>
 <div class="card table-card">
@@ -55,6 +58,7 @@
           <td>
             <b>{b.name}</b>
             {#if b.locked}<span class="badge blue">Locked</span>{/if}
+            {#if b.store}<span class="badge">{b.store}</span>{/if}
             {#if b.state === 'making'}<span class="badge amber">Making…</span>{:else if b.state === 'failed'}<span class="badge red">Failed</span>{/if}
           </td>
           <td>{b.state === 'done' ? bytes(b.size) : ''}</td>
@@ -66,7 +70,7 @@
               <button onclick={() => attempt(() => api.lockGameBackup(game.id, b.id, !b.locked))}>{b.locked ? 'Unlock' : 'Lock'}</button>
             {/if}
             {#if !b.locked && b.state !== 'making'}
-              <button class="danger" onclick={async () => (await sure(`Delete "${b.name}"?`, "The backup's file is deleted from the server.")) && attempt(() => api.deleteGameBackup(game.id, b.id))}>Delete</button>
+              <button class="danger" onclick={async () => (await sure(`Delete "${b.name}"?`, b.store ? `The backup's file is deleted from ${b.store}.` : "The backup's file is deleted from the server.")) && attempt(() => api.deleteGameBackup(game.id, b.id))}>Delete</button>
             {/if}
           </td>
         </tr>

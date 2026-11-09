@@ -18,6 +18,7 @@ import type {
   GameBackup,
   GameFile,
   GameServer,
+  BackupStore,
   Job,
   Schedule,
   Server,
@@ -211,6 +212,13 @@ export const api = {
     }),
   /** Packs files and folders from one folder into a .tar.gz there. */
   archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<Job>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  backupStores: () => request<BackupStore[]>('GET', '/backup-stores'),
+  /** Saves backup storage, after checking it can be written to. An empty secretKey keeps the one it has. */
+  saveBackupStore: (s: Omit<BackupStore, 'id' | 'backups'>, id?: number) =>
+    id ? request<void>('PUT', `/backup-stores/${id}`, s) : request<void>('POST', '/backup-stores', s),
+  deleteBackupStore: (id: number) => request<void>('DELETE', `/backup-stores/${id}`),
+  /** Where a game's new backups go: a backup storage's ID, or 0 for its own server. */
+  setGameBackupStore: (id: number, storeId: number) => request<void>('PUT', `/games/${id}/backup-store`, { storeId }),
   /** Long jobs on the panel (archiving, unpacking, moving): the signed-in person's, running or just ended. */
   jobs: () => request<Job[]>('GET', '/jobs'),
   /** Stops a running job, or clears an ended one from the list. */

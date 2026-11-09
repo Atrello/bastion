@@ -437,15 +437,33 @@ func gameBackup(ctx context.Context, a protocol.GameBackupArgs) (*protocol.GameB
 	switch a.Op {
 	case "make":
 		size, err := makeBackup(a.ID, file)
+		if err == nil && a.S3 != nil {
+			// Kept in S3: uploaded, and the copy here removed either way.
+			err = s3Upload(ctx, a.S3, file)
+			_ = os.Remove(file)
+		}
 		return &protocol.GameBackupResult{Size: size}, err
 	case "restore":
 		if running, _ := gameRunning(ctx, a.ID); running {
 			return nil, errors.New("stop it before restoring a backup")
 		}
+		if a.S3 != nil {
+			if err := os.MkdirAll(backupDir(a.ID), 0o700); err != nil {
+				return nil, err
+			}
+			return &protocol.GameBackupResult{}, withS3Copy(ctx, a.S3, file, func(f string) error { return restoreBackup(a.ID, f) })
+		}
 		return &protocol.GameBackupResult{}, restoreBackup(a.ID, file)
 	case "delete":
+		if a.S3 != nil {
+			return &protocol.GameBackupResult{}, s3Delete(ctx, a.S3)
+		}
 		return &protocol.GameBackupResult{}, os.Remove(file)
 	case "download":
+		if a.S3 != nil {
+			data, size, err := s3Piece(ctx, a.S3, a.Offset)
+			return &protocol.GameBackupResult{Data: data, Size: size}, err
+		}
 		f, err := os.Open(file)
 		if err != nil {
 			return nil, errors.New("that backup isn't there")

@@ -180,6 +180,16 @@ Up to 5 jobs each at once (`429` past that); a job runs for 6 hours at most.
 | `PUT /games/{id}/backups/{backup}` | `{"locked"}`: a locked backup can't be deleted |
 | `POST /games/{id}/backups/{backup}/restore` | Empties its files and unpacks the backup. It has to be stopped |
 | `GET /games/{id}/backups/{backup}/download` | The backup as a `.tar.gz` |
+| `PUT /games/{id}/backup-store` | `{"storeId"}`: where its new backups go (0 for its own server). Owner only. Each backup's `store` says where it is |
+
+### Backup storage (owner only)
+
+| Route | What it does |
+|---|---|
+| `GET /backup-stores` | S3 buckets for game backups, each with how many backups are in it. The secret key is never given |
+| `POST /backup-stores` | `{"name", "endpoint", "region", "bucket", "prefix", "accessKey", "secretKey", "pathStyle", "plainHttp"}`: saved only once Bastion has written a small file there and deleted it. Plain http only for a private address |
+| `PUT /backup-stores/{id}` | The same; an empty `secretKey` keeps the one it has. With backups in it, its address, bucket and folder can't change |
+| `DELETE /backup-stores/{id}` | Forgets it, if it has no backups in it. Nothing in the bucket is touched |
 | `DELETE /games/{id}/backups/{backup}` | |
 | `GET` / `POST /games/{id}/schedules` | Its schedules; or a new one: `{"name", "when", "action", "payload", "enabled"}`. `when` is cron (minute hour day month weekday, in the panel's time zone); `action` is `restart` (players are warned a minute before), `command` (`payload` is the command) or `backup` |
 | `PUT` / `DELETE /games/{id}/schedules/{schedule}` | |

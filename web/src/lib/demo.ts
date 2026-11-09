@@ -145,8 +145,8 @@ const logs = [
 
 const MB = 1024 ** 2;
 
-const game = (g: Omit<GameServer, 'image' | 'ports' | 'cpuLimit' | 'diskLimit' | 'warnCommand' | 'owner'> & Partial<GameServer>): GameServer => ({
-  image: 'ghcr.io/pterodactyl/yolks:java_21', ports: [Number(g.address.split(':')[1])], cpuLimit: 200, diskLimit: 0, warnCommand: '', owner: true, ...g,
+const game = (g: Omit<GameServer, 'image' | 'ports' | 'cpuLimit' | 'diskLimit' | 'warnCommand' | 'owner' | 'backupStore'> & Partial<GameServer>): GameServer => ({
+  image: 'ghcr.io/pterodactyl/yolks:java_21', ports: [Number(g.address.split(':')[1])], cpuLimit: 200, diskLimit: 0, warnCommand: '', owner: true, backupStore: 0, ...g,
 });
 
 const games: GameServer[] = [
@@ -238,9 +238,9 @@ const schedules: Schedule[] = [
 ];
 
 const backups: GameBackup[] = [
-  { id: 41, name: 'Nightly', size: 4.1 * GB, createdAt: minutesAgo(60 * 16), locked: false, state: 'done' },
-  { id: 40, name: 'Before 1.21.4 update', size: 3.9 * GB, createdAt: minutesAgo(60 * 76), locked: true, state: 'done' },
-  { id: 39, name: 'Nightly', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false, state: 'done' },
+  { id: 41, name: 'Nightly', size: 4.1 * GB, createdAt: minutesAgo(60 * 16), locked: false, state: 'done', store: '' },
+  { id: 40, name: 'Before 1.21.4 update', size: 3.9 * GB, createdAt: minutesAgo(60 * 76), locked: true, state: 'done', store: 'Backblaze' },
+  { id: 39, name: 'Nightly', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false, state: 'done', store: '' },
 ];
 
 const health = (status: number, ms: number) => ({ status, ms, checkedAt: minutesAgo(2) });
@@ -293,6 +293,10 @@ function demoJob(path: string, body: unknown): Job {
 }
 
 export function demo(method: string, path: string, body?: unknown): unknown {
+  if (path === '/backup-stores')
+    return [
+      { id: 1, name: 'Backblaze', endpoint: 's3.eu-central-003.backblazeb2.com', region: 'eu-central-003', bucket: 'acme-game-backups', prefix: 'bastion/', accessKey: '003a1b2c3d4e5f60000000001', pathStyle: false, plainHttp: false, backups: 1 },
+    ];
   if (path === '/jobs') {
     for (const j of demoJobs) {
       if (j.state === 'running') j.done = Math.min(j.total, j.done + j.total / 12);

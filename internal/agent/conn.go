@@ -290,11 +290,11 @@ func (c *conn) handle(m protocol.Message) {
 	}
 }
 
-// do runs one request. A pull or an update can take a while, so each has up to 15 minutes; game files
-// (unpacking a big archive, say) up to 6 hours. Any can be stopped with OpCancel.
+// do runs one request. A pull or an update can take a while, so each has up to 15 minutes; game files and
+// backups (unpacking a big archive, uploading a backup) up to 6 hours. Any can be stopped with OpCancel.
 func (c *conn) do(m protocol.Message) (any, error) {
 	limit := 15 * time.Minute
-	if m.Op == protocol.OpGameFiles {
+	if m.Op == protocol.OpGameFiles || m.Op == protocol.OpGameBackup {
 		limit = 6 * time.Hour
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), limit)

@@ -12,6 +12,9 @@
 
   const startup = load(() => api.gameStartup(game.id));
   const shares = load(() => (game.owner ? api.gameShares(game.id) : Promise.resolve([])));
+  const stores = load(() => (game.owner ? api.backupStores() : Promise.resolve([])));
+  // svelte-ignore state_referenced_locally
+  let backupStore = $state(game.backupStore);
 
   let values = $state<Record<string, string>>({});
   $effect(() => {
@@ -113,6 +116,27 @@
   </section>
 
   <section class="card">
+    <h2>Backups</h2>
+    <div class="row store">
+      <label class="grow">
+        Keep new backups on
+        <select bind:value={backupStore}>
+          <option value={0}>{game.serverName}, beside the game</option>
+          {#each stores.data ?? [] as s (s.id)}<option value={s.id}>{s.name} (S3)</option>{/each}
+        </select>
+      </label>
+      <button
+        disabled={backupStore === game.backupStore}
+        onclick={() =>
+          attempt(() => api.setGameBackupStore(game.id, backupStore), 'Saved: new backups go there. Those made already stay where they are.').then(
+            (ok) => ok && onchanged(),
+          )}>Save</button
+      >
+    </div>
+    <p class="muted small">Backup storage (S3) is added on the <a href="/backup-storage">Backup storage</a> page.</p>
+  </section>
+
+  <section class="card">
     <h2>Shared with</h2>
     <ul class="shares">
       {#each shares.data ?? [] as s (s.userId)}
@@ -140,7 +164,7 @@
   <section class="card danger-zone">
     <h2>Reinstall or delete</h2>
     <div class="row">
-      <span class="grow muted small">Reinstalling runs its egg's installer again over its files (worlds are usually kept). Deleting removes its files and backups.</span>
+      <span class="grow muted small">Reinstalling runs its egg's installer again over its files (worlds are usually kept). Deleting removes its files and backups, wherever they're kept.</span>
       <button
         onclick={async () =>
           (await sure('Reinstall ' + game.name + '?', "Its egg's installer runs again over its files. Stop it first. Worlds are usually kept, but back up first if unsure.", 'Reinstall', false)) &&
@@ -149,7 +173,7 @@
       <button
         class="danger"
         onclick={async () =>
-          (await ask({ title: `Delete ${game.name}?`, message: 'This deletes it, its files and its backups. It can\'t be undone.', input: { label: 'Type its name to go ahead', mustMatch: game.name }, confirm: 'Delete it', danger: true })) !== null &&
+          (await ask({ title: `Delete ${game.name}?`, message: 'This deletes it, its files and its backups (those in backup storage too). It can\'t be undone.', input: { label: 'Type its name to go ahead', mustMatch: game.name }, confirm: 'Delete it', danger: true })) !== null &&
           attempt(() => api.deleteGame(game.id)).then((ok) => ok && navigate('/games'))}>Delete</button
       >
     </div>
@@ -157,6 +181,13 @@
 {/if}
 
 <style>
+  .store {
+    align-items: end;
+  }
+  .store label {
+    display: grid;
+    gap: 6px;
+  }
   section {
     margin-bottom: 16px;
   }

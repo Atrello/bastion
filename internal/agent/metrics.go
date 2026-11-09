@@ -6,22 +6,29 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/Atrello/bastion/internal/protocol"
 )
 
-// The last CPU counters, so each reading is the use since the one before. Only reportMetrics reads them.
-var lastIdle, lastTotal uint64
+// The last CPU counters, so each reading is the use since the one before. Read every 10 seconds and
+// straight after any game request, which can be at once, hence the lock.
+var (
+	cpuMu               sync.Mutex
+	lastIdle, lastTotal uint64
+)
 
 func readMetrics() protocol.Metrics {
 	var m protocol.Metrics
 	if idle, total, ok := cpuTimes(); ok {
+		cpuMu.Lock()
 		if lastTotal > 0 && total > lastTotal {
 			busy := float64((total-lastTotal)-(idle-lastIdle)) / float64(total-lastTotal)
 			m.CPUPercent = float64(int(busy*1000)) / 10
 		}
 		lastIdle, lastTotal = idle, total
+		cpuMu.Unlock()
 	}
 	if mem := readKeyValues("/proc/meminfo"); mem != nil {
 		m.MemTotal = mem["MemTotal"] * 1024

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Atrello/bastion/internal/panel/agents"
 	"github.com/Atrello/bastion/internal/panel/auth"
 	"github.com/Atrello/bastion/internal/protocol"
 )
@@ -317,11 +319,14 @@ type backupView struct {
 	Locked    bool   `json:"locked"`
 	State     string `json:"state"`
 	CreatedAt string `json:"createdAt"`
+	Store     string `json:"store"` // the backup storage it's in, "" for the game's own server
 	file      string
+	storeID   sql.NullInt64
 }
 
 func (api *API) listBackups(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
-	rows, err := api.db.QueryContext(r.Context(), `SELECT id, name, size, locked, state, created_at FROM game_backups WHERE game_id = ? ORDER BY id DESC`, g.ID)
+	rows, err := api.db.QueryContext(r.Context(), `SELECT b.id, b.name, b.size, b.locked, b.state, b.created_at, coalesce(s.name, '')
+		FROM game_backups b LEFT JOIN backup_stores s ON s.id = b.store_id WHERE b.game_id = ? ORDER BY b.id DESC`, g.ID)
 	if err != nil {
 		api.fail(w, r, err)
 		return
@@ -330,7 +335,7 @@ func (api *API) listBackups(w http.ResponseWriter, r *http.Request, _ *auth.User
 	list := []backupView{}
 	for rows.Next() {
 		var b backupView
-		if rows.Scan(&b.ID, &b.Name, &b.Size, &b.Locked, &b.State, &b.CreatedAt) == nil {
+		if rows.Scan(&b.ID, &b.Name, &b.Size, &b.Locked, &b.State, &b.CreatedAt, &b.Store) == nil {
 			list = append(list, b)
 		}
 	}
@@ -339,8 +344,9 @@ func (api *API) listBackups(w http.ResponseWriter, r *http.Request, _ *auth.User
 
 func (api *API) backup(ctx context.Context, g *game, id int64) (*backupView, error) {
 	var b backupView
-	err := api.db.QueryRowContext(ctx, `SELECT id, name, size, locked, state, created_at, file FROM game_backups WHERE id = ? AND game_id = ?`, id, g.ID).
-		Scan(&b.ID, &b.Name, &b.Size, &b.Locked, &b.State, &b.CreatedAt, &b.file)
+	err := api.db.QueryRowContext(ctx, `SELECT b.id, b.name, b.size, b.locked, b.state, b.created_at, b.file, b.store_id, coalesce(s.name, '')
+		FROM game_backups b LEFT JOIN backup_stores s ON s.id = b.store_id WHERE b.id = ? AND b.game_id = ?`, id, g.ID).
+		Scan(&b.ID, &b.Name, &b.Size, &b.Locked, &b.State, &b.CreatedAt, &b.file, &b.storeID, &b.Store)
 	if err != nil {
 		return nil, errors.New("no such backup")
 	}
@@ -353,16 +359,21 @@ func (api *API) startBackup(ctx context.Context, g *game, name string) (int64, e
 		name = "Backup " + time.Now().Format("2 Jan 2006 15:04")
 	}
 	file := fmt.Sprintf("b-%d.tar.gz", time.Now().UnixNano())
-	res, err := api.db.ExecContext(ctx, `INSERT INTO game_backups (game_id, file, name) VALUES (?, ?, ?)`, g.ID, file, clipText(name, 80))
+	store := sql.NullInt64{Int64: g.BackupStore, Valid: g.BackupStore != 0}
+	target, err := api.s3Target(ctx, store, g.ID, file)
+	if err != nil {
+		return 0, err
+	}
+	res, err := api.db.ExecContext(ctx, `INSERT INTO game_backups (game_id, file, name, store_id) VALUES (?, ?, ?, ?)`, g.ID, file, clipText(name, 80), store)
 	if err != nil {
 		return 0, err
 	}
 	id, _ := res.LastInsertId()
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 		defer cancel()
 		var result protocol.GameBackupResult
-		err := api.hub.Request(ctx, g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "make", Name: file}, &result)
+		err := api.hub.RequestWith(ctx, g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "make", Name: file, S3: target}, &result, agents.RequestOptions{Limit: 6 * time.Hour})
 		state := "done"
 		if err != nil {
 			state = "failed"
@@ -413,7 +424,12 @@ func (api *API) deleteBackup(w http.ResponseWriter, r *http.Request, u *auth.Use
 		return
 	}
 	if b.State != "failed" {
-		if err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "delete", Name: b.file}, nil); err != nil {
+		target, err := api.s3Target(r.Context(), b.storeID, g.ID, b.file)
+		if err != nil {
+			api.fail(w, r, err)
+			return
+		}
+		if err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "delete", Name: b.file, S3: target}, nil); err != nil {
 			api.agentFail(w, r, err)
 			return
 		}
@@ -430,7 +446,12 @@ func (api *API) restoreBackup(w http.ResponseWriter, r *http.Request, u *auth.Us
 		writeError(w, http.StatusNotFound, "no such backup")
 		return
 	}
-	if err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "restore", Name: b.file}, nil); err != nil {
+	target, err := api.s3Target(r.Context(), b.storeID, g.ID, b.file)
+	if err != nil {
+		api.fail(w, r, err)
+		return
+	}
+	if err := api.hub.RequestWith(r.Context(), g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "restore", Name: b.file, S3: target}, nil, agents.RequestOptions{Limit: 6 * time.Hour}); err != nil {
 		api.agentFail(w, r, err)
 		return
 	}
@@ -446,9 +467,14 @@ func (api *API) downloadBackup(w http.ResponseWriter, r *http.Request, _ *auth.U
 		return
 	}
 	name := strings.NewReplacer(" ", "-", ":", "").Replace(g.Name+"-"+b.CreatedAt[:10]) + ".tar.gz"
+	target, err := api.s3Target(r.Context(), b.storeID, g.ID, b.file)
+	if err != nil {
+		api.fail(w, r, err)
+		return
+	}
 	err = sendPieces(w, name, func(offset int64) ([]byte, int64, error) {
 		var res protocol.GameBackupResult
-		err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "download", Name: b.file, Offset: offset}, &res)
+		err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "download", Name: b.file, Offset: offset, S3: target}, &res)
 		return res.Data, res.Size, err
 	})
 	if err != nil {

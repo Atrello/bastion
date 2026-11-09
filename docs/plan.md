@@ -28,6 +28,7 @@ the bottom.
 | Panel | `github.com/go-webauthn/webauthn` | Passkeys (WebAuthn), the standard Go implementation |
 | Panel | `github.com/pquerna/otp` | Authenticator app codes (TOTP) |
 | Agent | `github.com/creack/pty` | A real terminal for container consoles and game consoles |
+| Panel and agent | `github.com/minio/minio-go/v7` | Game backups in S3 and services that speak it (multipart uploads, signing); well kept and widely used, where signing requests by hand is easy to get subtly wrong |
 | Web app | Svelte, Vite, CodeMirror | As it is now |
 | Web app | `@xterm/xterm`, `@xterm/addon-fit` | The container console's terminal, loaded only when a console is opened |
 
@@ -155,3 +156,4 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | Archiving, unpacking and moving a game's files are jobs on the panel, with progress, shown with uploads in the corner of every page and stoppable from there | Asked for; it replaces keeping the request open, and carries on with the browser closed |
 | 9 Nov 2026 | A list from NPM is asked again with less included when NPM can't include something (NPMplus versions differ on access lists) | NPMplus answered "Internal Error" to the proxy hosts list |
 | 9 Nov 2026 | Game containers are named bastion-<server>-<game> and found by their bastion.game label | Asked for; a renamed game's container takes its new name when it next starts |
+| 9 Nov 2026 | Game backups can be kept in S3 (any service that speaks it), chosen per game; made on the server, uploaded, then removed there | Asked for |
