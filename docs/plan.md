@@ -29,6 +29,7 @@ the bottom.
 | Panel | `github.com/pquerna/otp` | Authenticator app codes (TOTP) |
 | Agent | `github.com/creack/pty` | A real terminal for container consoles and game consoles |
 | Web app | Svelte, Vite, CodeMirror | As it is now |
+| Web app | `@xterm/xterm`, `@xterm/addon-fit` | The container console's terminal, loaded only when a console is opened |
 
 ## Layout
 
@@ -114,7 +115,8 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.1 step 3: agent protocol | Done (`docs/protocol.md`, `internal/protocol`) |
 | 0.1 step 4: agent | Done (`cmd/bastion-agent`, `internal/agent`) |
 | 0.1 step 5: the API, wired up | Done: tested end to end with a real agent and Docker (a stack found, its files read and saved, a broken file refused by Docker, deployed, logs, history) |
-| 0.1 step 6: live logs and container consoles | Next |
+| 0.1 step 6: live logs and container consoles | Done: tested live (new lines arriving; a command typed into a container's shell) |
+| 0.1 step 7: image updates | Next |
 
 ## Changes to the plan
 

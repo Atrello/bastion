@@ -1,5 +1,6 @@
 <!-- One stack: what it's running, its compose file and .env to edit, its logs, and earlier versions. -->
 <script lang="ts">
+  import LiveLogs from '../components/LiveLogs.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import Tabs from '../components/Tabs.svelte';
   import { api, type StackAction } from '../lib/api';
@@ -11,11 +12,13 @@
 
   // The editor is most of the panel's code, so it's only loaded on a stack's page.
   const editor = import('../components/CodeEditor.svelte');
+  // The terminal is loaded only when the Console tab is opened.
+  const consoleView = () => import('../components/Console.svelte');
+  let consoleContainer = $state('');
 
   const stacks = load(api.stacks);
   const files = load(() => api.stackFiles(serverId, name));
   const containers = load(api.containers);
-  const logs = load(() => api.stackLogs(serverId, name));
   const history = load(() => api.stackHistory(serverId, name));
 
   const stack = $derived(stacks.data?.find((s) => s.serverId === serverId && s.name === name));
@@ -88,6 +91,7 @@
     { id: 'env', label: '.env' },
     { id: 'containers', label: `Containers (${mine.length})` },
     { id: 'logs', label: 'Logs' },
+    { id: 'console', label: 'Console' },
     { id: 'history', label: 'History' },
   ]}
 />
@@ -136,12 +140,22 @@
     </table>
   </div>
 {:else if tab === 'logs'}
-  <div class="row actions top">
-    <span class="muted small grow">The last 200 lines from every container in the stack.</span>
-    <button onclick={() => logs.reload()}>Refresh</button>
+  <LiveLogs {serverId} {name} />
+{:else if tab === 'console'}
+  <div class="row top">
+    <select aria-label="Container" bind:value={consoleContainer}>
+      <option value="">Pick a container</option>
+      {#each mine.filter((c) => c.state === 'running') as c (c.id)}<option value={c.id}>{c.name}</option>{/each}
+    </select>
+    <span class="muted small">A shell inside the container (bash if it has it, otherwise sh).</span>
   </div>
-  <pre class="logs mono">{#each logs.data?.lines ?? [] as line}<span class:warn={/\bWARN|\bERROR/.test(line)}>{line}</span>
-{/each}</pre>
+  {#if consoleContainer}
+    {#key consoleContainer}
+      {#await consoleView() then { default: Console }}
+        <Console {serverId} container={consoleContainer} />
+      {/await}
+    {/key}
+  {/if}
 {:else if tab === 'history'}
   <div class="card table-card">
     <table>
@@ -187,21 +201,7 @@
   .actions {
     margin-top: 12px;
   }
-  .actions.top {
-    margin: 0 0 8px;
-  }
-  .logs {
-    margin: 0;
-    height: 520px;
-    overflow: auto;
-    padding: 12px 14px;
-    background: #0b0d11;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    line-height: 1.6;
-    color: #b7c0cf;
-  }
-  .warn {
-    color: var(--amber);
+  .top {
+    margin-bottom: 10px;
   }
 </style>

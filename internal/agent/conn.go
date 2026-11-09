@@ -117,6 +117,12 @@ func connect(ctx context.Context, cfg *Config, log *slog.Logger) error {
 			return err
 		}
 		_ = ws.SetReadDeadline(time.Now().Add(2 * pingEvery))
+		// Keys typed into a console must arrive in order, so stream input is handled here, one at a time.
+		// Everything else runs on its own, so a slow pull holds nothing up.
+		if m.Op == protocol.OpStreamInput || m.Op == protocol.OpStreamResize || m.Op == protocol.OpStreamStop {
+			c.streams.control(m)
+			continue
+		}
 		go c.handle(m)
 	}
 }
@@ -182,9 +188,6 @@ func (c *conn) reportState(ctx context.Context) {
 
 func (c *conn) handle(m protocol.Message) {
 	switch m.Op {
-	case protocol.OpStreamInput, protocol.OpStreamResize, protocol.OpStreamStop:
-		c.streams.control(m)
-		return
 	case protocol.OpLogsFollow, protocol.OpExec:
 		if err := c.streams.start(m); err != nil {
 			c.answer(m.ID, nil, err)

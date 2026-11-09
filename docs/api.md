@@ -57,6 +57,15 @@ it's 400 with Docker's own message.
 | `POST /servers/{id}/stacks/{name}/actions/{action}` | `up`, `down`, `start`, `stop`, `restart`, `pull`, or `update` (pull and recreate what changed). Returns Docker's output |
 | `POST /servers/{id}/containers/{id}/actions/{action}` | `start`, `stop` or `restart` one container |
 
+### Live streams (websockets)
+
+Only the panel's own pages can open these (the `Origin` must be the panel's address).
+
+| Path | What it does |
+|---|---|
+| `GET /streams/logs?server=&stack=` (or `&container=`) | Logs following live: the last 200 lines, then each new one. Messages are `{"type": "data", "data": "<line>"}`, then `{"type": "end"}` |
+| `GET /streams/console?server=&container=&cols=&rows=` | A shell in the container. Output is `data` (base64); send `{"type": "input", "data": "<base64>"}` and `{"type": "resize", "cols", "rows"}` |
+
 ### For agents
 
 Not for browsers: these refuse requests with an `Origin` header. See `docs/protocol.md`.

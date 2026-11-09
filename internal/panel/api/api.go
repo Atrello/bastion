@@ -58,6 +58,7 @@ func (api *API) routes() {
 	m.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, map[string]bool{"ok": true}) })
 	api.authRoutes()
 	api.serverRoutes()
+	api.streamRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
