@@ -5,7 +5,7 @@
   import ProxyForm from '../components/ProxyForm.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import Tabs from '../components/Tabs.svelte';
-  import { api } from '../lib/api';
+  import { api, ApiError } from '../lib/api';
   import { ago } from '../lib/format';
   import { load } from '../lib/load.svelte';
   import { navigate } from '../lib/router.svelte';
@@ -101,12 +101,23 @@
   let link = $state({ name: '', url: '', email: '', password: '' });
   let linkError = $state<string>();
   let linkBusy = $state(false);
+  // An NPM with a self-signed certificate: the certificate it showed, to trust or not.
+  let untrusted = $state<{ fingerprint: string; subject: string; expires: string }>();
   async function linkNpm(e: SubmitEvent) {
     e.preventDefault();
     linkBusy = true;
     linkError = undefined;
     try {
-      await api.linkNpm(link);
+      try {
+        await api.linkNpm({ ...link, trustCertificate: untrusted?.fingerprint });
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 409 && err.body.certificate) {
+          untrusted = err.body.certificate;
+          return;
+        }
+        throw err;
+      }
+      untrusted = undefined;
       link = { name: '', url: '', email: '', password: '' };
       linking = false;
       await instances.reload();
@@ -252,17 +263,27 @@
   <Modal title="Link Nginx Proxy Manager" onclose={() => (linking = false)}>
     <form id="link-npm" class="form" onsubmit={linkNpm}>
       <label>Name <input placeholder="e.g. Home proxy" maxlength="60" bind:value={link.name} /></label>
-      <label>Its admin page <input required class="mono" placeholder="http://192.168.1.20:81" bind:value={link.url} /></label>
+      <label>Its admin page <input required class="mono" placeholder="http://192.168.1.20:81" bind:value={link.url} oninput={() => (untrusted = undefined)} /></label>
       <div class="pair">
         <label>NPM user's email <input required type="email" autocomplete="off" bind:value={link.email} /></label>
         <label>Password <input required type="password" autocomplete="new-password" bind:value={link.password} /></label>
       </div>
       <p class="muted small">Bastion signs in to check these work. The password is kept in Bastion's database to sign in again later, and never shown.</p>
+      {#if untrusted}
+        <div class="untrusted">
+          <p><b>NPM's certificate can't be checked the usual way.</b> It's probably self-signed. If this is your NPM, you can trust this one certificate: Bastion then accepts only it, and refuses NPM if it ever changes.</p>
+          <p class="small">For <span class="mono">{untrusted.subject}</span>, until {new Date(untrusted.expires).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+          <p class="mono small fingerprint">{untrusted.fingerprint}</p>
+          <p class="muted small">Or use <span class="mono">http://</span> if NPM's admin page is plain HTTP, as it is by default on port 81.</p>
+        </div>
+      {/if}
       {#if linkError}<p class="error">{linkError}</p>{/if}
     </form>
     {#snippet footer()}
       <button onclick={() => (linking = false)}>Cancel</button>
-      <button type="submit" form="link-npm" class="primary" disabled={linkBusy}>{linkBusy ? 'Checking…' : 'Link'}</button>
+      <button type="submit" form="link-npm" class="primary" disabled={linkBusy}>
+        {linkBusy ? 'Checking…' : untrusted ? 'Trust this certificate and link' : 'Link'}
+      </button>
     {/snippet}
   </Modal>
 {/if}
@@ -285,6 +306,17 @@
   }
   tr.off td {
     opacity: 0.6;
+  }
+  .untrusted {
+    display: grid;
+    gap: 6px;
+    padding: 12px;
+    border: 1px solid var(--amber);
+    border-radius: 8px;
+  }
+  .fingerprint {
+    word-break: break-all;
+    color: var(--soft);
   }
   .instances {
     list-style: none;

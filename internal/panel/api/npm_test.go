@@ -12,9 +12,13 @@ import (
 
 // fakeNPM stands in for Nginx Proxy Manager's API: one user, one proxy host, and a record of changes.
 func fakeNPM(t *testing.T) (*httptest.Server, *[]string) {
+	return fakeNPMWith(t, httptest.NewServer)
+}
+
+func fakeNPMWith(t *testing.T, start func(http.Handler) *httptest.Server) (*httptest.Server, *[]string) {
 	var mu sync.Mutex
 	var changes []string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := start(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/tokens" {
 			var body struct{ Identity, Secret string }
 			_ = json.NewDecoder(r.Body).Decode(&body)
@@ -101,5 +105,56 @@ func TestNPM(t *testing.T) {
 	req, _ := http.NewRequest("GET", b.server.URL+"/api/npm/1/proxy-hosts", nil)
 	if res, _ := http.DefaultClient.Do(req); res.StatusCode != 401 {
 		t.Fatalf("signed out: %d", res.StatusCode)
+	}
+}
+
+// An NPM with a self-signed certificate is only linked by trusting that exact certificate.
+func TestNPMSelfSigned(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	srv, _ := fakeNPMWith(t, httptest.NewTLSServer)
+	link := map[string]string{"name": "Proxy", "url": srv.URL, "email": "robin@example.com", "password": "npm-password"}
+
+	status, answer := b.call(b.client, "POST", "/api/npm", link)
+	cert, _ := answer["certificate"].(map[string]any)
+	if status != 409 || cert == nil || len(cert["fingerprint"].(string)) != 95 {
+		t.Fatalf("an untrusted certificate: %d %v", status, answer)
+	}
+	wrong := "00:"
+	if strings.HasPrefix(cert["fingerprint"].(string), "00") {
+		wrong = "11:"
+	}
+	link["trustCertificate"] = wrong + cert["fingerprint"].(string)[3:]
+	if status, _ := b.call(b.client, "POST", "/api/npm", link); status != 400 {
+		t.Fatalf("a different certificate was trusted: %d", status)
+	}
+	link["trustCertificate"] = cert["fingerprint"].(string)
+	if status, answer := b.call(b.client, "POST", "/api/npm", link); status != 204 {
+		t.Fatalf("trusting the certificate: %d %v", status, answer)
+	}
+	req, _ := http.NewRequest("GET", b.server.URL+"/api/npm/1/proxy-hosts", nil)
+	res, err := b.client.Do(req)
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("using the trusted NPM: %v %v", res, err)
+	}
+}
+
+// When NPM can't be reached, it's said in words.
+func TestNPMUnreachableInWords(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	closed := httptest.NewServer(http.NotFoundHandler())
+	address := closed.URL
+	closed.Close()
+	plain := httptest.NewServer(http.NotFoundHandler())
+	defer plain.Close()
+	for _, c := range []struct{ url, want string }{
+		{address, "nothing answered there"},
+		{strings.Replace(plain.URL, "http://", "https://", 1), "use http://"},
+	} {
+		_, answer := b.call(b.client, "POST", "/api/npm", map[string]string{"url": c.url, "email": "robin@example.com", "password": "x"})
+		if msg, _ := answer["error"].(string); !strings.Contains(msg, c.want) {
+			t.Errorf("%s: %q, want it to say %q", c.url, msg, c.want)
+		}
 	}
 }

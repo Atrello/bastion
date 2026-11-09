@@ -90,7 +90,7 @@ passwords that NPM sends back are taken out before they reach the browser.
 | Method and path | What it does |
 |---|---|
 | `GET /npm` | Linked NPMs: `id`, `name`, `url`, `email` (never the password) |
-| `POST /npm` | `{"name", "url", "email", "password"}`: links one, signing in to check the details first |
+| `POST /npm` | `{"name", "url", "email", "password"}`: links one, signing in to check the details first. An https:// NPM with a self-signed certificate answers `409` with its `certificate` (`fingerprint`, `subject`, `expires`); sent again with `trustCertificate` set to that fingerprint, only that certificate is trusted from then on |
 | `DELETE /npm/{id}` | Unlinks one. Nothing in NPM changes |
 | `GET /npm/summary` | `{"hosts", "up", "problems"}`: proxy hosts checked and answering, and anything wrong (a host not answering, a certificate expiring within 14 days) |
 | `GET /npm/{id}/{kind}` | Everything of that kind. Proxy hosts carry `bastion_health`: `{"status", "ms", "error", "checkedAt"}` from the panel's last check |

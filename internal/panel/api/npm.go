@@ -59,7 +59,7 @@ func (api *API) npmClient(ctx context.Context, id int64) (*npm.Client, error) {
 		return c, nil
 	}
 	c := &npm.Client{}
-	err := api.db.QueryRowContext(ctx, `SELECT url, email, password FROM npm_instances WHERE id = ?`, id).Scan(&c.URL, &c.Email, &c.Password)
+	err := api.db.QueryRowContext(ctx, `SELECT url, email, password, cert_sha256 FROM npm_instances WHERE id = ?`, id).Scan(&c.URL, &c.Email, &c.Password, &c.PinnedCert)
 	if err != nil {
 		return nil, errors.New("no such NPM")
 	}
@@ -90,9 +90,14 @@ func (api *API) npmInstances(w http.ResponseWriter, r *http.Request, _ *auth.Use
 	writeJSON(w, list)
 }
 
-// addNPM links an NPM instance, signing in first to check the details work.
+// addNPM links an NPM instance, signing in first to check the details work. An https:// NPM whose
+// certificate isn't trusted the usual way (self-signed) answers 409 with the certificate's fingerprint; sent
+// again with trustCertificate set to that fingerprint, that one certificate is trusted from then on.
 func (api *API) addNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
-	var body struct{ Name, URL, Email, Password string }
+	var body struct {
+		Name, URL, Email, Password string
+		TrustCertificate           string `json:"trustCertificate"`
+	}
 	if !readJSON(w, r, &body) {
 		return
 	}
@@ -101,9 +106,21 @@ func (api *API) addNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	c := &npm.Client{URL: address, Email: strings.TrimSpace(body.Email), Password: body.Password}
+	pin := strings.ToUpper(strings.TrimSpace(body.TrustCertificate))
+	c := &npm.Client{URL: address, Email: strings.TrimSpace(body.Email), Password: body.Password, PinnedCert: pin}
 	var probe []json.RawMessage
 	if err := c.Call(r.Context(), http.MethodGet, npm.Kinds["proxy-hosts"], nil, &probe); err != nil {
+		if pin == "" && npm.IsUntrustedCert(err) {
+			if cert, cerr := npm.ReadCert(r.Context(), address); cerr == nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error":       "NPM's certificate isn't one Bastion can check (it's probably self-signed)",
+					"certificate": cert,
+				})
+				return
+			}
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -111,8 +128,8 @@ func (api *API) addNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	if name == "" || len(name) > 60 {
 		name = "Nginx Proxy Manager"
 	}
-	if _, err := api.db.ExecContext(r.Context(), `INSERT INTO npm_instances (name, url, email, password) VALUES (?, ?, ?, ?)`,
-		name, address, c.Email, c.Password); err != nil {
+	if _, err := api.db.ExecContext(r.Context(), `INSERT INTO npm_instances (name, url, email, password, cert_sha256) VALUES (?, ?, ?, ?, ?)`,
+		name, address, c.Email, c.Password, pin); err != nil {
 		api.fail(w, r, err)
 		return
 	}

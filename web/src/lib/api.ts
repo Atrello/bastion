@@ -31,6 +31,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** The whole answer, for the few that carry more than a message. */
+    readonly body: Record<string, any> = {},
   ) {
     super(message);
   }
@@ -53,12 +55,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (!res.ok) {
     const text = await res.text();
     let message = text || res.statusText;
+    let body = {};
     try {
-      message = JSON.parse(text).error ?? message;
+      body = JSON.parse(text);
+      message = (body as { error?: string }).error ?? message;
     } catch {
       // not JSON: use the text as it is
     }
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res.status, body);
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
@@ -179,7 +183,8 @@ export const api = {
   testChannel: (id: number) => request<void>('POST', `/alerts/channels/${id}/test`),
   npmInstances: () => request<NpmInstance[]>('GET', '/npm'),
   /** Links an NPM, signing in to it first to check the details. */
-  linkNpm: (npm: { name: string; url: string; email: string; password: string }) => request<void>('POST', '/npm', npm),
+  /** With trustCertificate, an NPM with a self-signed certificate is linked trusting that one certificate. */
+  linkNpm: (npm: { name: string; url: string; email: string; password: string; trustCertificate?: string }) => request<void>('POST', '/npm', npm),
   unlinkNpm: (id: number) => request<void>('DELETE', `/npm/${id}`),
   npmSummary: () => request<NpmSummary>('GET', '/npm/summary'),
   npmList: (id: number, kind: NpmKind) => request<NpmItem[]>('GET', `/npm/${id}/${kind}`),

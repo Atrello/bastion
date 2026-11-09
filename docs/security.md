@@ -52,6 +52,9 @@ try to break in. This is what it protects, from whom, and how.
   of the server's addresses, as players need. Your firewall or router decides who can reach them.
 - **An egg link is fetched by the panel.** Importing an egg from a link makes the panel download it (https
   only, up to 1 MB). Only the owner can do this.
+- **A self-signed NPM is trusted by its certificate.** When NPM's admin page has a certificate Bastion can't
+  check, linking it shows the certificate's fingerprint and asks. Trusted, that exact certificate is pinned:
+  any other is refused, so nobody can stand in for NPM unnoticed. Checks are never simply switched off.
 - **Proxy host checks don't check certificates.** They ask whether a site answers, not whether to trust
   it, so a self-signed certificate doesn't count as down. Expiry is watched separately.
 
