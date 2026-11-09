@@ -14,6 +14,7 @@ import (
 
 	"github.com/Atrello/bastion/internal/panel/api"
 	"github.com/Atrello/bastion/internal/panel/config"
+	"github.com/Atrello/bastion/internal/panel/install"
 	"github.com/Atrello/bastion/internal/panel/server"
 	"github.com/Atrello/bastion/internal/panel/store"
 	"github.com/Atrello/bastion/web"
@@ -48,7 +49,7 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	handler := server.New(panelAPI, web.Handler(), cfg.Secure(), log)
+	handler := server.New(panelAPI, install.Handler(cfg.AgentBinaries), web.Handler(), cfg.Secure(), log)
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           handler,

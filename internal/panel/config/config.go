@@ -24,14 +24,17 @@ type Config struct {
 	SessionIdle time.Duration
 	// Believe X-Forwarded-For from a reverse proxy in front of the panel (for sign-in limits and logs).
 	TrustProxy bool
+	// Where the agent's programs are, for new servers to download (the container image puts them in /agents).
+	AgentBinaries string
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		Addr:        env("BASTION_ADDR", ":8080"),
-		DataDir:     env("BASTION_DATA_DIR", "data"),
-		SessionIdle: 12 * time.Hour,
-		TrustProxy:  env("BASTION_TRUST_PROXY", "") == "true",
+		Addr:          env("BASTION_ADDR", ":8080"),
+		DataDir:       env("BASTION_DATA_DIR", "data"),
+		SessionIdle:   12 * time.Hour,
+		TrustProxy:    env("BASTION_TRUST_PROXY", "") == "true",
+		AgentBinaries: env("BASTION_AGENT_BINARIES", "bin"),
 	}
 	if v := env("BASTION_SESSION_IDLE", ""); v != "" {
 		d, err := time.ParseDuration(v)

@@ -24,6 +24,11 @@ Game servers' screens are built on demo data; they come after Nginx Proxy Manage
 What's planned is in [docs/roadmap.md](docs/roadmap.md), and how it's being built, step by step, in
 [docs/plan.md](docs/plan.md).
 
+## Installing
+
+[docs/install.md](docs/install.md): the panel in Docker behind your reverse proxy, then one command on each
+server.
+
 ## Trying it
 
 Requires Go and Node.js 22.

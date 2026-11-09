@@ -15,10 +15,12 @@ import (
 const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
 	"img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 
-// New puts the API under /api and the web app everywhere else.
-func New(api http.Handler, app http.Handler, secure bool, log *slog.Logger) http.Handler {
+// New puts the API under /api, the installer under /install.sh and /downloads, and the web app everywhere else.
+func New(api, installer, app http.Handler, secure bool, log *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", api)
+	mux.Handle("/install.sh", installer)
+	mux.Handle("/downloads/", installer)
 	mux.Handle("/", app)
 	return logRequests(log, securityHeaders(secure, mux))
 }

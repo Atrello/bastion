@@ -120,7 +120,8 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.1 step 8: volumes, images and clean-up | Done: tested for real (unused image and volume listed; image clean-up kept the volume; volumes only removed when ticked) |
 | 0.1 step 9: Git-backed stacks | Done: linking and the branch check tested against GitHub; file:// refused. Deploying from Git and ssh deploy keys are on the testing list (this sandbox has no ssh client and won't run outside code) |
 | 0.1 step 10: alerts | Done: a Go test sends a crash-looping container's alert to a stand-in ntfy once, then its "Resolved". Real ntfy, Discord and email are on the testing list |
-| 0.1 step 11: install | Next |
+| 0.1 step 11: install | Done: install.sh tested against a running panel (downloaded the agent, installed it, joined; only systemctl couldn't run in the sandbox). The Docker image build is on the testing list (this sandbox's proxy blocks Go downloads inside builds) |
+| 0.1 step 12: done when a fresh panel and two servers can be set up from the docs alone | On the testing list: needs real servers |
 
 ## Changes to the plan
 
