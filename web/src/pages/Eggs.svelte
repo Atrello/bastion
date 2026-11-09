@@ -2,6 +2,7 @@
      pasted JSON, or a link to one). An egg with a name already here replaces it only after asking. -->
 <script lang="ts">
   import Modal from '../components/Modal.svelte';
+  import { sure } from '../lib/ask.svelte';
   import { api, ApiError } from '../lib/api';
   import { load } from '../lib/load.svelte';
   import type { Egg } from '../lib/types';
@@ -34,7 +35,7 @@
       } catch (err) {
         // The same name as one already here: replace it only if they say so.
         if (!(err instanceof ApiError && err.status === 409)) throw err;
-        if (!confirm(`${err.message}. Replace it with this one? Its game servers use the new version from their next start.`)) return;
+        if (!(await sure('Replace the egg?', `${err.message}. Replace it with this one? Its game servers use the new version from their next start.`, 'Replace', false))) return;
         await api.importEgg({ ...egg, replace: true });
       }
       importing = false;
@@ -48,7 +49,7 @@
   }
 
   async function remove(egg: Egg) {
-    if (!confirm(`Delete the ${egg.name} egg?`)) return;
+    if (!(await sure(`Delete the ${egg.name} egg?`, 'Import it again to get it back.'))) return;
     try {
       await api.deleteEgg(egg.id);
       await eggs.reload();

@@ -181,7 +181,13 @@ type Error struct {
 	Message string
 }
 
-func (e *Error) Error() string { return e.Message }
+func (e *Error) Error() string {
+	if e.Status == http.StatusForbidden || strings.Contains(strings.ToLower(e.Message), "permission") {
+		return e.Message + ". The NPM user Bastion signs in as needs to be an administrator in NPM, or have Manage for " +
+			"proxy hosts, redirection hosts, streams, 404 hosts, access lists and certificates (NPM's Users page)"
+	}
+	return e.Message
+}
 
 func (c *Client) signIn(ctx context.Context) (string, error) {
 	c.mu.Lock()

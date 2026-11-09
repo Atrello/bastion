@@ -1,5 +1,6 @@
 <!-- A game's backups, kept on the server it runs on: make one, lock it, restore it, download or delete it. -->
 <script lang="ts">
+  import { ask, sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago, bytes } from '../lib/format';
   import { load } from '../lib/load.svelte';
@@ -25,18 +26,18 @@
     await backups.reload();
   }
 
-  function restore(b: GameBackup) {
+  async function restore(b: GameBackup) {
     if (game.state === 'running' || game.state === 'stopping') {
       onerror('Stop it before restoring a backup.');
       return;
     }
-    if (confirm(`Restore "${b.name}"? Everything in the game's files now is replaced by the backup's.`)) {
+    if (await sure(`Restore "${b.name}"?`, "Everything in the game's files now is replaced by the backup's.", 'Restore', true)) {
       void attempt(() => api.restoreGameBackup(game.id, b.id), 'Restored. Start it when ready.');
     }
   }
 
-  function make() {
-    const name = prompt('Name it (optional)', '');
+  async function make() {
+    const name = await ask({ title: 'Back up now', input: { label: 'Name it (optional)', placeholder: 'e.g. Before the update' }, confirm: 'Back up' });
     if (name !== null) void attempt(() => api.createGameBackup(game.id, name.trim()), 'Backing up: it shows here when done.');
   }
 </script>
@@ -65,7 +66,7 @@
               <button onclick={() => attempt(() => api.lockGameBackup(game.id, b.id, !b.locked))}>{b.locked ? 'Unlock' : 'Lock'}</button>
             {/if}
             {#if !b.locked && b.state !== 'making'}
-              <button class="danger" onclick={() => confirm(`Delete "${b.name}"?`) && attempt(() => api.deleteGameBackup(game.id, b.id))}>Delete</button>
+              <button class="danger" onclick={async () => (await sure(`Delete "${b.name}"?`, "The backup's file is deleted from the server.")) && attempt(() => api.deleteGameBackup(game.id, b.id))}>Delete</button>
             {/if}
           </td>
         </tr>

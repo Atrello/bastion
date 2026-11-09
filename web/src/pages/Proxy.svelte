@@ -5,6 +5,7 @@
   import ProxyForm from '../components/ProxyForm.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import Tabs from '../components/Tabs.svelte';
+  import { sure } from '../lib/ask.svelte';
   import { api, ApiError } from '../lib/api';
   import { ago } from '../lib/format';
   import { load } from '../lib/load.svelte';
@@ -79,7 +80,7 @@
     }
   }
   async function remove(item: NpmItem) {
-    if (!confirm(`Delete ${describe(item)} from NPM?`)) return;
+    if (!(await sure(`Delete ${describe(item)}?`, "It's deleted from Nginx Proxy Manager."))) return;
     try {
       await api.npmDelete(npmId, kind, item.id);
       await reload();
@@ -129,7 +130,7 @@
     }
   }
   async function unlink(id: number) {
-    if (!confirm('Unlink this NPM? Nothing in NPM changes; Bastion just stops managing it.')) return;
+    if (!(await sure('Unlink this NPM?', 'Nothing in NPM changes; Bastion just stops managing it.', 'Unlink'))) return;
     await api.unlinkNpm(id);
     if (npmId === id) npmId = 0;
     await instances.reload();

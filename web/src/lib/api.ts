@@ -38,6 +38,17 @@ export class ApiError extends Error {
   }
 }
 
+// The panel's build when this page loaded. A different one later means the panel was updated while the
+// page was open: App.svelte offers to reload, as this page may not understand the new panel.
+let loadedBuild: string | null = null;
+
+function noticeBuild(res: Response) {
+  const build = res.headers.get('X-Bastion-Build');
+  if (!build) return;
+  if (loadedBuild === null) loadedBuild = build;
+  else if (build !== loadedBuild) dispatchEvent(new Event('bastion:updated'));
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   if (DEMO) {
     const { demo } = await import('./demo');
@@ -48,6 +59,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  noticeBuild(res);
   if (res.status === 401 && !path.startsWith('/auth/') && path !== '/setup') {
     // The session has ended: the app goes back to the sign-in page.
     dispatchEvent(new Event('bastion:signed-out'));

@@ -97,6 +97,13 @@ button.primary:hover:not(:disabled) {
 button.danger {
   color: var(--red);
 }
+/* The button that confirms something that can't be undone. */
+button.danger.solid {
+  background: var(--red);
+  border-color: var(--red);
+  color: var(--on-accent);
+  font-weight: 600;
+}
 
 input,
 textarea,

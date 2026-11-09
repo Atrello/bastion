@@ -49,7 +49,12 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	handler := server.New(panelAPI, install.Handler(cfg.AgentBinaries), web.Handler(), cfg.Secure(), log)
+	build := web.Build()
+	withBuild := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Bastion-Build", build)
+		panelAPI.ServeHTTP(w, r)
+	})
+	handler := server.New(withBuild, install.Handler(cfg.AgentBinaries), web.Handler(), cfg.Secure(), log)
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           handler,

@@ -179,7 +179,7 @@ func (api *API) npmTarget(w http.ResponseWriter, r *http.Request) (*npm.Client, 
 func (api *API) npmFail(w http.ResponseWriter, err error) {
 	var npmErr *npm.Error
 	if errors.As(err, &npmErr) {
-		writeError(w, http.StatusBadRequest, "NPM: "+npmErr.Message)
+		writeError(w, http.StatusBadRequest, "NPM: "+npmErr.Error())
 		return
 	}
 	writeError(w, http.StatusBadGateway, err.Error())

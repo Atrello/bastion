@@ -3,7 +3,9 @@
 package web
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"io/fs"
 	"net/http"
 	"path"
@@ -12,6 +14,15 @@ import (
 
 //go:embed all:dist
 var dist embed.FS
+
+// Build identifies this build of the web app: it changes whenever the app does (index.html names the
+// app's files by their contents). The API sends it with every answer, so an open page can tell when the
+// panel has been updated and offer to reload.
+func Build() string {
+	index, _ := dist.ReadFile("dist/index.html")
+	sum := sha256.Sum256(index)
+	return hex.EncodeToString(sum[:6])
+}
 
 // Handler serves the web app. Any address that isn't a file gets index.html, so pages like
 // /stacks/3/immich work when opened directly (the app's router takes it from there).

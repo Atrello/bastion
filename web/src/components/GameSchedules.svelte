@@ -2,6 +2,7 @@
      times written as cron: minute, hour, day of the month, month, day of the week. -->
 <script lang="ts">
   import Modal from './Modal.svelte';
+  import { sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago } from '../lib/format';
   import { load } from '../lib/load.svelte';
@@ -65,7 +66,7 @@
           <td class="buttons">
             <button onclick={() => attempt(() => api.runSchedule(id, s.id), 'Done.')}>Run now</button>
             <button onclick={() => (editing = { id: s.id, name: s.name, when: s.when, action: s.action, payload: s.payload, enabled: s.enabled })}>Edit</button>
-            <button class="danger" onclick={() => confirm(`Delete ${s.name}?`) && attempt(() => api.deleteSchedule(id, s.id))}>Delete</button>
+            <button class="danger" onclick={async () => (await sure(`Delete ${s.name}?`, 'It stops running.')) && attempt(() => api.deleteSchedule(id, s.id))}>Delete</button>
           </td>
         </tr>
       {:else}

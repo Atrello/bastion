@@ -1,6 +1,7 @@
 <!-- A game's settings. Everyone it's shared with can change its startup variables (the ones its egg lets
      players change); the owner also sets its limits, ports and image, shares it, reinstalls and deletes it. -->
 <script lang="ts">
+  import { ask, sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { load } from '../lib/load.svelte';
   import { navigate } from '../lib/router.svelte';
@@ -140,11 +141,15 @@
     <h2>Reinstall or delete</h2>
     <div class="row">
       <span class="grow muted small">Reinstalling runs its egg's installer again over its files (worlds are usually kept). Deleting removes its files and backups.</span>
-      <button onclick={() => confirm('Reinstall? Stop it first.') && attempt(() => api.reinstallGame(game.id), 'Reinstalling: the console shows how it goes.').then(onchanged)}>Reinstall</button>
+      <button
+        onclick={async () =>
+          (await sure('Reinstall ' + game.name + '?', "Its egg's installer runs again over its files. Stop it first. Worlds are usually kept, but back up first if unsure.", 'Reinstall', false)) &&
+          attempt(() => api.reinstallGame(game.id), 'Reinstalling: the console shows how it goes.').then(onchanged)}>Reinstall</button
+      >
       <button
         class="danger"
-        onclick={() =>
-          prompt(`This deletes ${game.name}, its files and its backups. Type its name to go ahead.`) === game.name &&
+        onclick={async () =>
+          (await ask({ title: `Delete ${game.name}?`, message: 'This deletes it, its files and its backups. It can\'t be undone.', input: { label: 'Type its name to go ahead', mustMatch: game.name }, confirm: 'Delete it', danger: true })) !== null &&
           attempt(() => api.deleteGame(game.id)).then((ok) => ok && navigate('/games'))}>Delete</button
       >
     </div>

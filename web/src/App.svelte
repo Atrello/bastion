@@ -1,6 +1,7 @@
 <!-- The panel's frame: setup or sign-in until someone's signed in, then the menu and the page for the
      current address. -->
 <script lang="ts">
+  import Ask from './components/Ask.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import { api, type AuthState } from './lib/api';
   import Account from './pages/Account.svelte';
@@ -36,6 +37,8 @@
   }
   void checkAuth();
   addEventListener('bastion:signed-out', () => void checkAuth());
+  let updated = $state(false);
+  addEventListener('bastion:updated', () => (updated = true));
 
   async function signOut() {
     await api.signOut();
@@ -49,6 +52,15 @@
 </script>
 
 <svelte:document onclick={followLink} />
+
+<Ask />
+
+{#if updated}
+  <div class="updated" role="status">
+    Bastion has been updated. Reload to use the new version.
+    <button class="primary" onclick={() => location.reload()}>Reload</button>
+  </div>
+{/if}
 
 {#if !auth}
   <!-- Checking whether anyone's signed in: a moment, so nothing is shown. -->
@@ -105,6 +117,20 @@
 {/if}
 
 <style>
+  .updated {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px 10px 16px;
+    background: var(--raised);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 30px rgb(0 0 0 / 40%);
+  }
   .frame {
     display: flex;
     min-height: 100vh;
