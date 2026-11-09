@@ -5,7 +5,9 @@ go 1.26.0
 toolchain go1.27.3
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/go-webauthn/webauthn v0.18.2
+	github.com/gorilla/websocket v1.5.3
 	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.58.1-0.20261009181718-2f1f834330b2
 	modernc.org/sqlite v1.62.0

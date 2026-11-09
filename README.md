@@ -17,7 +17,7 @@ Early. The panel's screens are built and run on demo data; the panel's server an
 |---|---|
 | Panel web app (`web`) | Built: overview and servers; Docker (stacks, a stack's compose file, `.env`, containers, logs and history; containers); game servers (each one's console, files, startup settings, schedules and backups; the egg library) |
 | Panel server (`cmd/bastion`, `internal/panel`) | Started: one Go binary with the web app built in, SQLite, sign-in with two-factor required and passkeys. Servers and stacks next |
-| Agent | Next: Go, one binary per server |
+| Agent (`cmd/bastion-agent`, `internal/agent`) | Written: joins with a one-time token, connects out, pushes what Docker is running as it changes, does stack and container actions, live logs and terminals. Being wired to the panel next |
 
 What's planned is in [docs/roadmap.md](docs/roadmap.md), and how it's being built, step by step, in
 [docs/plan.md](docs/plan.md).
