@@ -142,7 +142,7 @@ with them, and gets `404` for the rest. Friends can use everything below except 
 
 | Method and path | What it does |
 |---|---|
-| `GET /games` | The game servers the viewer can see, with state (`running`, `stopping`, `stopped`, `crashed`, `installing`, `install-failed`, `offline`), use and limits |
+| `GET /games` | The game servers the viewer can see, with state (`starting` until its console shows its egg's "done" line, `running`, `stopping`, `stopped`, `crashed`, `installing`, `install-failed`, `offline`), use and limits |
 | `POST /games` | Owner. `{"name", "eggId", "serverId", "image", "memoryMb", "cpuPercent", "diskMb", "ports", "warnCommand"}`. Ports are 1024 to 65535 and can't be another game's on the same server. The egg's installer starts straight away |
 | `GET /games/{id}` | One game server |
 | `PUT /games/{id}` | Owner. Its name, image, limits, ports and warning command. They apply from its next start |
@@ -159,6 +159,8 @@ with them, and gets `404` for the rest. Friends can use everything below except 
 | `POST /games/{id}/files/rename` | `{"from", "to"}`; a path into another folder moves it |
 | `DELETE /games/{id}/files?path=` | A file, or a folder and everything in it |
 | `POST /games/{id}/files/upload?path=` | The file as the body (not JSON), up to 1 GB |
+| `POST /games/{id}/files/archive` | `{"path", "paths", "to"}`: packs files and folders in `path` into the `.tar.gz` at `to` |
+| `POST /games/{id}/files/unarchive` | `{"path"}`: unpacks a `.zip`, `.tar.gz`, `.tgz` or `.tar` into its folder (files and folders only; up to 50 GB and 200,000 files) |
 | `GET /games/{id}/files/download?path=` | The file, as a download |
 | `GET` / `POST /games/{id}/backups` | Its backups; or starts one (`{"name"}`, optional), which shows as `making` until it's `done` or `failed` |
 | `PUT /games/{id}/backups/{backup}` | `{"locked"}`: a locked backup can't be deleted |

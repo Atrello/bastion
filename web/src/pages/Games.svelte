@@ -35,7 +35,7 @@
       </div>
       <p class="muted small">{g.egg} · {g.serverName}</p>
       <p class="mono address">{g.address}</p>
-      {#if g.state === 'running'}
+      {#if g.state === 'running' || g.state === 'starting'}
         <Meter label="Memory" value="{bytes(g.memUsed)} / {bytes(g.memLimit)}" percent={percent(g.memUsed, g.memLimit)} />
         <p class="muted small">CPU {Math.round(g.cpuPercent)}% · up {duration(g.uptimeSecs)}</p>
       {:else}

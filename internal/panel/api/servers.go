@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"regexp"
@@ -73,6 +74,9 @@ type serverView struct {
 	Hostname     string            `json:"hostname"`
 	Address      string            `json:"address"`
 	OS           string            `json:"os"`
+	Arch         string            `json:"arch"`
+	CPUs         int               `json:"cpus"`
+	Docker       string            `json:"docker"`
 	AgentVersion string            `json:"agentVersion"`
 	Online       bool              `json:"online"`
 	Joined       bool              `json:"joined"`
@@ -80,6 +84,7 @@ type serverView struct {
 	Metrics      *protocol.Metrics `json:"metrics"`
 	Stacks       int               `json:"stacks"`
 	Containers   int               `json:"containers"`
+	Games        int               `json:"games"`
 }
 
 func (api *API) servers(w http.ResponseWriter, r *http.Request, _ *auth.User) {
@@ -92,10 +97,14 @@ func (api *API) servers(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 	for _, s := range list {
 		live := api.hub.Live(s.ID)
 		v := serverView{ID: s.ID, Name: s.Name, Hostname: s.Hostname, OS: s.OS, AgentVersion: s.AgentVersion,
-			Online: live.Online, Joined: s.Joined, Metrics: live.Metrics}
-		if live.Hello != nil && net.ParseIP(live.Hello.Address) != nil {
-			v.Address = live.Hello.Address
+			Docker: s.DockerVersion, Online: live.Online, Joined: s.Joined, Metrics: live.Metrics}
+		if live.Hello != nil {
+			v.Arch, v.CPUs = live.Hello.Arch, live.Hello.CPUs
+			if net.ParseIP(live.Hello.Address) != nil {
+				v.Address = live.Hello.Address
+			}
 		}
+		_ = api.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM games WHERE server_id = ?`, s.ID).Scan(&v.Games)
 		if s.LastSeen.Valid {
 			v.LastSeen = &s.LastSeen.String
 		}
@@ -195,11 +204,20 @@ func (api *API) checkUpdates(w http.ResponseWriter, r *http.Request, _ *auth.Use
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) deleteServer(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+// deleteServer forgets a server and disconnects its agent. What it runs keeps running; its game servers
+// have to be deleted first, as removing the server would leave them running with nothing managing them.
+func (api *API) deleteServer(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	id, ok := pathID(w, r)
 	if !ok {
 		return
 	}
+	var games int
+	_ = api.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM games WHERE server_id = ?`, id).Scan(&games)
+	if games > 0 {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("it has %d game servers: delete them first (Game servers), so they don't keep running unmanaged", games))
+		return
+	}
+	api.log.Info("server removed", "user", u.Username, "server", id)
 	if err := api.hub.DeleteServer(r.Context(), id); err != nil {
 		api.agentFail(w, r, err)
 		return

@@ -147,6 +147,33 @@ func (e *Egg) HasImage(image string) bool {
 	return false
 }
 
+// DoneText is what the game writes to its console once it has started, from the egg's startup config
+// ({"done": ")! For help, type "} or a list of them). Empty when the egg doesn't say.
+func (e *Egg) DoneText() []string {
+	var cfg struct {
+		Done json.RawMessage `json:"done"`
+	}
+	if json.Unmarshal([]byte(e.Config.Startup), &cfg) != nil || len(cfg.Done) == 0 {
+		return nil
+	}
+	var one string
+	if json.Unmarshal(cfg.Done, &one) == nil {
+		if one == "" {
+			return nil
+		}
+		return []string{one}
+	}
+	var many []string
+	_ = json.Unmarshal(cfg.Done, &many)
+	out := many[:0]
+	for _, d := range many {
+		if d != "" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
 // ConfigFile is a config file the egg fills in before the game starts: in it, each key is set to its value.
 type ConfigFile struct {
 	File   string            `json:"file"`

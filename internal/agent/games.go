@@ -112,12 +112,13 @@ type gameTracker struct {
 	installing map[int64]bool
 	failed     map[int64]bool
 	stopped    map[int64]bool
+	starting   map[int64]bool // started, but its console hasn't yet said it's ready
 	consoles   map[int64]*gameConsole
 	disk       map[int64]uint64
 }
 
 var games = &gameTracker{
-	installing: map[int64]bool{}, failed: map[int64]bool{}, stopped: map[int64]bool{},
+	installing: map[int64]bool{}, failed: map[int64]bool{}, stopped: map[int64]bool{}, starting: map[int64]bool{},
 	consoles: map[int64]*gameConsole{}, disk: map[int64]uint64{},
 }
 
@@ -223,6 +224,7 @@ func startGame(ctx context.Context, s protocol.GameSpec) error {
 		return fmt.Errorf("filling in its config files: %w", err)
 	}
 	_, _ = docker(ctx, "", "rm", "-f", gameContainer(s.ID))
+	startedAt := time.Now().Add(-2 * time.Second)
 	memory := strconv.Itoa(s.MemoryMB) + "m"
 	args := []string{"run", "-d", "-i", "--name", gameContainer(s.ID), "--label", "bastion.game=" + strconv.FormatInt(s.ID, 10),
 		"--user", fmt.Sprintf("%d:%d", gameUID, gameGID), "--workdir", "/home/container",
@@ -253,8 +255,44 @@ func startGame(ctx context.Context, s protocol.GameSpec) error {
 		c.close() // the old container's console
 		delete(games.consoles, s.ID)
 	}
+	if len(s.DoneText) > 0 {
+		games.starting[s.ID] = true
+		go watchStarted(s.ID, s.DoneText, startedAt)
+	}
 	games.mu.Unlock()
 	return nil
+}
+
+// watchStarted follows a game's console after it starts until it says it's ready (its egg's "done" text),
+// so it shows as starting until then. It gives up if the game stops, or after half an hour.
+func watchStarted(id int64, done []string, since time.Time) {
+	defer func() {
+		games.mu.Lock()
+		delete(games.starting, id)
+		games.mu.Unlock()
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	// From when it was started, so a game quicker than this watch isn't missed.
+	cmd := exec.CommandContext(ctx, "docker", "logs", "--follow", "--since", since.UTC().Format(time.RFC3339), gameContainer(id))
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return
+	}
+	cmd.Stderr = cmd.Stdout
+	if cmd.Start() != nil {
+		return
+	}
+	defer func() { cancel(); _ = cmd.Wait() }()
+	sc := bufio.NewScanner(out)
+	sc.Buffer(make([]byte, 64<<10), 1<<20)
+	for sc.Scan() {
+		for _, d := range done {
+			if strings.Contains(sc.Text(), d) {
+				return
+			}
+		}
+	}
 }
 
 func gameRunning(ctx context.Context, id int64) (bool, error) {
@@ -426,6 +464,11 @@ func gameStatuses(ctx context.Context) []protocol.GameStatus {
 			switch {
 			case f[1] == "true":
 				g.State, g.StartedAt = "running", f[3]
+				games.mu.Lock()
+				if games.starting[id] {
+					g.State = "starting"
+				}
+				games.mu.Unlock()
 				running = append(running, gameContainer(id))
 			case f[2] != "0" && !stopped:
 				g.State = "crashed"

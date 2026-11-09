@@ -27,7 +27,7 @@
   }
 
   async function restore(b: GameBackup) {
-    if (game.state === 'running' || game.state === 'stopping') {
+    if (game.state === 'running' || game.state === 'starting' || game.state === 'stopping') {
       onerror('Stop it before restoring a backup.');
       return;
     }

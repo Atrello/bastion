@@ -250,6 +250,8 @@ type GameSpec struct {
 	Image    string `json:"image"`
 	Startup  string `json:"startup"` // the startup command, its {{VARIABLES}} already filled in
 	StopWith string `json:"stopWith"`
+	// What its console says once it has started; until then its state is "starting".
+	DoneText []string `json:"doneText,omitempty"`
 	// Its egg's variables and their values, as environment variables.
 	Env        map[string]string `json:"env"`
 	MemoryMB   int               `json:"memoryMb"`
@@ -274,7 +276,7 @@ type ConfigFile struct {
 // GameStatus is a game server as its agent sees it, sent with the metrics every 10 seconds.
 type GameStatus struct {
 	ID         int64   `json:"id"`
-	State      string  `json:"state"` // running, stopped, crashed, installing, or install-failed
+	State      string  `json:"state"` // starting, running, stopped, crashed, installing, or install-failed
 	CPUPercent float64 `json:"cpuPercent"`
 	MemUsed    uint64  `json:"memUsed"`
 	DiskUsed   uint64  `json:"diskUsed"`
@@ -290,12 +292,14 @@ type GamePowerArgs struct {
 }
 
 type GameFileArgs struct {
-	ID     int64  `json:"id"`
-	Op     string `json:"op"`   // list, read, write, append, download, mkdir, rename, delete
-	Path   string `json:"path"` // inside the game's folder, like "world/level.dat"
-	To     string `json:"to,omitempty"`
-	Data   []byte `json:"data,omitempty"` // write and append: the contents (base64 in JSON)
-	Offset int64  `json:"offset,omitempty"`
+	ID   int64  `json:"id"`
+	Op   string `json:"op"`   // list, read, write, append, download, mkdir, rename, delete, archive, unarchive
+	Path string `json:"path"` // inside the game's folder, like "world/level.dat"
+	To   string `json:"to,omitempty"`
+	// archive: what goes in it (files and folders in Path's folder); To is the archive's path.
+	Paths  []string `json:"paths,omitempty"`
+	Data   []byte   `json:"data,omitempty"` // write and append: the contents (base64 in JSON)
+	Offset int64    `json:"offset,omitempty"`
 }
 
 type GameFile struct {

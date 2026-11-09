@@ -47,7 +47,9 @@ The server needs Docker with its compose plugin (and `git`, for Git-backed stack
 The server shows as online a few seconds later, with its stacks: everything Docker Compose already runs is
 found as it is, and new stacks go in `/opt/stacks/<name>`.
 
-To join a server again (a reinstall), use **New join command** on it in the panel and run that.
+To join a server again (a reinstall), open it from **Servers**, use **New join command**, and run that. Its
+agent keeps working until the new command is run. **Remove** on the same page forgets a server (delete its
+game servers first); what it runs keeps running.
 
 Game servers' files are kept in `/var/lib/bastion/games` and their backups in `/var/lib/bastion/backups`,
 on the server each runs on. Players reach a game on its ports, which your firewall or router needs to let

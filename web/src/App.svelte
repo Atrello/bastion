@@ -17,6 +17,7 @@
   import Games from './pages/Games.svelte';
   import Overview from './pages/Overview.svelte';
   import Proxy from './pages/Proxy.svelte';
+  import Server from './pages/Server.svelte';
   import type { NpmKind } from './lib/types';
   import Servers from './pages/Servers.svelte';
   import Stack from './pages/Stack.svelte';
@@ -47,6 +48,7 @@
 
   const stack = $derived(match('/stacks/:server/:name'));
   const game = $derived(match('/games/:id'));
+  const serverPage = $derived(match('/servers/:id'));
   const proxy = $derived(route.path === '/proxy' ? { kind: 'proxy-hosts' } : match('/proxy/:kind'));
   const NPM_KINDS = ['proxy-hosts', 'redirection-hosts', 'streams', 'dead-hosts', 'access-lists', 'certificates'];
 </script>
@@ -87,6 +89,8 @@
       <Overview />
     {:else if route.path === '/servers'}
       <Servers />
+    {:else if serverPage}
+      {#key route.path}<Server id={Number(serverPage.id)} />{/key}
     {:else if route.path === '/alerts'}
       <Alerts />
     {:else if route.path === '/stacks'}

@@ -29,6 +29,8 @@ func (api *API) gameFileRoutes() {
 	m.Handle("POST /api/games/{id}/files/rename", api.gameUser(api.renameGameFile))
 	m.Handle("DELETE /api/games/{id}/files", api.gameUser(api.deleteGameFile))
 	m.Handle("POST /api/games/{id}/files/upload", api.gameUser(api.uploadGameFile))
+	m.Handle("POST /api/games/{id}/files/archive", api.gameUser(api.archiveGameFiles))
+	m.Handle("POST /api/games/{id}/files/unarchive", api.gameUser(api.unarchiveGameFile))
 	m.Handle("GET /api/games/{id}/files/download", api.gameUser(api.downloadGameFile))
 	m.Handle("GET /api/games/{id}/backups", api.gameUser(api.listBackups))
 	m.Handle("POST /api/games/{id}/backups", api.gameUser(api.makeBackupNow))
@@ -132,6 +134,46 @@ func (api *API) deleteGameFile(w http.ResponseWriter, r *http.Request, u *auth.U
 		return
 	}
 	api.log.Info("game file deleted", "user", u.Username, "game", g.ID, "path", p)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// archiveGameFiles packs files and folders from one folder into a .tar.gz there.
+func (api *API) archiveGameFiles(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
+	var body struct {
+		Path  string   `json:"path"`
+		Paths []string `json:"paths"`
+		To    string   `json:"to"`
+	}
+	if !readJSON(w, r, &body) {
+		return
+	}
+	if over := api.overDisk(g); over != "" {
+		writeError(w, http.StatusBadRequest, over)
+		return
+	}
+	if _, err := api.files(r.Context(), g, protocol.GameFileArgs{Op: "archive", Path: body.Path, Paths: body.Paths, To: body.To}); err != nil {
+		api.agentFail(w, r, err)
+		return
+	}
+	api.log.Info("game files archived", "user", u.Username, "game", g.ID, "to", body.To)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// unarchiveGameFile unpacks a .zip, .tar.gz or .tar into the folder it's in.
+func (api *API) unarchiveGameFile(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
+	var body struct{ Path string }
+	if !readJSON(w, r, &body) {
+		return
+	}
+	if over := api.overDisk(g); over != "" {
+		writeError(w, http.StatusBadRequest, over)
+		return
+	}
+	if _, err := api.files(r.Context(), g, protocol.GameFileArgs{Op: "unarchive", Path: body.Path}); err != nil {
+		api.agentFail(w, r, err)
+		return
+	}
+	api.log.Info("game file unarchived", "user", u.Username, "game", g.ID, "path", body.Path)
 	w.WriteHeader(http.StatusNoContent)
 }
 

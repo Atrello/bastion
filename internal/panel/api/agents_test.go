@@ -99,3 +99,27 @@ func TestAgentsJoinAndAnswer(t *testing.T) {
 		t.Fatalf("stacks were visible without signing in: %d", res.StatusCode)
 	}
 }
+
+// A new join command doesn't cut off the agent a server has now; using it replaces that agent.
+func TestNewJoinCommandKeepsTheAgentUntilUsed(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	id, secret := b.joinAgent()
+	status, answer := b.call(b.client, "POST", "/api/servers/1/join-command", nil)
+	if status != 200 {
+		t.Fatalf("join command: %d", status)
+	}
+	if ws, code := b.dialAgent(id+"."+secret, nil); code != 101 {
+		t.Fatalf("the old agent was cut off by a new join command: %d", code)
+	} else {
+		ws.Close()
+	}
+	command := answer["joinCommand"].(string)
+	token := command[strings.LastIndex(command, " ")+1:]
+	if status, _ := b.call(b.newClient(), "POST", "/api/agent/enrol", map[string]string{"token": token, "hostname": "atlas"}); status != 200 {
+		t.Fatalf("enrol with the new command: %d", status)
+	}
+	if _, code := b.dialAgent(id+"."+secret, nil); code != 401 {
+		t.Fatalf("the replaced agent still connects: %d", code)
+	}
+}

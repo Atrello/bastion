@@ -20,7 +20,7 @@
   // Only a change of state reopens the console, not each fresh copy of the game the page loads.
   const gameState = $derived(game.state);
   const id = $derived(game.id);
-  const running = $derived(gameState === 'running' || gameState === 'stopping');
+  const running = $derived(gameState === 'running' || gameState === 'starting' || gameState === 'stopping');
   const installing = $derived(gameState === 'installing');
 
   function add(text: string) {

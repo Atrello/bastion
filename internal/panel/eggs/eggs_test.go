@@ -19,6 +19,9 @@ func TestPaper(t *testing.T) {
 	if e.Name != "Paper" || len(e.Images) < 2 || e.Images[0].Ref != "ghcr.io/pterodactyl/yolks:java_25" || e.Config.Stop != "stop" {
 		t.Fatalf("read as %+v", e)
 	}
+	if done := e.DoneText(); len(done) != 1 || done[0] != ")! For help, type " {
+		t.Errorf("done text: %q", done)
+	}
 	files, err := e.ConfigFiles()
 	if err != nil || len(files) != 1 || files[0].Parser != "properties" {
 		t.Fatalf("config files: %+v %v", files, err)

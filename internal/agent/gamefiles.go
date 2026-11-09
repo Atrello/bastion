@@ -5,6 +5,7 @@ package agent
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"compress/gzip"
 	"context"
 	"errors"
@@ -152,8 +153,199 @@ func gameFiles(a protocol.GameFileArgs) (*protocol.GameFileResult, error) {
 			return nil, errors.New("the game's folder itself can't be deleted")
 		}
 		return &protocol.GameFileResult{}, root.RemoveAll(p)
+	case "archive":
+		if len(a.Paths) == 0 || len(a.Paths) > 1000 {
+			return nil, errors.New("pick what goes in the archive")
+		}
+		to := insidePath(a.To)
+		if to == "." || !strings.HasSuffix(to, ".tar.gz") {
+			return nil, errors.New("the archive's name ends .tar.gz")
+		}
+		return &protocol.GameFileResult{}, archive(root, p, a.Paths, to)
+	case "unarchive":
+		return &protocol.GameFileResult{}, unarchive(root, p)
 	}
 	return nil, errors.New("unknown file operation " + a.Op)
+}
+
+// archive packs files and folders from one folder into a .tar.gz beside them, named inside it as they
+// are in that folder. Only plain files and folders go in.
+func archive(root *os.Root, dir string, names []string, to string) error {
+	out, err := root.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return errors.New("there's already a file with that name")
+		}
+		return err
+	}
+	gz := gzip.NewWriter(out)
+	tw := tar.NewWriter(gz)
+	err = func() error {
+		for _, name := range names {
+			start := insidePath(path.Join(dir, path.Base("/"+name)))
+			if start == "." || start == to {
+				continue
+			}
+			err := fs.WalkDir(root.FS(), start, func(p string, d fs.DirEntry, err error) error {
+				if err != nil || !(d.IsDir() || d.Type().IsRegular()) || p == to {
+					return err
+				}
+				info, err := d.Info()
+				if err != nil {
+					return err
+				}
+				hdr, err := tar.FileInfoHeader(info, "")
+				if err != nil {
+					return err
+				}
+				rel := strings.TrimPrefix(strings.TrimPrefix(p, dir), "/")
+				if dir == "." {
+					rel = p
+				}
+				hdr.Name, hdr.Uid, hdr.Gid, hdr.Uname, hdr.Gname = rel, 0, 0, "", ""
+				if d.IsDir() {
+					hdr.Name += "/"
+				}
+				if err := tw.WriteHeader(hdr); err != nil || d.IsDir() {
+					return err
+				}
+				f, err := root.Open(p)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+				_, err = io.CopyN(tw, f, info.Size())
+				return err
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}()
+	for _, c := range []io.Closer{tw, gz, out} {
+		if cerr := c.Close(); err == nil {
+			err = cerr
+		}
+	}
+	if err != nil {
+		_ = root.Remove(to)
+		return fmt.Errorf("the archive couldn't be made: %w", err)
+	}
+	_ = root.Lchown(to, gameUID, gameGID)
+	return nil
+}
+
+// Unpacking stops past these, so an archive can't fill the disk (a "zip bomb").
+const (
+	maxUnpacked      = 50 << 30
+	maxUnpackedFiles = 200_000
+)
+
+// unarchive unpacks a .zip, .tar.gz (.tgz) or .tar into the folder it's in. Files and folders only, and
+// every name stays inside the game's folder.
+func unarchive(root *os.Root, archivePath string) error {
+	dest := path.Dir(archivePath)
+	var total int64
+	var count int
+	write := func(name string, dir bool, r io.Reader) error {
+		count++
+		if count > maxUnpackedFiles {
+			return errors.New("it has too many files")
+		}
+		p := insidePath(path.Join(dest, insidePath(name)))
+		if p == "." {
+			return nil
+		}
+		if dir {
+			if err := root.MkdirAll(p, 0o755); err != nil {
+				return err
+			}
+			_ = root.Lchown(p, gameUID, gameGID)
+			return nil
+		}
+		if parent := path.Dir(p); parent != "." {
+			if err := root.MkdirAll(parent, 0o755); err != nil {
+				return err
+			}
+			_ = root.Lchown(parent, gameUID, gameGID)
+		}
+		f, err := root.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+		if err != nil {
+			return err
+		}
+		n, err := io.Copy(f, io.LimitReader(r, maxUnpacked-total+1))
+		total += n
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		if err == nil && total > maxUnpacked {
+			err = errors.New("it unpacks to more than 50 GB")
+		}
+		_ = root.Lchown(p, gameUID, gameGID)
+		return err
+	}
+
+	f, err := root.Open(archivePath)
+	if err != nil {
+		return errors.New("that isn't a file")
+	}
+	defer f.Close()
+	lower := strings.ToLower(archivePath)
+	switch {
+	case strings.HasSuffix(lower, ".zip"):
+		info, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		zr, err := zip.NewReader(f, info.Size())
+		if err != nil {
+			return errors.New("that zip can't be read")
+		}
+		for _, zf := range zr.File {
+			mode := zf.Mode()
+			if !mode.IsDir() && !mode.IsRegular() {
+				continue // links aren't unpacked
+			}
+			rc, err := zf.Open()
+			if err != nil {
+				return err
+			}
+			err = write(zf.Name, mode.IsDir(), rc)
+			rc.Close()
+			if err != nil {
+				return fmt.Errorf("unpacking %s: %w", zf.Name, err)
+			}
+		}
+		return nil
+	case strings.HasSuffix(lower, ".tar.gz"), strings.HasSuffix(lower, ".tgz"), strings.HasSuffix(lower, ".tar"):
+		var r io.Reader = f
+		if !strings.HasSuffix(lower, ".tar") {
+			gz, err := gzip.NewReader(f)
+			if err != nil {
+				return errors.New("that archive can't be read")
+			}
+			defer gz.Close()
+			r = gz
+		}
+		tr := tar.NewReader(r)
+		for {
+			hdr, err := tr.Next()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if err != nil {
+				return errors.New("that archive can't be read")
+			}
+			if hdr.Typeflag != tar.TypeDir && hdr.Typeflag != tar.TypeReg {
+				continue
+			}
+			if err := write(hdr.Name, hdr.Typeflag == tar.TypeDir, tr); err != nil {
+				return fmt.Errorf("unpacking %s: %w", hdr.Name, err)
+			}
+		}
+	}
+	return errors.New("Bastion unpacks .zip, .tar.gz, .tgz and .tar files")
 }
 
 func gameBackup(ctx context.Context, a protocol.GameBackupArgs) (*protocol.GameBackupResult, error) {

@@ -1,6 +1,9 @@
-<!-- A game's files: browse folders, edit text files, upload, download, rename, delete and make folders. -->
+<!-- A game's files: browse folders, edit text files, upload (by button or dropping files on the list, with
+     progress), download, rename, delete, make folders, and pack files into an archive or unpack one. Tick
+     files to archive or delete several at once. -->
 <script lang="ts">
   import Modal from './Modal.svelte';
+  import { ask, sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago, bytes } from '../lib/format';
   import type { GameFile } from '../lib/types';
@@ -9,37 +12,47 @@
 
   const editor = () => import('./CodeEditor.svelte');
   // Files that open in the editor rather than downloading.
-  const TEXT = /\.(txt|properties|ya?ml|json|toml|ini|cfg|conf|log|sh|md|xml|csv|env|lua|js|ts|py|txt)$|^[^.]+$/i;
+  const TEXT = /\.(txt|properties|ya?ml|json|toml|ini|cfg|conf|log|sh|md|xml|csv|env|lua|js|ts|py)$|^[^.]+$/i;
+  const ARCHIVE = /\.(zip|tar\.gz|tgz|tar)$/i;
 
   let path = $state('/');
   let files = $state<GameFile[]>();
+  let selected = $state<string[]>([]);
   let editing = $state<{ path: string; content: string; saved: string }>();
   let renaming = $state<{ from: string; to: string }>();
-  let uploading = $state('');
+  let uploads = $state<{ name: string; done: number }[]>([]);
+  let working = $state(''); // what's being done right now, like "Unpacking mods.zip…"
+  let dropping = $state(false);
   let input: HTMLInputElement;
 
   async function list() {
     try {
       files = await api.gameFiles(id, path);
+      selected = selected.filter((n) => files?.some((f) => f.name === n));
     } catch (err) {
       onerror((err as Error).message);
     }
   }
   $effect(() => {
     void path;
+    selected = [];
     void list();
   });
 
   const join = (name: string) => path + name;
   const crumbs = $derived(path.split('/').filter(Boolean));
+  const allSelected = $derived(!!files?.length && selected.length === files.length);
 
-  async function attempt(work: () => Promise<unknown>, note?: string) {
+  async function attempt(doing: string, work: () => Promise<unknown>, note?: string) {
+    working = doing;
     try {
       await work();
       if (note) onnote(note);
-      await list();
     } catch (err) {
       onerror((err as Error).message);
+    } finally {
+      working = '';
+      await list();
     }
   }
 
@@ -60,31 +73,64 @@
     }
   }
 
-  async function upload() {
-    const chosen = [...(input.files ?? [])];
-    input.value = '';
-    for (const file of chosen) {
-      uploading = file.name;
+  async function upload(chosen: File[]) {
+    if (!chosen.length) return;
+    uploads = chosen.map((f) => ({ name: f.name, done: 0 }));
+    for (const [i, file] of chosen.entries()) {
       try {
-        await api.uploadGameFile(id, join(file.name), file);
+        await api.uploadGameFile(id, join(file.name), file, (done) => (uploads[i].done = done));
+        uploads[i].done = 1;
       } catch (err) {
         onerror(`${file.name}: ${(err as Error).message}`);
         break;
       }
     }
-    uploading = '';
+    uploads = [];
+    onnote(chosen.length === 1 ? `Uploaded ${chosen[0].name}.` : `Uploaded ${chosen.length} files.`);
     await list();
   }
 
-  function newFolder() {
-    const name = prompt('Name of the new folder')?.trim();
-    if (name) void attempt(() => api.makeGameFolder(id, join(name)));
+  function drop(e: DragEvent) {
+    e.preventDefault();
+    dropping = false;
+    void upload([...(e.dataTransfer?.files ?? [])]);
   }
 
-  function remove(f: GameFile) {
-    if (confirm(`Delete ${f.name}${f.dir ? ' and everything in it' : ''}? This can't be undone.`)) {
-      void attempt(() => api.deleteGameFile(id, join(f.name)), `Deleted ${f.name}.`);
-    }
+  async function newFolder() {
+    const name = await ask({ title: 'New folder', input: { label: 'Its name', placeholder: 'e.g. plugins', required: true }, confirm: 'Make it' });
+    if (name) await attempt('Making the folder…', () => api.makeGameFolder(id, join(name)));
+  }
+
+  async function remove(names: string[]) {
+    const what = names.length === 1 ? names[0] : `${names.length} items`;
+    if (!(await sure(`Delete ${what}?`, "Folders are deleted with everything in them. It can't be undone."))) return;
+    await attempt('Deleting…', async () => {
+      for (const n of names) await api.deleteGameFile(id, join(n));
+    }, `Deleted ${what}.`);
+    selected = [];
+  }
+
+  async function archive() {
+    const suggested = selected.length === 1 ? selected[0].replace(/\.[^.]+$/, '') : 'archive';
+    const name = await ask({
+      title: `Archive ${selected.length === 1 ? selected[0] : `${selected.length} items`}`,
+      message: 'Packed into a .tar.gz in this folder.',
+      input: { label: 'Archive name', value: suggested, required: true },
+      confirm: 'Archive',
+    });
+    if (!name) return;
+    const file = name.endsWith('.tar.gz') ? name : `${name}.tar.gz`;
+    const names = [...selected];
+    await attempt('Archiving…', () => api.archiveGameFiles(id, path, names, join(file)), `Made ${file}.`);
+    selected = [];
+  }
+
+  async function unarchive(f: GameFile) {
+    await attempt(`Unpacking ${f.name}…`, () => api.unarchiveGameFile(id, join(f.name)), `Unpacked ${f.name} here.`);
+  }
+
+  function toggle(name: string, on: boolean) {
+    selected = on ? [...selected, name] : selected.filter((n) => n !== name);
   }
 </script>
 
@@ -95,36 +141,94 @@
       / <button class="link" onclick={() => (path = `/${crumbs.slice(0, i + 1).join('/')}/`)}>{part}</button>
     {/each}
   </nav>
-  {#if uploading}<span class="muted small">Uploading {uploading}…</span>{/if}
-  <button onclick={newFolder}>New folder</button>
-  <button onclick={() => input.click()} disabled={!!uploading}>Upload</button>
-  <input bind:this={input} type="file" multiple hidden onchange={upload} />
+  {#if selected.length}
+    <span class="muted small">{selected.length} selected</span>
+    <button onclick={archive} disabled={!!working}>Archive</button>
+    <button class="danger" onclick={() => remove(selected)} disabled={!!working}>Delete</button>
+  {:else}
+    <button onclick={newFolder} disabled={!!working}>New folder</button>
+    <button onclick={() => input.click()} disabled={!!working || !!uploads.length}>Upload</button>
+  {/if}
+  <input
+    bind:this={input}
+    type="file"
+    multiple
+    hidden
+    onchange={() => {
+      const chosen = [...(input.files ?? [])];
+      input.value = '';
+      void upload(chosen);
+    }}
+  />
 </div>
 
-<div class="card table-card">
+{#if working}<p class="working small"><span class="spinner" aria-hidden="true"></span>{working}</p>{/if}
+{#each uploads as u (u.name)}
+  <div class="upload small">
+    <span class="grow mono">{u.name}</span>
+    <span class="bar"><span style:width="{Math.round(u.done * 100)}%"></span></span>
+    <span class="muted">{Math.round(u.done * 100)}%</span>
+  </div>
+{/each}
+
+<div
+  class="card table-card drop"
+  class:dropping
+  role="region"
+  aria-label="Files: drop files here to upload them"
+  ondragover={(e) => {
+    e.preventDefault();
+    dropping = true;
+  }}
+  ondragleave={() => (dropping = false)}
+  ondrop={drop}
+>
   <table>
-    <thead><tr><th>Name</th><th>Size</th><th>Changed</th><th></th></tr></thead>
+    <thead>
+      <tr>
+        <th class="tick">
+          <input
+            type="checkbox"
+            aria-label="Select all"
+            checked={allSelected}
+            indeterminate={!!selected.length && !allSelected}
+            onchange={(e) => (selected = e.currentTarget.checked ? (files ?? []).map((f) => f.name) : [])}
+          />
+        </th>
+        <th>Name</th>
+        <th>Size</th>
+        <th>Changed</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody>
       {#each files ?? [] as f (f.name)}
-        <tr>
+        <tr class:chosen={selected.includes(f.name)}>
+          <td class="tick">
+            <input type="checkbox" aria-label="Select {f.name}" checked={selected.includes(f.name)} onchange={(e) => toggle(f.name, e.currentTarget.checked)} />
+          </td>
           <td>
             <button class="link name" onclick={() => open(f)}>
-              <span class="icon" aria-hidden="true">{f.dir ? '▸' : ''}</span>{f.name}{f.dir ? '/' : ''}
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                {#if f.dir}<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />{:else}<path d="M7 3h7l5 5v13H7zM14 3v5h5" />{/if}
+              </svg>{f.name}
             </button>
           </td>
           <td class="muted">{f.dir ? '' : bytes(f.size)}</td>
           <td class="muted">{ago(f.modified)}</td>
           <td class="buttons">
+            {#if !f.dir && ARCHIVE.test(f.name)}<button onclick={() => unarchive(f)} disabled={!!working}>Unarchive</button>{/if}
             {#if !f.dir}<a class="button" href={api.gameFileDownload(id, join(f.name))}>Download</a>{/if}
             <button onclick={() => (renaming = { from: join(f.name), to: join(f.name) })}>Rename</button>
-            <button class="danger" onclick={() => remove(f)}>Delete</button>
+            <button class="danger" onclick={() => remove([f.name])}>Delete</button>
           </td>
         </tr>
       {:else}
-        {#if files}<tr><td colspan="4" class="empty">This folder is empty.</td></tr>{/if}
+        {#if files}<tr><td colspan="5" class="empty">This folder is empty. Drop files here to upload them.</td></tr>{/if}
       {/each}
     </tbody>
   </table>
+  {#if dropping}<div class="drop-hint">Drop to upload to {path}</div>{/if}
 </div>
 
 {#if editing}
@@ -140,7 +244,7 @@
         class="primary"
         disabled={file.content === file.saved}
         onclick={() =>
-          attempt(async () => {
+          attempt('Saving…', async () => {
             await api.writeGameFile(id, file.path, file.content);
             file.saved = file.content;
           }, 'Saved.')}>Save</button
@@ -157,7 +261,7 @@
       class="form"
       onsubmit={(e) => {
         e.preventDefault();
-        void attempt(() => api.renameGameFile(id, r.from, r.to)).then(() => (renaming = undefined));
+        void attempt('Renaming…', () => api.renameGameFile(id, r.from, r.to)).then(() => (renaming = undefined));
       }}
     >
       <label>New path <input class="mono" required bind:value={r.to} /></label>
@@ -185,12 +289,28 @@
     font-weight: 400;
   }
   .name {
-    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+  }
+  .name:hover {
+    color: var(--accent);
   }
   .icon {
-    display: inline-block;
-    width: 14px;
-    color: var(--muted);
+    width: 16px;
+    height: 16px;
+    flex: none;
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.7;
+    stroke-linejoin: round;
+  }
+  .tick {
+    width: 1%;
+  }
+  tr.chosen td {
+    background: var(--accent-bg);
   }
   .buttons {
     text-align: right;
@@ -198,5 +318,61 @@
   .buttons > * {
     margin-left: 6px;
     padding: 3px 10px;
+  }
+  .drop {
+    position: relative;
+  }
+  .drop.dropping {
+    border-color: var(--accent);
+  }
+  .drop-hint {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    background: rgb(16 18 20 / 80%);
+    border-radius: var(--radius);
+    color: var(--accent);
+    font-weight: 600;
+    pointer-events: none;
+  }
+  .working {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: var(--muted);
+  }
+  .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .upload {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .bar {
+    width: 160px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--line);
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.2s;
   }
 </style>

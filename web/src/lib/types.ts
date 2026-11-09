@@ -16,6 +16,9 @@ export type Server = {
   /** Its address on its network, as the agent sees it; empty if it couldn't tell. */
   address: string;
   os: string;
+  arch: string;
+  cpus: number;
+  docker: string;
   agentVersion: string;
   online: boolean;
   /** When the agent last said anything, as an ISO time. */
@@ -23,6 +26,7 @@ export type Server = {
   metrics: Metrics | null;
   stacks: number;
   containers: number;
+  games: number;
 };
 
 export type StackState = 'running' | 'partial' | 'stopped' | 'new';
@@ -82,7 +86,7 @@ export type GameServer = {
   eggId: number;
   serverId: number;
   serverName: string;
-  state: 'running' | 'stopping' | 'stopped' | 'crashed' | 'installing' | 'install-failed' | 'offline';
+  state: 'starting' | 'running' | 'stopping' | 'stopped' | 'crashed' | 'installing' | 'install-failed' | 'offline';
   /** Where players connect, e.g. "192.168.1.11:25565". */
   address: string;
   players: { online: number; max: number } | null;

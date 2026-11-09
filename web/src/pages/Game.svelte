@@ -10,6 +10,7 @@
   import Modal from '../components/Modal.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import Tabs from '../components/Tabs.svelte';
+  import { sure } from '../lib/ask.svelte';
   import { api, type GamePower } from '../lib/api';
   import { bytes, duration, percent } from '../lib/format';
   import { load } from '../lib/load.svelte';
@@ -41,7 +42,13 @@
     }
   }
 
-  const running = $derived(game.data?.state === 'running' || game.data?.state === 'stopping');
+  const running = $derived(['running', 'starting', 'stopping'].includes(game.data?.state ?? ''));
+
+  async function kill() {
+    if (await sure('Kill it?', "It's stopped at once, without saving. Use this only if it won't stop the normal way.", 'Kill')) {
+      await power('kill', 'Killed.');
+    }
+  }
   const note = (text: string) => (message = { ok: true, text });
   const problem = (text: string) => (message = { ok: false, text });
 
@@ -66,14 +73,23 @@
   <div class="page-head">
     <h1>{g.name}</h1>
     <span class="row status"><StatusDot tone={status.tone} />{status.label} · {g.egg}</span>
-    {#if g.state === 'stopping'}
-      <button class="danger" onclick={() => power('kill', 'Killed.')}>Kill</button>
-    {:else if running}
-      <button onclick={() => (stopping = 'restart')}>Restart</button>
-      <button class="danger" onclick={() => (stopping = 'stop')}>Stop</button>
+    <!-- The first button says what it's doing: Start, then Starting… until the game is ready, then Running. -->
+    {#if g.state === 'starting'}
+      <button class="primary state" disabled><span class="spinner" aria-hidden="true"></span>Starting…</button>
+    {:else if g.state === 'running'}
+      <button class="state running" disabled>Running</button>
+    {:else if g.state === 'stopping'}
+      <button class="state" disabled><span class="spinner" aria-hidden="true"></span>Stopping…</button>
+    {:else if g.state === 'installing'}
+      <button class="state" disabled><span class="spinner" aria-hidden="true"></span>Installing…</button>
     {:else}
-      <button class="primary" disabled={g.state === 'installing' || g.state === 'offline'} onclick={() => power('start', 'Starting.')}>Start</button>
+      <button class="primary" disabled={g.state === 'offline'} onclick={() => power('start', 'Starting.')}>Start</button>
     {/if}
+    {#if g.state === 'running' || g.state === 'starting'}
+      <button onclick={() => (stopping = 'restart')}>Restart</button>
+      <button onclick={() => (stopping = 'stop')}>Stop</button>
+    {/if}
+    {#if running}<button class="danger" onclick={kill}>Kill</button>{/if}
   </div>
 
   {#if message}<p class="note" class:error={!message.ok}>{message.text}</p>{/if}
@@ -198,6 +214,35 @@
   .eula {
     margin-bottom: 10px;
     border-color: var(--accent);
+  }
+  .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .state:disabled {
+    opacity: 1;
+  }
+  button.primary.state:disabled {
+    opacity: 0.85;
+  }
+  .state.running {
+    color: var(--green);
+    border-color: rgb(87 199 133 / 40%);
+    background: rgb(87 199 133 / 10%);
+  }
+  .spinner {
+    width: 13px;
+    height: 13px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   .warn-row {
     gap: 10px;

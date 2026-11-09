@@ -120,6 +120,10 @@ export const api = {
   signOutEverywhere: () => request<void>('POST', '/account/signout-everywhere'),
 
   servers: () => request<Server[]>('GET', '/servers'),
+  /** A fresh one-time command to join (or re-join) a server, for an hour. */
+  newJoinCommand: (id: number) => request<{ joinCommand: string }>('POST', `/servers/${id}/join-command`),
+  /** Forgets a server and disconnects its agent; what it runs keeps running. */
+  deleteServer: (id: number) => request<void>('DELETE', `/servers/${id}`),
   addServer: (name: string) => request<{ server: Server; joinCommand: string }>('POST', '/servers', { name }),
   stacks: () => request<Stack[]>('GET', '/stacks'),
   containers: () => request<Container[]>('GET', '/containers'),
@@ -163,12 +167,31 @@ export const api = {
   makeGameFolder: (id: number, path: string) => request<void>('POST', `/games/${id}/files/folder`, { path }),
   renameGameFile: (id: number, from: string, to: string) => request<void>('POST', `/games/${id}/files/rename`, { from, to }),
   deleteGameFile: (id: number, path: string) => request<void>('DELETE', `/games/${id}/files?path=${encodeURIComponent(path)}`),
-  /** Sends a file as it is (not JSON), up to 1 GB. */
-  uploadGameFile: async (id: number, path: string, file: File) => {
-    if (DEMO) return;
-    const res = await fetch(`/api/games/${id}/files/upload?path=${encodeURIComponent(path)}`, { method: 'POST', body: file });
-    if (!res.ok) throw new ApiError((await res.json().catch(() => null))?.error ?? res.statusText, res.status);
-  },
+  /** Sends a file as it is (not JSON), up to 1 GB, telling onprogress how much has gone (0 to 1). */
+  uploadGameFile: (id: number, path: string, file: File, onprogress?: (done: number) => void) =>
+    new Promise<void>((resolve, reject) => {
+      if (DEMO) return resolve();
+      // XMLHttpRequest rather than fetch: it reports an upload's progress.
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/games/${id}/files/upload?path=${encodeURIComponent(path)}`);
+      xhr.upload.onprogress = (e) => e.lengthComputable && onprogress?.(e.loaded / e.total);
+      xhr.onload = () => {
+        if (xhr.status < 300) return resolve();
+        let message = xhr.statusText;
+        try {
+          message = JSON.parse(xhr.responseText).error ?? message;
+        } catch {
+          // not JSON
+        }
+        reject(new ApiError(message, xhr.status));
+      };
+      xhr.onerror = () => reject(new ApiError('The upload was cut off', 0));
+      xhr.send(file);
+    }),
+  /** Packs files and folders from one folder into a .tar.gz there. */
+  archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<void>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  /** Unpacks a .zip, .tar.gz or .tar into the folder it's in. */
+  unarchiveGameFile: (id: number, path: string) => request<void>('POST', `/games/${id}/files/unarchive`, { path }),
   gameFileDownload: (id: number, path: string) => `/api/games/${id}/files/download?path=${encodeURIComponent(path)}`,
   gameStartup: (id: number) =>
     request<{ command: string; image: string; images: EggImage[]; variables: StartupVariable[] }>('GET', `/games/${id}/startup`),

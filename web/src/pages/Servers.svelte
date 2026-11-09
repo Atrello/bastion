@@ -1,4 +1,4 @@
-<!-- Servers: each one with an agent, how it's doing, and adding another. -->
+<!-- Servers: each one with an agent, how it's doing, and adding another. A server's name opens its page. -->
 <script lang="ts">
   import AddServer from '../components/AddServer.svelte';
   import StatusDot from '../components/StatusDot.svelte';
@@ -25,7 +25,7 @@
     <tbody>
       {#each servers.data ?? [] as s (s.id)}
         <tr>
-          <td><span class="row"><StatusDot tone={s.online ? 'green' : 'red'} label={s.online ? 'Online' : 'Offline'} /><b>{s.name}</b></span></td>
+          <td><span class="row"><StatusDot tone={s.online ? 'green' : 'red'} label={s.online ? 'Online' : 'Offline'} /><a href="/servers/{s.id}"><b>{s.name}</b></a></span></td>
           <td class="muted">{s.os}</td>
           {#if s.metrics}
             <td>{s.metrics.cpuPercent}%</td>

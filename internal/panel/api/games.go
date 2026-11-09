@@ -143,7 +143,7 @@ func (api *API) spec(ctx context.Context, g *game) (protocol.GameSpec, *eggs.Egg
 	}
 	install := e.Scripts.Installation
 	return protocol.GameSpec{
-		ID: g.ID, Image: g.Image, Startup: fill.Fill(e.Startup), StopWith: e.Config.Stop, Env: env,
+		ID: g.ID, Image: g.Image, Startup: fill.Fill(e.Startup), StopWith: e.Config.Stop, DoneText: e.DoneText(), Env: env,
 		MemoryMB: g.MemoryMB, CPUPercent: g.CPUPercent, DiskMB: g.DiskMB, Ports: g.Ports, ConfigFiles: configFiles,
 		InstallImage: install.Container, InstallEntrypoint: install.Entrypoint, InstallScript: install.Script,
 	}, e, nil
@@ -157,7 +157,7 @@ type gameView struct {
 	EggID       int64     `json:"eggId"`
 	ServerID    int64     `json:"serverId"`
 	ServerName  string    `json:"serverName"`
-	State       string    `json:"state"`
+	State       string    `json:"state"` // starting until its console says it has started, then running
 	Address     string    `json:"address"`
 	Players     *struct{} `json:"players"`
 	Image       string    `json:"image"`
@@ -193,13 +193,13 @@ func (api *API) view(g *game, serverName string, owner bool) gameView {
 				continue
 			}
 			v.State, v.CPUPercent, v.MemUsed, v.DiskUsed = s.State, s.CPUPercent, s.MemUsed, s.DiskUsed
-			if started, err := time.Parse(time.RFC3339Nano, s.StartedAt); err == nil && s.State == "running" {
+			if started, err := time.Parse(time.RFC3339Nano, s.StartedAt); err == nil && (s.State == "running" || s.State == "starting") {
 				v.UptimeSecs = int64(time.Since(started).Seconds())
 			}
 		}
 	}
 	api.games.mu.Lock()
-	if api.games.stopping[g.ID] && v.State == "running" {
+	if api.games.stopping[g.ID] && (v.State == "running" || v.State == "starting") {
 		v.State = "stopping"
 	}
 	api.games.mu.Unlock()

@@ -57,12 +57,12 @@ func (h *Hub) AddServer(ctx context.Context, name string) (*Server, string, erro
 	return &Server{ID: id, Name: name}, token, nil
 }
 
-// NewJoinToken replaces a server's join token, for joining it again (a reinstalled server, say). The old
-// agent's secret stops working.
+// NewJoinToken makes a new join token for a server, for joining it again (a reinstalled server, say). The
+// agent it has now keeps working until the token is used: only then is it replaced.
 func (h *Hub) NewJoinToken(ctx context.Context, id int64) (string, error) {
 	token := auth.RandomToken()
 	expires := time.Now().UTC().Add(joinTokenLife).Format(time.RFC3339)
-	res, err := h.db.ExecContext(ctx, `UPDATE servers SET join_token_hash = ?, join_expires_at = ?, agent_id = NULL, secret_hash = NULL WHERE id = ?`,
+	res, err := h.db.ExecContext(ctx, `UPDATE servers SET join_token_hash = ?, join_expires_at = ? WHERE id = ?`,
 		hash(token), expires, id)
 	if err != nil {
 		return "", err
@@ -70,7 +70,6 @@ func (h *Hub) NewJoinToken(ctx context.Context, id int64) (string, error) {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return "", ErrNoServer
 	}
-	h.disconnect(id)
 	return token, nil
 }
 
@@ -86,15 +85,18 @@ func (h *Hub) Enrol(ctx context.Context, token, hostname string) (agentID, secre
 	if len(hostname) > 253 {
 		hostname = hostname[:253]
 	}
-	res, err := h.db.ExecContext(ctx, `UPDATE servers
+	var id int64
+	err = h.db.QueryRowContext(ctx, `UPDATE servers
 		SET agent_id = ?, secret_hash = ?, join_token_hash = NULL, join_expires_at = NULL, hostname = ?
-		WHERE join_token_hash = ? AND join_expires_at > ?`, agentID, hash(secret), hostname, hash(token), now)
+		WHERE join_token_hash = ? AND join_expires_at > ? RETURNING id`, agentID, hash(secret), hostname, hash(token), now).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", ErrJoinToken
+	}
 	if err != nil {
 		return "", "", err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return "", "", ErrJoinToken
-	}
+	// A server joining again: the agent it had (if still connected) is replaced by this one.
+	h.disconnect(id)
 	return agentID, secret, nil
 }
 

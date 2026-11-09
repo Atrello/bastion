@@ -192,7 +192,7 @@ func (api *API) enforceDisk(ctx context.Context) {
 	var over []*game
 	for rows.Next() {
 		if g, err := scanGame(rows); err == nil {
-			if v := api.view(g, "", false); v.State == "running" && v.DiskUsed > v.DiskLimit {
+			if v := api.view(g, "", false); (v.State == "running" || v.State == "starting") && v.DiskUsed > v.DiskLimit {
 				over = append(over, g)
 			}
 		}

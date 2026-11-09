@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -118,5 +120,58 @@ func TestConfigFiles(t *testing.T) {
 	}
 	if got := read("config.json"); !strings.Contains(got, `"port": 25572`) || !strings.Contains(got, `"c"`) {
 		t.Errorf("json: %q", got)
+	}
+}
+
+func TestArchiveAndUnarchive(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv("BASTION_AGENT_GAMES_DIR", filepath.Join(base, "games"))
+	_ = os.MkdirAll(filepath.Join(gameDir(3), "world", "region"), 0o755)
+	_ = os.WriteFile(filepath.Join(gameDir(3), "world", "level.dat"), []byte("level"), 0o644)
+	_ = os.WriteFile(filepath.Join(gameDir(3), "world", "region", "r.0.0.mca"), []byte("chunks"), 0o644)
+	_ = os.WriteFile(filepath.Join(gameDir(3), "server.properties"), []byte("motd=Hi"), 0o644)
+
+	do := func(a protocol.GameFileArgs) error { a.ID = 3; _, err := gameFiles(a); return err }
+	if err := do(protocol.GameFileArgs{Op: "archive", Path: "/", Paths: []string{"world", "server.properties"}, To: "/backup.tar.gz"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := do(protocol.GameFileArgs{Op: "archive", Path: "/", Paths: []string{"world"}, To: "/backup.tar.gz"}); err == nil {
+		t.Fatal("an archive was made over an existing file")
+	}
+	_ = os.MkdirAll(filepath.Join(gameDir(3), "restored"), 0o755)
+	_ = os.Rename(filepath.Join(gameDir(3), "backup.tar.gz"), filepath.Join(gameDir(3), "restored", "backup.tar.gz"))
+	if err := do(protocol.GameFileArgs{Op: "unarchive", Path: "/restored/backup.tar.gz"}); err != nil {
+		t.Fatal(err)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(gameDir(3), "restored", "world", "region", "r.0.0.mca")); string(raw) != "chunks" {
+		t.Fatalf("unpacked: %q", raw)
+	}
+
+	// A zip that tries to write outside the game's folder, and holds a link, unpacks safely.
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, name := range []string{"../../escaped.txt", "/etc/also-escaped.txt", "ok/inside.txt"} {
+		w, _ := zw.Create(name)
+		_, _ = w.Write([]byte("x"))
+	}
+	link := &zip.FileHeader{Name: "link"}
+	link.SetMode(os.ModeSymlink | 0o777)
+	w, _ := zw.CreateHeader(link)
+	_, _ = w.Write([]byte("/etc/passwd"))
+	_ = zw.Close()
+	_ = os.WriteFile(filepath.Join(gameDir(3), "mods.zip"), buf.Bytes(), 0o644)
+	if err := do(protocol.GameFileArgs{Op: "unarchive", Path: "/mods.zip"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(base, "escaped.txt")); err == nil {
+		t.Fatal("a zip wrote outside the game's folder")
+	}
+	if _, err := os.Lstat(filepath.Join(gameDir(3), "link")); err == nil {
+		t.Fatal("a link was unpacked")
+	}
+	for _, p := range []string{"escaped.txt", "etc/also-escaped.txt", "ok/inside.txt"} {
+		if _, err := os.Stat(filepath.Join(gameDir(3), p)); err != nil {
+			t.Errorf("%s should be inside the game's folder: %v", p, err)
+		}
 	}
 }
