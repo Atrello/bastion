@@ -44,6 +44,7 @@ BASTION_PUBLIC_URL=http://localhost:8080 ./bin/bastion     # its log prints the 
 Or just the screens, on a made-up homelab: `cd web && npm install && npm run demo`.
 
 More in [docs/development.md](docs/development.md); how it's kept secure in [docs/security.md](docs/security.md).
+What still needs testing on real servers is in [docs/testing.md](docs/testing.md).
 
 ## Layout
 
