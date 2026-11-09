@@ -1,9 +1,10 @@
 <!-- A game's files: browse folders, edit text files, upload (by button or dropping files on the list; the
      uploads carry on if you leave the page, lib/uploads.svelte.ts), download, rename, delete, make folders,
-     and pack files into an archive or unpack one. Tick
-     files to archive or delete several at once. -->
+     and pack files into an archive or unpack one. Tick files to move, archive or delete several at once;
+     rows can also be dragged onto a folder, or onto the path at the top, to move them there. -->
 <script lang="ts">
   import { untrack } from 'svelte';
+  import FolderPicker from './FolderPicker.svelte';
   import Modal from './Modal.svelte';
   import { ask, sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
@@ -25,6 +26,10 @@
   let renaming = $state<{ from: string; to: string }>();
   let working = $state(''); // what's being done right now, like "Unpacking mods.zip…"
   let dropping = $state(false);
+  let moving = $state<string[]>(); // the Move dialog is open for these
+  // Rows being dragged to move them, and the folder they're over.
+  let dragging = $state<string[]>();
+  let dropOn = $state('');
   let input: HTMLInputElement;
 
   async function list() {
@@ -86,7 +91,47 @@
   function drop(e: DragEvent) {
     e.preventDefault();
     dropping = false;
-    void upload([...(e.dataTransfer?.files ?? [])]);
+    if (!dragging) void upload([...(e.dataTransfer?.files ?? [])]);
+  }
+
+  async function moveTo(names: string[], to: string) {
+    moving = undefined;
+    const what = names.length === 1 ? names[0] : `${names.length} items`;
+    await attempt('Moving…', () => api.moveGameFiles(id, path, names, to), `Moved ${what} to ${to}.`);
+    selected = [];
+  }
+
+  // Dragging a ticked row takes everything ticked with it.
+  function dragStart(e: DragEvent, name: string) {
+    dragging = selected.includes(name) ? [...selected] : [name];
+    e.dataTransfer?.setData('text/plain', dragging.join('\n'));
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+  function dragEnd() {
+    dragging = undefined;
+    dropOn = '';
+  }
+  // A place rows can be dropped on: a folder in the list (not one being dragged), or a part of the path.
+  function dropTarget(to: string, allowed: boolean) {
+    return {
+      ondragover: (e: DragEvent) => {
+        if (!dragging || !allowed) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dropOn = to;
+      },
+      ondragleave: () => {
+        if (dropOn === to) dropOn = '';
+      },
+      ondrop: (e: DragEvent) => {
+        if (!dragging || !allowed) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const names = dragging;
+        dragEnd();
+        void moveTo(names, to);
+      },
+    };
   }
 
   async function newFolder() {
@@ -129,13 +174,15 @@
 
 <div class="row top">
   <nav class="crumbs mono grow" aria-label="Folder">
-    <button class="link" onclick={() => (path = '/')}>home</button>
+    <button class="link" class:over={dropOn === '/'} onclick={() => (path = '/')} {...dropTarget('/', path !== '/')}>home</button>
     {#each crumbs as part, i (i)}
-      / <button class="link" onclick={() => (path = `/${crumbs.slice(0, i + 1).join('/')}/`)}>{part}</button>
+      {@const to = `/${crumbs.slice(0, i + 1).join('/')}/`}
+      / <button class="link" class:over={dropOn === to} onclick={() => (path = to)} {...dropTarget(to, to !== path)}>{part}</button>
     {/each}
   </nav>
   {#if selected.length}
     <span class="muted small">{selected.length} selected</span>
+    <button onclick={() => (moving = [...selected])} disabled={!!working}>Move</button>
     <button onclick={archive} disabled={!!working}>Archive</button>
     <button class="danger" onclick={() => remove(selected)} disabled={!!working}>Delete</button>
   {:else}
@@ -163,6 +210,7 @@
   role="region"
   aria-label="Files: drop files here to upload them"
   ondragover={(e) => {
+    if (dragging || !e.dataTransfer?.types.includes('Files')) return;
     e.preventDefault();
     dropping = true;
   }}
@@ -189,7 +237,15 @@
     </thead>
     <tbody>
       {#each files ?? [] as f (f.name)}
-        <tr class:chosen={selected.includes(f.name)}>
+        <tr
+          class:chosen={selected.includes(f.name)}
+          class:over={f.dir && dropOn === `${join(f.name)}/`}
+          class:dragged={dragging?.includes(f.name)}
+          draggable="true"
+          ondragstart={(e) => dragStart(e, f.name)}
+          ondragend={dragEnd}
+          {...f.dir ? dropTarget(`${join(f.name)}/`, !dragging?.includes(f.name)) : {}}
+        >
           <td class="tick">
             <input type="checkbox" aria-label="Select {f.name}" checked={selected.includes(f.name)} onchange={(e) => toggle(f.name, e.currentTarget.checked)} />
           </td>
@@ -216,6 +272,10 @@
   </table>
   {#if dropping}<div class="drop-hint">Drop to upload to {path}</div>{/if}
 </div>
+
+{#if moving}
+  <FolderPicker {id} from={path} moving={moving} onpick={(to) => moveTo(moving ?? [], to)} onclose={() => (moving = undefined)} />
+{/if}
 
 {#if editing}
   {@const file = editing}
@@ -261,6 +321,20 @@
 {/if}
 
 <style>
+  tr[draggable='true'] {
+    cursor: grab;
+  }
+  tr.dragged {
+    opacity: 0.5;
+  }
+  tr.over td,
+  .crumbs .over {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .crumbs .over {
+    border-radius: 4px;
+    outline: 1px dashed var(--accent);
+  }
   .top {
     margin-bottom: 10px;
   }

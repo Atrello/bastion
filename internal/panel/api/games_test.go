@@ -2,10 +2,12 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
+	"github.com/Atrello/bastion/internal/panel/agents"
 	"github.com/Atrello/bastion/internal/protocol"
 )
 
@@ -221,3 +224,34 @@ func TestUploadKeepsToDiskLimit(t *testing.T) {
 type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) { return 0, errors.New("the tab closed") }
+
+// A long job keeps its request open with spaces, then gives its outcome, so a proxy in front doesn't give up.
+func TestSlowJobsKeepTalking(t *testing.T) {
+	slowAfter, keepAlive = 50*time.Millisecond, 20*time.Millisecond
+	t.Cleanup(func() { slowAfter, keepAlive = 5*time.Second, 15*time.Second })
+	b := newPanel(t)
+	answer := func(job func(context.Context) error) (*http.Response, string) {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/", nil)
+		b.api.slowly(rec, req, job)
+		return rec.Result(), rec.Body.String()
+	}
+	if res, _ := answer(func(context.Context) error { return nil }); res.StatusCode != 204 {
+		t.Fatalf("a quick job: %d", res.StatusCode)
+	}
+	res, body := answer(func(context.Context) error { time.Sleep(150 * time.Millisecond); return nil })
+	if res.StatusCode != 200 || res.Header.Get("X-Bastion-Slow") != "1" || !strings.HasPrefix(body, "  ") || strings.TrimSpace(body) != "{}" {
+		t.Fatalf("a slow job: %d %q", res.StatusCode, body)
+	}
+	_, body = answer(func(context.Context) error {
+		time.Sleep(100 * time.Millisecond)
+		return &agents.AgentError{Message: "that zip can't be read"}
+	})
+	var outcome struct {
+		Error  string
+		Status int
+	}
+	if err := json.Unmarshal([]byte(body), &outcome); err != nil || outcome.Error != "that zip can't be read" || outcome.Status != 400 {
+		t.Fatalf("a slow job that failed: %q", body)
+	}
+}

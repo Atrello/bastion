@@ -293,10 +293,11 @@ type GamePowerArgs struct {
 
 type GameFileArgs struct {
 	ID   int64  `json:"id"`
-	Op   string `json:"op"`   // list, read, write, append, download, mkdir, rename, delete, archive, unarchive
+	Op   string `json:"op"`   // list, read, write, append, download, mkdir, rename, delete, move, archive, unarchive
 	Path string `json:"path"` // inside the game's folder, like "world/level.dat"
 	To   string `json:"to,omitempty"`
 	// archive: what goes in it (files and folders in Path's folder); To is the archive's path.
+	// move: what moves (files and folders in Path's folder); To is the folder they go into.
 	Paths  []string `json:"paths,omitempty"`
 	Data   []byte   `json:"data,omitempty"` // write and append: the contents (base64 in JSON)
 	Offset int64    `json:"offset,omitempty"`

@@ -31,6 +31,7 @@ func (api *API) gameFileRoutes() {
 	m.Handle("POST /api/games/{id}/files/upload", api.gameUser(api.uploadGameFile))
 	m.Handle("POST /api/games/{id}/files/archive", api.gameUser(api.archiveGameFiles))
 	m.Handle("POST /api/games/{id}/files/unarchive", api.gameUser(api.unarchiveGameFile))
+	m.Handle("POST /api/games/{id}/files/move", api.gameUser(api.moveGameFiles))
 	m.Handle("GET /api/games/{id}/files/download", api.gameUser(api.downloadGameFile))
 	m.Handle("GET /api/games/{id}/backups", api.gameUser(api.listBackups))
 	m.Handle("POST /api/games/{id}/backups", api.gameUser(api.makeBackupNow))
@@ -151,12 +152,28 @@ func (api *API) archiveGameFiles(w http.ResponseWriter, r *http.Request, u *auth
 		writeError(w, http.StatusBadRequest, over)
 		return
 	}
-	if _, err := api.files(r.Context(), g, protocol.GameFileArgs{Op: "archive", Path: body.Path, Paths: body.Paths, To: body.To}); err != nil {
-		api.agentFail(w, r, err)
+	api.slowly(w, r, func(ctx context.Context) error {
+		_, err := api.files(ctx, g, protocol.GameFileArgs{Op: "archive", Path: body.Path, Paths: body.Paths, To: body.To})
+		api.log.Info("game files archived", "user", u.Username, "game", g.ID, "to", body.To, "ok", err == nil)
+		return err
+	})
+}
+
+// moveGameFiles moves files and folders from one folder into another.
+func (api *API) moveGameFiles(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
+	var body struct {
+		Path  string   `json:"path"`
+		Paths []string `json:"paths"`
+		To    string   `json:"to"`
+	}
+	if !readJSON(w, r, &body) {
 		return
 	}
-	api.log.Info("game files archived", "user", u.Username, "game", g.ID, "to", body.To)
-	w.WriteHeader(http.StatusNoContent)
+	api.slowly(w, r, func(ctx context.Context) error {
+		_, err := api.files(ctx, g, protocol.GameFileArgs{Op: "move", Path: body.Path, Paths: body.Paths, To: body.To})
+		api.log.Info("game files moved", "user", u.Username, "game", g.ID, "from", body.Path, "to", body.To, "ok", err == nil)
+		return err
+	})
 }
 
 // unarchiveGameFile unpacks a .zip, .tar.gz or .tar into the folder it's in.
@@ -169,12 +186,11 @@ func (api *API) unarchiveGameFile(w http.ResponseWriter, r *http.Request, u *aut
 		writeError(w, http.StatusBadRequest, over)
 		return
 	}
-	if _, err := api.files(r.Context(), g, protocol.GameFileArgs{Op: "unarchive", Path: body.Path}); err != nil {
-		api.agentFail(w, r, err)
-		return
-	}
-	api.log.Info("game file unarchived", "user", u.Username, "game", g.ID, "path", body.Path)
-	w.WriteHeader(http.StatusNoContent)
+	api.slowly(w, r, func(ctx context.Context) error {
+		_, err := api.files(ctx, g, protocol.GameFileArgs{Op: "unarchive", Path: body.Path})
+		api.log.Info("game file unarchived", "user", u.Username, "game", g.ID, "path", body.Path, "ok", err == nil)
+		return err
+	})
 }
 
 // uploadGameFile takes a file as the request's body and sends it on to the agent in pieces.

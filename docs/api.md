@@ -161,6 +161,11 @@ with them, and gets `404` for the rest. Friends can use everything below except 
 | `POST /games/{id}/files/upload?path=` | The file as the body (not JSON), up to 50 GB, and no more than the room left under the game's disk limit. If it doesn't all arrive (cancelled, or the browser closed), the part that did is removed |
 | `POST /games/{id}/files/archive` | `{"path", "paths", "to"}`: packs files and folders in `path` into the `.tar.gz` at `to` |
 | `POST /games/{id}/files/unarchive` | `{"path"}`: unpacks a `.zip`, `.tar.gz`, `.tgz` or `.tar` into its folder (files and folders only; up to 50 GB and 200,000 files) |
+| `POST /games/{id}/files/move` | `{"path", "paths", "to"}`: moves files and folders in `path` into the folder `to`. Nothing is replaced: a name already taken there stops it |
+
+Archive, unarchive and move can take minutes. If one isn't done in 5 seconds the answer is `200` with the
+header `X-Bastion-Slow: 1`, a space every 15 seconds (so a proxy in front doesn't give up on a quiet
+request), then `{}` or `{"error", "status"}`.
 | `GET /games/{id}/files/download?path=` | The file, as a download |
 | `GET` / `POST /games/{id}/backups` | Its backups; or starts one (`{"name"}`, optional), which shows as `making` until it's `done` or `failed` |
 | `PUT /games/{id}/backups/{backup}` | `{"locked"}`: a locked backup can't be deleted |

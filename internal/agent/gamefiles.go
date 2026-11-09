@@ -162,10 +162,42 @@ func gameFiles(a protocol.GameFileArgs) (*protocol.GameFileResult, error) {
 			return nil, errors.New("the archive's name ends .tar.gz")
 		}
 		return &protocol.GameFileResult{}, archive(root, p, a.Paths, to)
+	case "move":
+		if len(a.Paths) == 0 || len(a.Paths) > 1000 {
+			return nil, errors.New("pick what to move")
+		}
+		return &protocol.GameFileResult{}, move(root, p, a.Paths, insidePath(a.To))
 	case "unarchive":
 		return &protocol.GameFileResult{}, unarchive(root, p)
 	}
 	return nil, errors.New("unknown file operation " + a.Op)
+}
+
+// move moves files and folders from one folder into another, keeping their names. Nothing is replaced:
+// one whose name is already taken there stops the move (those before it have moved).
+func move(root *os.Root, dir string, names []string, to string) error {
+	if info, err := root.Stat(to); err != nil || !info.IsDir() {
+		return errors.New("there's no folder to move them to")
+	}
+	for _, name := range names {
+		from := insidePath(path.Join(dir, insidePath(name)))
+		dest := insidePath(path.Join(to, path.Base(from)))
+		switch {
+		case from == ".":
+			return errors.New("the game's folder itself can't be moved")
+		case dest == from:
+			continue // already there
+		case to == from || strings.HasPrefix(to+"/", from+"/"):
+			return fmt.Errorf("%s can't go inside itself", path.Base(from))
+		}
+		if _, err := root.Lstat(dest); err == nil {
+			return fmt.Errorf("there's already a %s in %s", path.Base(from), "/"+strings.TrimPrefix(to, "."))
+		}
+		if err := root.Rename(from, dest); err != nil {
+			return fmt.Errorf("%s couldn't be moved: %w", path.Base(from), err)
+		}
+	}
+	return nil
 }
 
 // archive packs files and folders from one folder into a .tar.gz beside them, named inside it as they
@@ -300,7 +332,7 @@ func unarchive(root *os.Root, archivePath string) error {
 		}
 		zr, err := zip.NewReader(f, info.Size())
 		if err != nil {
-			return errors.New("that zip can't be read")
+			return errors.New("that zip can't be read: it may be incomplete (an upload that was cut off, say) or not really a zip")
 		}
 		for _, zf := range zr.File {
 			mode := zf.Mode()
@@ -308,6 +340,9 @@ func unarchive(root *os.Root, archivePath string) error {
 				continue // links aren't unpacked
 			}
 			rc, err := zf.Open()
+			if errors.Is(err, zip.ErrAlgorithm) {
+				return errors.New("that zip is packed in a way Bastion can't unpack (Deflate64, which Windows uses for big files, or 7-Zip's LZMA): pack it again as a normal zip, or as a .tar.gz")
+			}
 			if err != nil {
 				return err
 			}
@@ -323,7 +358,7 @@ func unarchive(root *os.Root, archivePath string) error {
 		if !strings.HasSuffix(lower, ".tar") {
 			gz, err := gzip.NewReader(f)
 			if err != nil {
-				return errors.New("that archive can't be read")
+				return errors.New("that archive can't be read: it isn't gzip-compressed, or it's incomplete")
 			}
 			defer gz.Close()
 			r = gz
@@ -335,7 +370,7 @@ func unarchive(root *os.Root, archivePath string) error {
 				return nil
 			}
 			if err != nil {
-				return errors.New("that archive can't be read")
+				return errors.New("that archive can't be read past " + strconv.Itoa(count) + " files: it may be incomplete (an upload that was cut off, say)")
 			}
 			if hdr.Typeflag != tar.TypeDir && hdr.Typeflag != tar.TypeReg {
 				continue

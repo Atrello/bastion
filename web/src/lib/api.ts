@@ -76,6 +76,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     }
     throw new ApiError(message, res.status, body);
   }
+  if (res.headers.get('X-Bastion-Slow')) {
+    // A long job (internal/panel/api/slow.go): kept open with spaces, then its outcome.
+    const outcome = await res.json();
+    if (outcome.error) throw new ApiError(outcome.error, outcome.status ?? 500, outcome);
+    return undefined as T;
+  }
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
@@ -208,6 +214,8 @@ export const api = {
     }),
   /** Packs files and folders from one folder into a .tar.gz there. */
   archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<void>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  /** Moves files and folders (names in the folder path) into the folder to. */
+  moveGameFiles: (id: number, path: string, paths: string[], to: string) => request<void>('POST', `/games/${id}/files/move`, { path, paths, to }),
   /** Unpacks a .zip, .tar.gz or .tar into the folder it's in. */
   unarchiveGameFile: (id: number, path: string) => request<void>('POST', `/games/${id}/files/unarchive`, { path }),
   gameFileDownload: (id: number, path: string) => `/api/games/${id}/files/download?path=${encodeURIComponent(path)}`,

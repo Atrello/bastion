@@ -67,7 +67,7 @@ The agent does these and nothing else.
 | `game.start` | A game's spec | Fills in its config files, then makes its container afresh and starts it |
 | `game.power` | `id`, `action`, `command`, `stopWith` | `command` types a line into its console; `stop` stops it the egg's way (a command, or `^C`), then with Docker after 30 seconds; `kill` |
 | `game.delete` | `id` | Removes its container, files, backups and install log |
-| `game.files` | `id`, `op`, `path`, `to`, `data`, `offset` | `list`, `read`, `write`, `append`, `download`, `mkdir`, `rename`, `delete`, `install-log`. Pieces of up to 2 MB |
+| `game.files` | `id`, `op`, `path`, `to`, `paths`, `data`, `offset` | `list`, `read`, `write`, `append`, `download`, `mkdir`, `rename`, `delete`, `move`, `archive`, `unarchive`, `install-log`. Pieces of up to 2 MB |
 | `game.backup` | `id`, `op`, `name`, `offset` | `make`, `restore`, `delete`, `download` |
 
 Stacks are found by name among those Docker knows and the folders in `/opt/stacks`; only their compose

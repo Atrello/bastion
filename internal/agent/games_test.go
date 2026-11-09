@@ -175,3 +175,49 @@ func TestArchiveAndUnarchive(t *testing.T) {
 		}
 	}
 }
+
+// Moving files into a folder: nothing is replaced, nothing goes inside itself, nothing leaves the game.
+func TestMoveGameFiles(t *testing.T) {
+	t.Setenv("BASTION_AGENT_GAMES_DIR", filepath.Join(t.TempDir(), "games"))
+	dir := gameDir(4)
+	for _, d := range []string{"plugins", "old", "old/inner"} {
+		_ = os.MkdirAll(filepath.Join(dir, d), 0o755)
+	}
+	for _, f := range []string{"a.jar", "b.jar", "plugins/b.jar"} {
+		_ = os.WriteFile(filepath.Join(dir, f), []byte(f), 0o644)
+	}
+	move := func(from string, names []string, to string) error {
+		_, err := gameFiles(protocol.GameFileArgs{ID: 4, Op: "move", Path: from, Paths: names, To: to})
+		return err
+	}
+	if err := move("/", []string{"a.jar"}, "/plugins/"); err != nil {
+		t.Fatal(err)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(dir, "plugins", "a.jar")); string(raw) != "a.jar" {
+		t.Fatalf("not moved: %q", raw)
+	}
+	if err := move("/", []string{"b.jar"}, "/plugins/"); err == nil || !strings.Contains(err.Error(), "already") {
+		t.Fatalf("a file was replaced: %v", err)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(dir, "plugins", "b.jar")); string(raw) != "plugins/b.jar" {
+		t.Fatalf("the file there was changed: %q", raw)
+	}
+	if err := move("/", []string{"old"}, "/old/inner/"); err == nil {
+		t.Fatal("a folder went inside itself")
+	}
+	if err := move("/", []string{"b.jar"}, "/nowhere/"); err == nil {
+		t.Fatal("moved into a folder that isn't there")
+	}
+	if err := move("/", []string{"../../b.jar"}, "/old/"); err != nil {
+		t.Fatal(err) // the name stays inside the game's folder: it's this game's b.jar
+	}
+	if _, err := os.Stat(filepath.Join(dir, "old", "b.jar")); err != nil {
+		t.Fatal("b.jar wasn't moved")
+	}
+	if err := move("/old/", []string{"b.jar"}, "/../../"); err != nil {
+		t.Fatal(err) // "/../../" is the game's own folder
+	}
+	if _, err := os.Stat(filepath.Join(dir, "b.jar")); err != nil {
+		t.Fatal("b.jar didn't come back to the top")
+	}
+}
