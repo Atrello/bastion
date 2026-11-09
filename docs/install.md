@@ -18,7 +18,17 @@ docker compose logs bastion      # shows the one-time setup link
 ```
 
 In your reverse proxy, point the panel's address (e.g. `bastion.home.lab`) at port 8080 on that host, with
-**websockets turned on** (live logs, consoles and the agents use them).
+**websockets turned on** (live logs, consoles and the agents use them). Port 8080 listens only on
+localhost; if the proxy is on another machine, set `BASTION_BIND` in `deploy/.env` to this host's LAN
+address and let only the proxy reach port 8080. For big uploads, give the proxy host this custom
+configuration (in Nginx Proxy Manager, the host's Advanced tab):
+
+```nginx
+client_max_body_size 0;
+proxy_request_buffering off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+```
 
 Open the setup link from the log, make your account, and set up its second factor (an authenticator app or
 a passkey). Keep the recovery codes somewhere safe.

@@ -13,8 +13,10 @@ services:
     volumes:
       - bastion-data:/data
     ports:
-      # Only the reverse proxy should reach this. On the same host, bind it to localhost.
-      - "127.0.0.1:8080:8080"
+      # Only the reverse proxy should reach this. With the proxy on this host, the default (localhost) is
+      # right; with it on another machine, set BASTION_BIND to this host's LAN address in .env, and let
+      # only the proxy's address through the firewall to port 8080.
+      - "${BASTION_BIND:-127.0.0.1}:8080:8080"
 
 volumes:
   bastion-data:
