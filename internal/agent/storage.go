@@ -20,8 +20,8 @@ type diskUsage struct {
 	Volumes    []struct{ Name, Driver, Links, Size, Labels string }
 	BuildCache []struct {
 		Size   string
-		InUse  bool
-		Shared bool
+		InUse  string // "true" or "false"
+		Shared string
 	}
 }
 
@@ -30,8 +30,36 @@ func readDiskUsage(ctx context.Context) (*diskUsage, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Docker's versions differ in how they write some values (InUse is true in some, "true" in others; a
+	// count may be 1 or "1"), so every value is made text before reading.
+	var raw any
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		return nil, err
+	}
+	normal, _ := json.Marshal(asText(raw))
 	var du diskUsage
-	return &du, json.Unmarshal([]byte(out), &du)
+	return &du, json.Unmarshal(normal, &du)
+}
+
+// asText turns every number, true or false in a JSON value into text, leaving its shape alone.
+func asText(v any) any {
+	switch v := v.(type) {
+	case map[string]any:
+		for k, e := range v {
+			v[k] = asText(e)
+		}
+		return v
+	case []any:
+		for i, e := range v {
+			v[i] = asText(e)
+		}
+		return v
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(v)
+	}
+	return v
 }
 
 // parseSize reads Docker's sizes: "12.2MB", "0B", "1.5GB" in powers of 1000, and docker stats's "1.2GiB".
@@ -125,7 +153,7 @@ func cleanupPreview(ctx context.Context) (protocol.Cleanup, error) {
 		}
 	}
 	for _, b := range du.BuildCache {
-		if !b.InUse && !b.Shared {
+		if b.InUse != "true" && b.Shared != "true" {
 			c.BuildCacheSize += parseSize(b.Size)
 		}
 	}

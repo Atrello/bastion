@@ -77,7 +77,7 @@ rm -r /etc/bastion /var/lib/bastion
 
 Then remove the server in the panel. Its stacks keep running; Bastion never stops anything it didn't
 start. Delete its game servers in the panel first if you want them gone (their containers are
-`bastion-game-<id>`, their files in `/var/lib/bastion/games`).
+`bastion-<server>-<game>`, labelled `bastion.game=<id>`; their files in `/var/lib/bastion/games`).
 
 ## Building it yourself
 

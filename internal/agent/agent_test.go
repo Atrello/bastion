@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"encoding/json"
 	"github.com/Atrello/bastion/internal/protocol"
 	"os"
 	"path/filepath"
@@ -119,5 +120,24 @@ func TestGitChecks(t *testing.T) {
 	}
 	if checkGit(protocol.GitArgs{Repo: "git@github.com:acme/homelab.git", Branch: "release/1.0", Path: "compose.yaml"}) != nil {
 		t.Error("refused an ssh address")
+	}
+}
+
+// Docker's versions write some of `docker system df`'s values differently: both are read alike.
+func TestDiskUsageEitherWay(t *testing.T) {
+	for _, raw := range []string{
+		`{"BuildCache":[{"Size":"1.5GB","InUse":false,"Shared":false}],"Volumes":[{"Name":"v","Links":0,"Size":"1kB"}]}`,
+		`{"BuildCache":[{"Size":"1.5GB","InUse":"false","Shared":"false"}],"Volumes":[{"Name":"v","Links":"0","Size":"1kB"}]}`,
+	} {
+		var v any
+		_ = json.Unmarshal([]byte(raw), &v)
+		normal, _ := json.Marshal(asText(v))
+		var du diskUsage
+		if err := json.Unmarshal(normal, &du); err != nil {
+			t.Fatalf("%s: %v", raw, err)
+		}
+		if du.BuildCache[0].InUse != "false" || du.Volumes[0].Links != "0" {
+			t.Fatalf("%s: read as %+v", raw, du)
+		}
 	}
 }

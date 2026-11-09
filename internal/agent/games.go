@@ -1,7 +1,7 @@
 package agent
 
 // Game servers. Each game runs from its egg (Pterodactyl's game definitions) in its own container,
-// bastion-game-<id>, with its files in the games folder (/var/lib/bastion/games/<id>) mounted at
+// labelled bastion.game=<id> and named bastion-<server>-<game> by the panel, with its files in the games folder (/var/lib/bastion/games/<id>) mounted at
 // /home/container. The panel works out everything from the egg; the agent checks what it's given, installs,
 // runs, stops and reports on each one.
 
@@ -39,8 +39,28 @@ func gamesDir() string {
 	return "/var/lib/bastion/games"
 }
 
-func gameDir(id int64) string       { return filepath.Join(gamesDir(), strconv.FormatInt(id, 10)) }
-func gameContainer(id int64) string { return "bastion-game-" + strconv.FormatInt(id, 10) }
+func gameDir(id int64) string { return filepath.Join(gamesDir(), strconv.FormatInt(id, 10)) }
+
+// gameContainer is the name of a game's container, found by its bastion.game label (its name changes with
+// the game's), or what it was called before names were chosen, if there's none yet.
+func gameContainer(id int64) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, _ := docker(ctx, "", "ps", "--all", "--filter", "label=bastion.game="+strconv.FormatInt(id, 10), "--format", "{{.Names}}")
+	if names := strings.Fields(out); len(names) > 0 {
+		return names[0]
+	}
+	return "bastion-game-" + strconv.FormatInt(id, 10)
+}
+
+func gameOf(label string) int64 {
+	id, _ := strconv.ParseInt(label, 10, 64)
+	return id
+}
+
+// A game container's name, as the panel chooses it.
+var gameContainerName = regexp.MustCompile(`^bastion-[a-z0-9][a-z0-9_.-]{0,120}$`)
+
 func installLogPath(id int64) string {
 	return filepath.Join(gamesDir(), strconv.FormatInt(id, 10)+".install.log")
 }
@@ -101,7 +121,7 @@ func gameEnv(s protocol.GameSpec) []string {
 		"-e", "SERVER_MEMORY="+strconv.Itoa(s.MemoryMB),
 		"-e", "SERVER_IP=0.0.0.0",
 		"-e", "SERVER_PORT="+strconv.Itoa(s.Ports[0]),
-		"-e", "P_SERVER_UUID="+gameContainer(s.ID),
+		"-e", "P_SERVER_UUID=bastion-game-"+strconv.FormatInt(s.ID, 10),
 	)
 }
 
@@ -223,10 +243,18 @@ func startGame(ctx context.Context, s protocol.GameSpec) error {
 	if err := applyConfigFiles(s.ID, s.ConfigFiles); err != nil {
 		return fmt.Errorf("filling in its config files: %w", err)
 	}
+	name := "bastion-game-" + strconv.FormatInt(s.ID, 10)
+	if gameContainerName.MatchString(s.Container) {
+		name = s.Container
+	}
+	// A container already called that which isn't this game's is someone else's: never removed.
+	if label, err := docker(ctx, "", "inspect", "--format", `{{index .Config.Labels "bastion.game"}}`, name); err == nil && gameOf(strings.TrimSpace(label)) != s.ID {
+		return fmt.Errorf("there's already a container called %s on this server: rename the game, or that container", name)
+	}
 	_, _ = docker(ctx, "", "rm", "-f", gameContainer(s.ID))
 	startedAt := time.Now().Add(-2 * time.Second)
 	memory := strconv.Itoa(s.MemoryMB) + "m"
-	args := []string{"run", "-d", "-i", "--name", gameContainer(s.ID), "--label", "bastion.game=" + strconv.FormatInt(s.ID, 10),
+	args := []string{"run", "-d", "-i", "--name", name, "--label", "bastion.game=" + strconv.FormatInt(s.ID, 10),
 		"--user", fmt.Sprintf("%d:%d", gameUID, gameGID), "--workdir", "/home/container",
 		"-v", gameDir(s.ID) + ":/home/container",
 		"--memory", memory, "--memory-swap", memory, "--pids-limit", "1024",
@@ -446,14 +474,15 @@ func gameStatuses(ctx context.Context) []protocol.GameStatus {
 	// Docker's view: running or not, how it exited, and since when.
 	out, _ := docker(ctx, "", "ps", "--all", "--filter", "label=bastion.game", "--format", "{{.Names}}")
 	var running []string
+	nameOf := map[string]int64{} // container names to game IDs, for docker stats
 	if names := strings.Fields(out); len(names) > 0 {
-		info, _ := docker(ctx, "", append([]string{"inspect", "--format", "{{.Name}} {{.State.Running}} {{.State.ExitCode}} {{.State.StartedAt}}"}, names...)...)
+		info, _ := docker(ctx, "", append([]string{"inspect", "--format", `{{index .Config.Labels "bastion.game"}} {{.State.Running}} {{.State.ExitCode}} {{.State.StartedAt}} {{.Name}}`}, names...)...)
 		for _, line := range strings.Split(info, "\n") {
 			f := strings.Fields(line)
-			if len(f) != 4 {
+			if len(f) != 5 {
 				continue
 			}
-			id, _ := strconv.ParseInt(strings.TrimPrefix(f[0], "/bastion-game-"), 10, 64)
+			id := gameOf(f[0])
 			g := byID[id]
 			if g == nil {
 				continue
@@ -469,7 +498,9 @@ func gameStatuses(ctx context.Context) []protocol.GameStatus {
 					g.State = "starting"
 				}
 				games.mu.Unlock()
-				running = append(running, gameContainer(id))
+				name := strings.TrimPrefix(f[4], "/")
+				running = append(running, name)
+				nameOf[name] = id
 			case f[2] != "0" && !stopped:
 				g.State = "crashed"
 			}
@@ -482,8 +513,7 @@ func gameStatuses(ctx context.Context) []protocol.GameStatus {
 			if json.Unmarshal([]byte(line), &st) != nil {
 				continue
 			}
-			id, _ := strconv.ParseInt(strings.TrimPrefix(st.Name, "bastion-game-"), 10, 64)
-			if g := byID[id]; g != nil {
+			if g := byID[nameOf[st.Name]]; g != nil {
 				g.CPUPercent, _ = strconv.ParseFloat(strings.TrimSuffix(st.CPUPerc, "%"), 64)
 				used, _, _ := strings.Cut(st.MemUsage, " / ")
 				g.MemUsed = parseSize(used)

@@ -138,6 +138,8 @@ type Container struct {
 	Ports   string `json:"ports"`
 	Stack   string `json:"stack"`
 	Service string `json:"service"`
+	// The game server it runs (its bastion.game label), or 0.
+	Game int64 `json:"game,omitempty"`
 	// The registry has a newer image for its tag.
 	Update bool `json:"update"`
 }
@@ -176,6 +178,7 @@ type ActionResult struct {
 type LogsArgs struct {
 	Stack     string `json:"stack,omitempty"`
 	Container string `json:"container,omitempty"`
+	Game      int64  `json:"game,omitempty"` // a game server's container, whatever it's called
 	Tail      int    `json:"tail"`
 }
 
@@ -262,7 +265,7 @@ type GitResult struct {
 	Commit string `json:"commit"`
 }
 
-// Game servers. Each runs in a container named bastion-game-<id>, with its files in the agent's games
+// Game servers. Each runs in a container labelled bastion.game=<id> (named bastion-<server>-<game>), with its files in the agent's games
 // folder (/var/lib/bastion/games/<id>), seen inside the container as /home/container.
 
 type GameRef struct {
@@ -271,10 +274,13 @@ type GameRef struct {
 
 // GameSpec is everything needed to install or run a game server, worked out by the panel from its egg.
 type GameSpec struct {
-	ID       int64  `json:"id"`
-	Image    string `json:"image"`
-	Startup  string `json:"startup"` // the startup command, its {{VARIABLES}} already filled in
-	StopWith string `json:"stopWith"`
+	ID int64 `json:"id"`
+	// Its container's name: bastion-<server>-<game>. Containers are found by their bastion.game label,
+	// so the name is only for people, and a game renamed gets its new one when it next starts.
+	Container string `json:"container,omitempty"`
+	Image     string `json:"image"`
+	Startup   string `json:"startup"` // the startup command, its {{VARIABLES}} already filled in
+	StopWith  string `json:"stopWith"`
 	// What its console says once it has started; until then its state is "starting".
 	DoneText []string `json:"doneText,omitempty"`
 	// Its egg's variables and their values, as environment variables.

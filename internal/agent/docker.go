@@ -178,7 +178,7 @@ func listContainers(ctx context.Context) ([]protocol.Container, error) {
 		}
 		containers = append(containers, protocol.Container{
 			ID: c.ID[:min(12, len(c.ID))], Name: c.Names, Image: c.Image, State: c.State, Status: c.Status, Ports: c.Ports,
-			Stack: labels["com.docker.compose.project"], Service: labels["com.docker.compose.service"],
+			Stack: labels["com.docker.compose.project"], Service: labels["com.docker.compose.service"], Game: gameOf(labels["bastion.game"]),
 			Update: imageUpdates.available(c.Image),
 		})
 	}
@@ -352,6 +352,12 @@ func logsCommand(ctx context.Context, stacksDir string, args protocol.LogsArgs, 
 			cmd = append(cmd, "--follow")
 		}
 		return cmd, s.dir, nil
+	case args.Game > 0:
+		cmd := []string{"logs", "--tail", tail}
+		if follow {
+			cmd = append(cmd, "--follow")
+		}
+		return append(cmd, gameContainer(args.Game)), "", nil
 	case containerID.MatchString(args.Container):
 		cmd := []string{"logs", "--tail", tail}
 		if follow {

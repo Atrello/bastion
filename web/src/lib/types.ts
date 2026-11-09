@@ -56,6 +56,8 @@ export type Container = {
   ports: string;
   stack: string;
   service: string;
+  /** The game server it runs, if it's one. */
+  game?: number;
   /** The registry has a newer image for its tag. */
   update: boolean;
 };

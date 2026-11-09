@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -325,5 +326,33 @@ func TestJobs(t *testing.T) {
 	}
 	if status, _ := b.call(b.client, "DELETE", "/api/jobs/"+started["id"].(string), nil); status != 404 {
 		t.Fatalf("cleared twice: %d", status)
+	}
+}
+
+// Game containers are named bastion-<server>-<game>, in letters Docker allows, and never the same as
+// another game's on that server.
+func TestGameContainerNames(t *testing.T) {
+	for in, want := range map[string]string{
+		"Survival SMP": "survival-smp", "  Créatif!! 2 ": "cr-atif-2", "valheim_v2.1": "valheim_v2.1", "!!!": "game",
+		strings.Repeat("a", 60): strings.Repeat("a", 40),
+	} {
+		if got := dockerName(in, "game"); got != want {
+			t.Errorf("%q: %q, want %q", in, got, want)
+		}
+	}
+	b := newPanel(t)
+	b.setUp()
+	fakeAgent(t, b)
+	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
+	b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)})
+	for i, name := range []string{"Survival SMP", "survival smp!"} {
+		if status, r := b.call(b.client, "POST", "/api/games", map[string]any{"name": name, "eggId": 1, "serverId": 1, "memoryMb": 1024, "ports": []int{25565 + i}}); status != 200 {
+			t.Fatalf("making %q: %d %v", name, status, r)
+		}
+	}
+	first, _ := b.api.loadGame(context.Background(), 1)
+	second, _ := b.api.loadGame(context.Background(), 2)
+	if a, c := b.api.containerName(context.Background(), first), b.api.containerName(context.Background(), second); a != "bastion-atlas-survival-smp-1" || c != "bastion-atlas-survival-smp-2" {
+		t.Fatalf("names alike: %q and %q", a, c)
 	}
 }

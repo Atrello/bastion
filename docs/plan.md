@@ -154,3 +154,4 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | A server added but never joined isn't shown, and is forgotten when its join command expires | Asked for |
 | 9 Nov 2026 | Archiving, unpacking and moving a game's files are jobs on the panel, with progress, shown with uploads in the corner of every page and stoppable from there | Asked for; it replaces keeping the request open, and carries on with the browser closed |
 | 9 Nov 2026 | A list from NPM is asked again with less included when NPM can't include something (NPMplus versions differ on access lists) | NPMplus answered "Internal Error" to the proxy hosts list |
+| 9 Nov 2026 | Game containers are named bastion-<server>-<game> and found by their bastion.game label | Asked for; a renamed game's container takes its new name when it next starts |

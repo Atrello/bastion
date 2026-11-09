@@ -143,10 +143,56 @@ func (api *API) spec(ctx context.Context, g *game) (protocol.GameSpec, *eggs.Egg
 	}
 	install := e.Scripts.Installation
 	return protocol.GameSpec{
-		ID: g.ID, Image: g.Image, Startup: fill.Fill(e.Startup), StopWith: e.Config.Stop, DoneText: e.DoneText(), Env: env,
+		ID: g.ID, Container: api.containerName(ctx, g), Image: g.Image, Startup: fill.Fill(e.Startup), StopWith: e.Config.Stop, DoneText: e.DoneText(), Env: env,
 		MemoryMB: g.MemoryMB, CPUPercent: g.CPUPercent, DiskMB: g.DiskMB, Ports: g.Ports, ConfigFiles: configFiles,
 		InstallImage: install.Container, InstallEntrypoint: install.Entrypoint, InstallScript: install.Script,
 	}, e, nil
+}
+
+// containerName is what a game's container is called: bastion-<server>-<game>, in the letters Docker
+// allows ("Survival SMP" on atlas is bastion-atlas-survival-smp). Another game on the same server with a
+// name that comes out the same gets its number added, so each is different.
+func (api *API) containerName(ctx context.Context, g *game) string {
+	var server string
+	_ = api.db.QueryRowContext(ctx, `SELECT name FROM servers WHERE id = ?`, g.ServerID).Scan(&server)
+	name := "bastion-" + dockerName(server, "server") + "-" + dockerName(g.Name, "game")
+	rows, err := api.db.QueryContext(ctx, `SELECT name FROM games WHERE server_id = ? AND id != ?`, g.ServerID, g.ID)
+	if err != nil {
+		return name + "-" + strconv.FormatInt(g.ID, 10)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var other string
+		if rows.Scan(&other) == nil && dockerName(other, "game") == dockerName(g.Name, "game") {
+			return name + "-" + strconv.FormatInt(g.ID, 10)
+		}
+	}
+	return name
+}
+
+// dockerName is s in the letters a container's name can have: lower case, with anything else a dash.
+func dockerName(s, otherwise string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(s) {
+		ok := r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '.' || r == '_'
+		switch {
+		case ok:
+			b.WriteRune(r)
+			dash = false
+		case !dash && b.Len() > 0:
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	out := strings.Trim(b.String(), "-._")
+	if len(out) > 40 {
+		out = strings.TrimRight(out[:40], "-._")
+	}
+	if out == "" {
+		return otherwise
+	}
+	return out
 }
 
 // gameView is a game server as the web app shows it (web/src/lib/types.ts, GameServer).
@@ -513,7 +559,7 @@ func (api *API) gameConsole(w http.ResponseWriter, r *http.Request, _ *auth.User
 	var lines protocol.LogLines
 	v := api.view(g, "", false)
 	ran := v.State != "installing" && v.State != "install-failed" &&
-		api.hub.Request(r.Context(), g.ServerID, protocol.OpStackLogs, protocol.LogsArgs{Container: "bastion-game-" + strconv.FormatInt(g.ID, 10), Tail: 300}, &lines) == nil
+		api.hub.Request(r.Context(), g.ServerID, protocol.OpStackLogs, protocol.LogsArgs{Game: g.ID, Tail: 300}, &lines) == nil
 	if !ran {
 		var res protocol.GameFileResult
 		if err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameFiles, protocol.GameFileArgs{ID: g.ID, Op: "install-log"}, &res); err != nil {
@@ -552,7 +598,7 @@ func (api *API) gameStream(w http.ResponseWriter, r *http.Request, u *auth.User)
 		writeError(w, http.StatusNotFound, "no such game server")
 		return
 	}
-	api.relay(w, r, g.ServerID, protocol.OpLogsFollow, protocol.LogsArgs{Container: "bastion-game-" + strconv.FormatInt(g.ID, 10), Tail: 0}, false)
+	api.relay(w, r, g.ServerID, protocol.OpLogsFollow, protocol.LogsArgs{Game: g.ID, Tail: 0}, false)
 }
 
 // startupVariable is one of a game's settings (web/src/lib/types.ts, StartupVariable).

@@ -28,7 +28,7 @@
   const mine = $derived(stacks.data?.filter((s) => s.serverId === id) ?? []);
   const myGames = $derived(games.data?.filter((g) => g.serverId === id) ?? []);
   // Containers shown nowhere else in Bastion: not in a compose stack, and not a game server.
-  const loose = $derived(containers.data?.filter((c) => c.serverId === id && !c.stack && !c.name.startsWith('bastion-game-')) ?? []);
+  const loose = $derived(containers.data?.filter((c) => c.serverId === id && !c.stack && !c.game) ?? []);
 
   let error = $state<string>();
   let joinCommand = $state<string>();
