@@ -8,6 +8,7 @@
 
   let {
     npmId,
+    flavour = 'npm',
     kind,
     item,
     certificates,
@@ -16,6 +17,8 @@
     onsaved,
   }: {
     npmId: number;
+    /** npm or npmplus: NPMplus is a fork with its own fields, so it's sent its own. */
+    flavour?: string;
     kind: NpmKind;
     item?: NpmItem;
     certificates: NpmItem[];
@@ -45,7 +48,8 @@
   let caching = $state(!!it.caching_enabled);
   let blockExploits = $state(it.block_exploits === undefined ? true : !!it.block_exploits);
   let websockets = $state(it.allow_websocket_upgrade === undefined ? true : !!it.allow_websocket_upgrade);
-  let accessList = $state(String(it.access_list_id ?? 0));
+  // NPM has one access list per host; NPMplus can have several, and Bastion sets the first.
+  let accessList = $state(String(it.access_list_id ?? it.access_lists?.[0]?.id ?? 0));
   let locations = $state<{ path: string; forward_scheme: string; forward_host: string; forward_port: number | undefined; advanced_config: string }[]>(
     (it.locations ?? []).map((l: Record<string, any>) => ({
       path: l.path ?? '',
@@ -79,15 +83,15 @@
   // SSL, for hosts: an existing certificate, none, or a new one from Let's Encrypt.
   let certificate = $state(String(it.certificate_id ?? 0));
   let forceSsl = $state(!!it.ssl_forced);
-  let http2 = $state(!!it.http2_support);
+  let http2 = $state(!!(it.http2_support ?? it.npmplus_http3_support));
   let hsts = $state(!!it.hsts_enabled);
   let hstsSubdomains = $state(!!it.hsts_subdomains);
   let email = $state(meta.letsencrypt_email ?? '');
   let agree = $state(false);
-  let dnsChallenge = $state(!!meta.dns_challenge);
-  let dnsProvider = $state(meta.dns_provider ?? '');
+  let dnsChallenge = $state(!!(meta.dns_challenge ?? it.npmplus_dns_challenge));
+  let dnsProvider = $state(meta.dns_provider ?? it.npmplus_dns_provider ?? '');
   let dnsCredentials = $state(meta.dns_provider_credentials ?? '');
-  let propagation = $state<number | undefined>(meta.propagation_seconds);
+  let propagation = $state<number | undefined>(meta.propagation_seconds ?? it.npmplus_propagation_seconds);
 
   // Certificates: from Let's Encrypt, or uploaded (a custom one, as NPM calls it).
   let upload = $state(false);
@@ -116,6 +120,17 @@
       .map((d: string) => d.trim().toLowerCase())
       .filter(Boolean);
 
+  // svelte-ignore state_referenced_locally
+  const plus = flavour === 'npmplus';
+
+  // NPMplus asks Let's Encrypt with its own email setting, and takes these fields beside the others.
+  function npmplusDns() {
+    return {
+      npmplus_dns_challenge: dnsChallenge,
+      ...(dnsChallenge ? { npmplus_dns_provider: dnsProvider.trim(), npmplus_dns_provider_credentials: dnsCredentials, npmplus_propagation_seconds: propagation || undefined } : {}),
+    };
+  }
+
   function letsEncrypt() {
     return {
       letsencrypt_email: email.trim(),
@@ -125,14 +140,18 @@
     };
   }
 
+  // Every field NPM or NPMplus might take is sent: the panel keeps only those this NPM's own schema allows,
+  // so the same form works with either, and with their different versions.
   function ssl() {
     return {
       certificate_id: certificate === 'new' ? 'new' : Number(certificate),
       ssl_forced: forceSsl,
       http2_support: http2,
+      npmplus_http3_support: http2,
       hsts_enabled: hsts,
       hsts_subdomains: hstsSubdomains,
       meta: certificate === 'new' ? letsEncrypt() : { letsencrypt_agree: false, dns_challenge: false },
+      ...(certificate === 'new' ? npmplusDns() : {}),
     };
   }
 
@@ -148,7 +167,15 @@
           block_exploits: blockExploits,
           allow_websocket_upgrade: websockets,
           access_list_id: Number(accessList),
-          locations: locations.map((l) => ({ ...l, path: l.path.trim(), forward_host: l.forward_host.trim() })),
+          npmplus_access_list_ids: accessList === '0' ? [] : [Number(accessList)],
+          npmplus_access_list_type: accessList === '0' ? 'public' : 'custom',
+          locations: locations.map((l) => ({
+            ...l,
+            path: l.path.trim(),
+            forward_host: l.forward_host.trim(),
+            npmplus_access_list_ids: [],
+            npmplus_access_list_type: 'global',
+          })),
           advanced_config: advanced,
           ...ssl(),
         };
@@ -176,7 +203,7 @@
           clients: clients.filter((c) => c.address.trim()).map((c) => ({ address: c.address.trim(), directive: c.directive })),
         };
       case 'certificates':
-        return { provider: 'letsencrypt', domain_names: domainList(), meta: letsEncrypt() };
+        return { provider: 'letsencrypt', domain_names: domainList(), meta: letsEncrypt(), ...npmplusDns() };
     }
   }
 
@@ -219,7 +246,7 @@
 </script>
 
 {#snippet letsEncryptFields()}
-  <label>Email for Let's Encrypt <input type="email" required bind:value={email} /></label>
+  {#if !plus}<label>Email for Let's Encrypt <input type="email" required bind:value={email} /></label>{/if}
   <label class="check"><input type="checkbox" bind:checked={dnsChallenge} /> Use a DNS challenge (needed for wildcard domains, or when port 80 isn't reachable)</label>
   {#if dnsChallenge}
     <label>DNS provider <input required class="mono" placeholder="e.g. cloudflare" bind:value={dnsProvider} /></label>
@@ -357,7 +384,7 @@
         {#if certificate === 'new'}{@render letsEncryptFields()}{/if}
         {#if certificate !== '0'}
           <label class="check"><input type="checkbox" bind:checked={forceSsl} /> Force SSL</label>
-          <label class="check"><input type="checkbox" bind:checked={http2} /> HTTP/2</label>
+          <label class="check"><input type="checkbox" bind:checked={http2} /> {plus ? 'HTTP/2 and HTTP/3' : 'HTTP/2'}</label>
           <label class="check"><input type="checkbox" bind:checked={hsts} /> HSTS</label>
           {#if hsts}<label class="check"><input type="checkbox" bind:checked={hstsSubdomains} /> HSTS for subdomains too</label>{/if}
         {/if}

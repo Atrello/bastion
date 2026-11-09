@@ -158,3 +158,41 @@ func TestNPMUnreachableInWords(t *testing.T) {
 		}
 	}
 }
+
+// NPMplus signs in with a cookie, not a token in its answer; Bastion works with either.
+func TestNPMplus(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tokens" {
+			http.SetCookie(w, &http.Cookie{Name: "__Host-Http-token", Value: "s%3Asigned.token", Path: "/", HttpOnly: true})
+			_, _ = w.Write([]byte(`{"requiresTotp":false,"expires":"2099-01-01T00:00:00Z"}`))
+			return
+		}
+		if ck, err := r.Cookie("__Host-Http-token"); err != nil || ck.Value != "s%3Asigned.token" {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"message":"Permission Denied"}}`))
+			return
+		}
+		seen = append(seen, r.URL.RawQuery)
+		_, _ = w.Write([]byte(`[{"id":1,"domain_names":["jellyfin.home.lab"],"enabled":true,"npmplus_dns_provider_credentials":"secret"}]`))
+	}))
+	defer srv.Close()
+
+	if status, answer := b.call(b.client, "POST", "/api/npm", map[string]string{"url": srv.URL, "email": "robin@example.com", "password": "x"}); status != 204 {
+		t.Fatalf("linking NPMplus: %d %v", status, answer)
+	}
+	req, _ := http.NewRequest("GET", b.server.URL+"/api/npm", nil)
+	res, _ := b.client.Do(req)
+	raw, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(raw), `"flavour":"npmplus"`) {
+		t.Fatalf("not seen as NPMplus: %s", raw)
+	}
+	req, _ = http.NewRequest("GET", b.server.URL+"/api/npm/1/proxy-hosts", nil)
+	res, _ = b.client.Do(req)
+	raw, _ = io.ReadAll(res.Body)
+	if res.StatusCode != 200 || strings.Contains(string(raw), "secret") || !strings.Contains(seen[len(seen)-1], "access_lists") {
+		t.Fatalf("listing NPMplus hosts: %d %s (asked %q)", res.StatusCode, raw, seen)
+	}
+}

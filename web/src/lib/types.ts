@@ -161,7 +161,8 @@ export type Cleanup = {
 };
 
 /** A linked Nginx Proxy Manager. */
-export type NpmInstance = { id: number; name: string; url: string; email: string };
+/** A linked Nginx Proxy Manager: npm, or npmplus (a fork with its own fields). */
+export type NpmInstance = { id: number; name: string; url: string; email: string; flavour: 'npm' | 'npmplus' };
 
 /** The kinds of thing NPM manages, as its API names them. */
 export type NpmKind = 'proxy-hosts' | 'redirection-hosts' | 'streams' | 'dead-hosts' | 'access-lists' | 'certificates';

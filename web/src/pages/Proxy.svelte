@@ -183,7 +183,7 @@
               <td><b>{item.domain_names.join(', ')}</b></td>
               <td class="muted"><span class="address">{item.forward_scheme}://{item.forward_host}:{item.forward_port}</span></td>
               <td>{certName(item)}</td>
-              <td>{item.access_list?.name ?? 'Public'}</td>
+              <td>{item.access_list?.name ?? (item.access_lists?.map((l: { name: string }) => l.name).join(', ') || 'Public')}</td>
               <td>
                 {#if !enabled(item)}
                   <span class="badge">Disabled</span>
@@ -241,7 +241,7 @@
 {/if}
 
 {#if editing}
-  <ProxyForm {npmId} {kind} item={editing.item} {certificates} {accessLists} onclose={() => (editing = undefined)} onsaved={reload} />
+  <ProxyForm {npmId} flavour={instances.data?.find((i) => i.id === npmId)?.flavour} {kind} item={editing.item} {certificates} {accessLists} onclose={() => (editing = undefined)} onsaved={reload} />
 {/if}
 
 {#if managing}
@@ -249,7 +249,7 @@
     <ul class="instances">
       {#each instances.data ?? [] as i (i.id)}
         <li class="row">
-          <span class="grow"><b>{i.name}</b> <span class="muted small">{i.url} as {i.email}</span></span>
+          <span class="grow"><b>{i.name}</b> <span class="muted small">{i.flavour === 'npmplus' ? 'NPMplus' : 'NPM'} at {i.url} as {i.email}</span></span>
           <button class="danger" onclick={() => unlink(i.id)}>Unlink</button>
         </li>
       {/each}

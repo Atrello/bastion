@@ -59,7 +59,7 @@ func (api *API) npmClient(ctx context.Context, id int64) (*npm.Client, error) {
 		return c, nil
 	}
 	c := &npm.Client{}
-	err := api.db.QueryRowContext(ctx, `SELECT url, email, password, cert_sha256 FROM npm_instances WHERE id = ?`, id).Scan(&c.URL, &c.Email, &c.Password, &c.PinnedCert)
+	err := api.db.QueryRowContext(ctx, `SELECT url, email, password, cert_sha256, flavour FROM npm_instances WHERE id = ?`, id).Scan(&c.URL, &c.Email, &c.Password, &c.PinnedCert, &c.Flavour)
 	if err != nil {
 		return nil, errors.New("no such NPM")
 	}
@@ -68,7 +68,7 @@ func (api *API) npmClient(ctx context.Context, id int64) (*npm.Client, error) {
 }
 
 func (api *API) npmInstances(w http.ResponseWriter, r *http.Request, _ *auth.User) {
-	rows, err := api.db.QueryContext(r.Context(), `SELECT id, name, url, email FROM npm_instances ORDER BY id`)
+	rows, err := api.db.QueryContext(r.Context(), `SELECT id, name, url, email, flavour FROM npm_instances ORDER BY id`)
 	if err != nil {
 		api.fail(w, r, err)
 		return
@@ -79,11 +79,13 @@ func (api *API) npmInstances(w http.ResponseWriter, r *http.Request, _ *auth.Use
 		Name  string `json:"name"`
 		URL   string `json:"url"`
 		Email string `json:"email"`
+		// npm or npmplus: their forms differ.
+		Flavour string `json:"flavour"`
 	}
 	list := []instance{}
 	for rows.Next() {
 		var i instance
-		if rows.Scan(&i.ID, &i.Name, &i.URL, &i.Email) == nil {
+		if rows.Scan(&i.ID, &i.Name, &i.URL, &i.Email, &i.Flavour) == nil {
 			list = append(list, i)
 		}
 	}
@@ -128,12 +130,12 @@ func (api *API) addNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	if name == "" || len(name) > 60 {
 		name = "Nginx Proxy Manager"
 	}
-	if _, err := api.db.ExecContext(r.Context(), `INSERT INTO npm_instances (name, url, email, password, cert_sha256) VALUES (?, ?, ?, ?, ?)`,
-		name, address, c.Email, c.Password, pin); err != nil {
+	if _, err := api.db.ExecContext(r.Context(), `INSERT INTO npm_instances (name, url, email, password, cert_sha256, flavour) VALUES (?, ?, ?, ?, ?, ?)`,
+		name, address, c.Email, c.Password, pin, c.Flavour); err != nil {
 		api.fail(w, r, err)
 		return
 	}
-	api.log.Info("NPM linked", "user", u.Username, "url", address)
+	api.log.Info("NPM linked", "user", u.Username, "url", address, "flavour", c.Flavour)
 	go api.checkNPM(context.WithoutCancel(r.Context()))
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -194,6 +196,9 @@ func (api *API) npmList(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 		"proxy-hosts": "certificate,access_list", "redirection-hosts": "certificate", "dead-hosts": "certificate",
 		"access-lists": "items,clients", "certificates": "",
 	}[r.PathValue("kind")]
+	if c.Flavour == npm.FlavourNPMplus && r.PathValue("kind") == "proxy-hosts" {
+		expand = "certificate,access_lists" // a host can have several access lists in NPMplus
+	}
 	if expand != "" {
 		path += "?expand=" + expand
 	}
@@ -233,7 +238,9 @@ func (api *API) npmChange(w http.ResponseWriter, r *http.Request, u *auth.User) 
 			writeError(w, http.StatusBadRequest, "send the item as a JSON object")
 			return
 		}
-		body = raw
+		// Only the fields this NPM (or NPMplus, of whichever version) takes for it.
+		c.Prune(r.Context(), r.Method, path, object)
+		body, _ = json.Marshal(object)
 	}
 	var result any
 	if err := c.Call(r.Context(), r.Method, path, body, &result); err != nil {
@@ -276,7 +283,7 @@ func (api *API) npmAction(w http.ResponseWriter, r *http.Request, u *auth.User) 
 
 // secretFields are what NPM sends back that the browser never needs: a custom certificate's private key,
 // a DNS provider's credentials, and access list passwords.
-var secretFields = []string{"certificate_key", "dns_provider_credentials", "password"}
+var secretFields = []string{"certificate_key", "dns_provider_credentials", "npmplus_dns_provider_credentials", "password"}
 
 // scrub removes secretFields from an answer from NPM, wherever they are in it.
 func scrub(v any) {
@@ -341,7 +348,12 @@ func (api *API) npmUpload(w http.ResponseWriter, r *http.Request, u *auth.User) 
 	}
 	files := map[string]string{"certificate": body.Certificate, "certificate_key": body.CertificateKey}
 	if strings.TrimSpace(body.Intermediate) != "" {
-		files["intermediate_certificate"] = body.Intermediate
+		if c.Flavour == npm.FlavourNPMplus {
+			// NPMplus takes the chain in the certificate's own file.
+			files["certificate"] = strings.TrimSpace(body.Certificate) + "\n" + strings.TrimSpace(body.Intermediate) + "\n"
+		} else {
+			files["intermediate_certificate"] = body.Intermediate
+		}
 	}
 	// NPM answers with the files, key included: that isn't sent back.
 	if err := c.Upload(r.Context(), path+"/upload", files, nil); err != nil {

@@ -41,17 +41,24 @@
     busy = true;
     error = undefined;
     try {
-      await api.npmSave(Number(npmId), 'proxy-hosts', {
+      const base = {
         domain_names: [domain.trim().toLowerCase()],
         forward_scheme: 'http',
         forward_host: address.trim(),
         forward_port: Number(port),
+        certificate_id: certificate ? 'new' : 0,
+        ssl_forced: certificate,
+      };
+      // Fields for NPM and NPMplus alike: the panel keeps only those this NPM accepts.
+      await api.npmSave(Number(npmId), 'proxy-hosts', {
+        ...base,
         block_exploits: true,
         allow_websocket_upgrade: true,
         access_list_id: 0,
-        certificate_id: certificate ? 'new' : 0,
-        ssl_forced: certificate,
+        npmplus_access_list_ids: [],
+        npmplus_access_list_type: 'public',
         http2_support: certificate,
+        npmplus_http3_support: certificate,
         meta: certificate ? { letsencrypt_email: email.trim(), letsencrypt_agree: agree, dns_challenge: false } : { letsencrypt_agree: false, dns_challenge: false },
       });
       made = domain.trim().toLowerCase();
@@ -91,7 +98,9 @@
       {/if}
       <label class="check"><input type="checkbox" bind:checked={certificate} /> Get a Let's Encrypt certificate and force HTTPS</label>
       {#if certificate}
-        <label>Email for Let's Encrypt <input required type="email" bind:value={email} /></label>
+        {#if instances.data?.find((i) => i.id === Number(npmId))?.flavour !== 'npmplus'}
+          <label>Email for Let's Encrypt <input required type="email" bind:value={email} /></label>
+        {/if}
         <label class="check"><input type="checkbox" required bind:checked={agree} /> I agree to the Let's Encrypt terms of service</label>
       {/if}
       <p class="muted small">Websockets and exploit blocking are on. Change anything else from Proxy afterwards.</p>

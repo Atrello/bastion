@@ -330,7 +330,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
         { id: 1, kind: 'disk', title: 'vault’s disk is 91% full', detail: 'Clean up unused images and volumes.', raisedAt: minutesAgo(60 * 30), clearedAt: minutesAgo(60 * 29) },
       ],
     };
-  if (method === 'GET' && path === '/npm') return [{ id: 1, name: 'Home proxy', url: 'http://192.168.1.10:81', email: 'robin@example.com' }];
+  if (method === 'GET' && path === '/npm') return [{ id: 1, name: 'Home proxy', url: 'http://192.168.1.10:81', email: 'robin@example.com', flavour: 'npm' }];
   if (method === 'GET' && path === '/npm/summary')
     return {
       hosts: 3,

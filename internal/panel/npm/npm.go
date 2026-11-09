@@ -24,6 +24,15 @@ import (
 	"time"
 )
 
+// The NPMs Bastion understands.
+const (
+	FlavourNPM     = "npm"
+	FlavourNPMplus = "npmplus"
+)
+
+// tokenCookie is where NPMplus puts its sign-in token.
+const tokenCookie = "__Host-Http-token"
+
 // Kinds are the NPM resources Bastion manages, as NPM's API names them.
 var Kinds = map[string]string{
 	"proxy-hosts":       "/api/nginx/proxy-hosts",
@@ -44,9 +53,14 @@ type Client struct {
 	pinnedOnce   sync.Once
 	pinnedClient *http.Client
 
+	// Flavour is which NPM this is, found when signing in: FlavourNPM gives its token in its answer,
+	// FlavourNPMplus (a fork with different fields) sets it as a cookie.
+	Flavour string
+
 	mu      sync.Mutex
 	token   string
 	expires time.Time
+	schema  *schemaCache
 }
 
 const timeout = 60 * time.Second // requesting a certificate can take a while
@@ -197,13 +211,30 @@ func (c *Client) signIn(ctx context.Context) (string, error) {
 	}
 	body, _ := json.Marshal(map[string]string{"identity": c.Email, "secret": c.Password})
 	var reply struct {
-		Token   string `json:"token"`
-		Expires string `json:"expires"`
+		Token        string `json:"token"`
+		Expires      string `json:"expires"`
+		RequiresTotp bool   `json:"requiresTotp"`
 	}
-	if err := c.do(ctx, "", http.MethodPost, "/api/tokens", body, "application/json", &reply); err != nil {
+	res, err := c.send(ctx, "", http.MethodPost, "/api/tokens", body, "application/json", &reply)
+	if err != nil {
 		return "", fmt.Errorf("signing in to NPM: %w", err)
 	}
-	c.token = reply.Token
+	switch {
+	case reply.RequiresTotp:
+		return "", errors.New("this NPM user has two-factor sign-in on, which Bastion can't answer: give Bastion its own NPM user without it")
+	case reply.Token != "":
+		c.Flavour, c.token = FlavourNPM, reply.Token
+	default:
+		// NPMplus sets the token as a cookie rather than giving it in its answer.
+		for _, ck := range res.Cookies() {
+			if ck.Name == tokenCookie {
+				c.Flavour, c.token = FlavourNPMplus, ck.Value
+			}
+		}
+		if c.token == "" {
+			return "", errors.New("signing in to NPM: it didn't give a token")
+		}
+	}
 	c.expires, _ = time.Parse(time.RFC3339, reply.Expires)
 	if c.expires.IsZero() {
 		c.expires = time.Now().Add(time.Hour)
@@ -254,24 +285,34 @@ func (c *Client) call(ctx context.Context, method, path string, body []byte, con
 }
 
 func (c *Client) do(ctx context.Context, token, method, path string, body []byte, contentType string, result any) error {
+	_, err := c.send(ctx, token, method, path, body, contentType, result)
+	return err
+}
+
+// send makes a request, giving the response (its body already read into result) for its cookies.
+func (c *Client) send(ctx context.Context, token, method, path string, body []byte, contentType string, result any) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.URL+path, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", contentType)
 	}
 	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+		if c.Flavour == FlavourNPMplus {
+			req.AddCookie(&http.Cookie{Name: tokenCookie, Value: token})
+		} else {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
 	}
 	res, err := c.client().Do(req)
 	if err != nil {
-		return &unreachable{address: c.URL, err: err}
+		return nil, &unreachable{address: c.URL, err: err}
 	}
 	defer res.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(res.Body, 8<<20))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if res.StatusCode >= 300 {
 		var e struct {
@@ -283,10 +324,10 @@ func (c *Client) do(ctx context.Context, token, method, path string, body []byte
 		if json.Unmarshal(raw, &e) == nil && e.Error.Message != "" {
 			message = e.Error.Message
 		}
-		return &Error{Status: res.StatusCode, Message: message}
+		return res, &Error{Status: res.StatusCode, Message: message}
 	}
 	if result != nil && len(raw) > 0 {
-		return json.Unmarshal(raw, result)
+		return res, json.Unmarshal(raw, result)
 	}
-	return nil
+	return res, nil
 }

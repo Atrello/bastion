@@ -83,7 +83,9 @@ The panel checks every 30 seconds. An alert is sent once when it's raised and on
 ### Nginx Proxy Manager
 
 Bastion signs in to NPM as one of its users and passes items through to NPM's API as NPM has them, so
-every field NPM has comes through. `{kind}` is one of `proxy-hosts`, `redirection-hosts`, `streams`,
+every field NPM has comes through. NPMplus (a fork) works too: it signs in with a cookie rather than a
+token, which Bastion handles, and its fields differ, so each NPM's own schema (`/api/schema`) is read and a
+change is sent only the fields that NPM accepts. Each instance's `flavour` (`npm` or `npmplus`) is listed. `{kind}` is one of `proxy-hosts`, `redirection-hosts`, `streams`,
 `dead-hosts`, `access-lists` or `certificates`. Private keys, DNS provider credentials and access list
 passwords that NPM sends back are taken out before they reach the browser.
 
