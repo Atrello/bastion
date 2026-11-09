@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# The panel's database and its settings, wherever they're run from in development.
+*.db
+*.db-*
+.env
