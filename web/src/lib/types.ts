@@ -138,6 +138,18 @@ export type StartupVariable = {
 
 export type GameFile = { name: string; dir: boolean; size: number; modified: string };
 
+/** A long job on the panel (internal/panel/api/jobs.go). done and total are bytes, or items for a move; total is 0 while not known. */
+export type Job = {
+  id: string;
+  title: string;
+  detail: string;
+  gameId: number;
+  state: 'running' | 'stopping' | 'done' | 'failed' | 'stopped';
+  done: number;
+  total: number;
+  error?: string;
+};
+
 export type Schedule = {
   id: number;
   name: string;

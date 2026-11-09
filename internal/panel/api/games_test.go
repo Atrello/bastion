@@ -2,12 +2,10 @@ package api
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -16,7 +14,6 @@ import (
 
 	"github.com/pquerna/otp/totp"
 
-	"github.com/Atrello/bastion/internal/panel/agents"
 	"github.com/Atrello/bastion/internal/protocol"
 )
 
@@ -225,33 +222,108 @@ type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) { return 0, errors.New("the tab closed") }
 
-// A long job keeps its request open with spaces, then gives its outcome, so a proxy in front doesn't give up.
-func TestSlowJobsKeepTalking(t *testing.T) {
-	slowAfter, keepAlive = 50*time.Millisecond, 20*time.Millisecond
-	t.Cleanup(func() { slowAfter, keepAlive = 5*time.Second, 15*time.Second })
+// A long file job runs on the panel: its progress shows in the list, and stopping it tells the agent to
+// stop. Nobody else sees or stops it, and one person can't run more than a few at once.
+func TestJobs(t *testing.T) {
 	b := newPanel(t)
-	answer := func(job func(context.Context) error) (*http.Response, string) {
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("POST", "/", nil)
-		b.api.slowly(rec, req, job)
-		return rec.Result(), rec.Body.String()
+	b.setUp()
+	id, secret := b.joinAgent()
+	ws, _ := b.dialAgent(id+"."+secret, nil)
+	defer ws.Close()
+	var mu sync.Mutex
+	var cancelled []string
+	go func() {
+		for {
+			var m protocol.Message
+			if ws.ReadJSON(&m) != nil {
+				return
+			}
+			ok := true
+			switch {
+			case m.Op == protocol.OpCancel:
+				var a protocol.CancelArgs
+				_ = json.Unmarshal(m.Args, &a)
+				mu.Lock()
+				cancelled = append(cancelled, a.ID)
+				mu.Unlock()
+				_ = ws.WriteJSON(protocol.Message{ID: m.ID, OK: &ok})
+			case m.Op == protocol.OpGameFiles:
+				// A long unpack: says how far it's got, then never answers until stopped.
+				progress, _ := json.Marshal(protocol.Progress{ID: m.ID, Done: 40, Total: 100})
+				_ = ws.WriteJSON(protocol.Message{Event: protocol.EventProgress, Data: progress})
+			default:
+				_ = ws.WriteJSON(protocol.Message{ID: m.ID, OK: &ok, Data: json.RawMessage(`{}`)})
+			}
+		}
+	}()
+	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
+	b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)})
+	if status, r := b.call(b.client, "POST", "/api/games", map[string]any{"name": "Survival", "eggId": 1, "serverId": 1, "memoryMb": 1024, "ports": []int{25565}}); status != 200 {
+		t.Fatalf("making a game: %d %v", status, r)
 	}
-	if res, _ := answer(func(context.Context) error { return nil }); res.StatusCode != 204 {
-		t.Fatalf("a quick job: %d", res.StatusCode)
+
+	status, started := b.call(b.client, "POST", "/api/games/1/files/unarchive", map[string]string{"path": "/mods/pack.zip"})
+	if status != 202 || started["state"] != "running" || started["title"] != "Unpacking pack.zip" || started["detail"] != "Survival, /mods/" {
+		t.Fatalf("starting: %d %v", status, started)
 	}
-	res, body := answer(func(context.Context) error { time.Sleep(150 * time.Millisecond); return nil })
-	if res.StatusCode != 200 || res.Header.Get("X-Bastion-Slow") != "1" || !strings.HasPrefix(body, "  ") || strings.TrimSpace(body) != "{}" {
-		t.Fatalf("a slow job: %d %q", res.StatusCode, body)
+	listJobs := func(client *http.Client) []map[string]any {
+		res, err := client.Get(b.server.URL + "/api/jobs")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var list []map[string]any
+		_ = json.NewDecoder(res.Body).Decode(&list)
+		return list
 	}
-	_, body = answer(func(context.Context) error {
-		time.Sleep(100 * time.Millisecond)
-		return &agents.AgentError{Message: "that zip can't be read"}
-	})
-	var outcome struct {
-		Error  string
-		Status int
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && (len(listJobs(b.client)) != 1 || listJobs(b.client)[0]["done"] != float64(40)) {
+		time.Sleep(20 * time.Millisecond)
 	}
-	if err := json.Unmarshal([]byte(body), &outcome); err != nil || outcome.Error != "that zip can't be read" || outcome.Status != 400 {
-		t.Fatalf("a slow job that failed: %q", body)
+	if list := listJobs(b.client); len(list) != 1 || list[0]["done"] != float64(40) || list[0]["total"] != float64(100) {
+		t.Fatalf("progress: %v", list)
+	}
+	if status, _ := b.call(b.newClient(), "DELETE", "/api/jobs/"+started["id"].(string), nil); status != 401 {
+		t.Fatalf("stopped signed out: %d", status)
+	}
+
+	// Four more fill the limit; a sixth is refused.
+	for i := 0; i < 4; i++ {
+		b.call(b.client, "POST", "/api/games/1/files/unarchive", map[string]string{"path": "/other.zip"})
+	}
+	if status, _ := b.call(b.client, "POST", "/api/games/1/files/unarchive", map[string]string{"path": "/one-too-many.zip"}); status != 429 {
+		t.Fatalf("a sixth job at once: %d", status)
+	}
+
+	if status, _ := b.call(b.client, "DELETE", "/api/jobs/"+started["id"].(string), nil); status != 204 {
+		t.Fatalf("stopping: %d", status)
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	var state any
+	for time.Now().Before(deadline) {
+		for _, j := range listJobs(b.client) {
+			if j["id"] == started["id"] {
+				state = j["state"]
+			}
+		}
+		mu.Lock()
+		n := len(cancelled)
+		mu.Unlock()
+		if state == "stopped" && n == 1 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if state != "stopped" || len(cancelled) != 1 {
+		t.Fatalf("stopping: state %v, the agent told to stop %d times", state, len(cancelled))
+	}
+	// Cleared once it's ended.
+	if status, _ := b.call(b.client, "DELETE", "/api/jobs/"+started["id"].(string), nil); status != 204 {
+		t.Fatalf("clearing: %d", status)
+	}
+	if status, _ := b.call(b.client, "DELETE", "/api/jobs/"+started["id"].(string), nil); status != 404 {
+		t.Fatalf("cleared twice: %d", status)
 	}
 }

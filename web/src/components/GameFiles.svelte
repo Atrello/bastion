@@ -1,5 +1,5 @@
 <!-- A game's files: browse folders, edit text files, upload (by button or dropping files on the list; the
-     uploads carry on if you leave the page, lib/uploads.svelte.ts), download, rename, delete, make folders,
+     uploads carry on if you leave the page, lib/tasks.svelte.ts), download, rename, delete, make folders,
      and pack files into an archive or unpack one. Tick files to move, archive or delete several at once;
      rows can also be dragged onto a folder, or onto the path at the top, to move them there. -->
 <script lang="ts">
@@ -9,8 +9,8 @@
   import { ask, sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago, bytes } from '../lib/format';
-  import { landed, startUploads } from '../lib/uploads.svelte';
-  import type { GameFile } from '../lib/types';
+  import { followJob, landed, startUploads } from '../lib/tasks.svelte';
+  import type { GameFile, Job } from '../lib/types';
 
   let { id, name, onerror, onnote }: { id: number; name: string; onerror: (message: string) => void; onnote: (message: string) => void } = $props();
 
@@ -96,9 +96,18 @@
 
   async function moveTo(names: string[], to: string) {
     moving = undefined;
-    const what = names.length === 1 ? names[0] : `${names.length} items`;
-    await attempt('Moving…', () => api.moveGameFiles(id, path, names, to), `Moved ${what} to ${to}.`);
+    await startJob(() => api.moveGameFiles(id, path, names, to));
     selected = [];
+  }
+
+  // Archiving, unpacking and moving run on the panel as jobs, shown in the corner of every page
+  // (components/Tasks.svelte), which refreshes this list when one's done.
+  async function startJob(start: () => Promise<Job>) {
+    try {
+      followJob(await start());
+    } catch (err) {
+      onerror((err as Error).message);
+    }
   }
 
   // Dragging a ticked row takes everything ticked with it.
@@ -159,12 +168,12 @@
     if (!name) return;
     const file = name.endsWith('.tar.gz') ? name : `${name}.tar.gz`;
     const names = [...selected];
-    await attempt('Archiving…', () => api.archiveGameFiles(id, path, names, join(file)), `Made ${file}.`);
+    await startJob(() => api.archiveGameFiles(id, path, names, join(file)));
     selected = [];
   }
 
   async function unarchive(f: GameFile) {
-    await attempt(`Unpacking ${f.name}…`, () => api.unarchiveGameFile(id, join(f.name)), `Unpacked ${f.name} here.`);
+    await startJob(() => api.unarchiveGameFile(id, join(f.name)));
   }
 
   function toggle(name: string, on: boolean) {

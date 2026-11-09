@@ -196,3 +196,48 @@ func TestNPMplus(t *testing.T) {
 		t.Fatalf("listing NPMplus hosts: %d %s (asked %q)", res.StatusCode, raw, seen)
 	}
 }
+
+// An NPM that fails a list asked to include something it doesn't know ("Internal Error", as some NPMplus
+// versions do for access lists) still lists, with less included; the next time it's asked for that at once.
+func TestNPMListWithoutUnknownExpand(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	var seen []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/tokens" {
+			_, _ = w.Write([]byte(`{"token":"t","expires":"2099-01-01T00:00:00Z"}`))
+			return
+		}
+		if r.URL.Path != "/api/nginx/proxy-hosts" {
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		seen = append(seen, r.URL.Query().Get("expand"))
+		if strings.Contains(r.URL.Query().Get("expand"), "access_list") {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error":{"code":500,"message":"Internal Error"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"id":1,"domain_names":["jellyfin.home.lab"],"enabled":true}]`))
+	}))
+	defer srv.Close()
+	if status, answer := b.call(b.client, "POST", "/api/npm", map[string]string{"url": srv.URL, "email": "robin@example.com", "password": "x"}); status != 204 {
+		t.Fatalf("linking: %d %v", status, answer)
+	}
+	list := func() (int, string) {
+		res, err := b.client.Get(b.server.URL + "/api/npm/1/proxy-hosts")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		raw, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(raw)
+	}
+	if status, raw := list(); status != 200 || !strings.Contains(raw, "jellyfin.home.lab") {
+		t.Fatalf("listing: %d %s (asked %q)", status, raw, seen)
+	}
+	seen = nil
+	if status, _ := list(); status != 200 || len(seen) != 1 || seen[0] != "certificate" {
+		t.Fatalf("listing again asked %q", seen)
+	}
+}

@@ -152,11 +152,8 @@ func (api *API) archiveGameFiles(w http.ResponseWriter, r *http.Request, u *auth
 		writeError(w, http.StatusBadRequest, over)
 		return
 	}
-	api.slowly(w, r, func(ctx context.Context) error {
-		_, err := api.files(ctx, g, protocol.GameFileArgs{Op: "archive", Path: body.Path, Paths: body.Paths, To: body.To})
-		api.log.Info("game files archived", "user", u.Username, "game", g.ID, "to", body.To, "ok", err == nil)
-		return err
-	})
+	api.gameFilesJob(w, u, g, "Archiving into "+path.Base(body.To), g.Name+", "+folderOf(body.Path),
+		protocol.GameFileArgs{Op: "archive", Path: body.Path, Paths: body.Paths, To: body.To})
 }
 
 // moveGameFiles moves files and folders from one folder into another.
@@ -169,11 +166,12 @@ func (api *API) moveGameFiles(w http.ResponseWriter, r *http.Request, u *auth.Us
 	if !readJSON(w, r, &body) {
 		return
 	}
-	api.slowly(w, r, func(ctx context.Context) error {
-		_, err := api.files(ctx, g, protocol.GameFileArgs{Op: "move", Path: body.Path, Paths: body.Paths, To: body.To})
-		api.log.Info("game files moved", "user", u.Username, "game", g.ID, "from", body.Path, "to", body.To, "ok", err == nil)
-		return err
-	})
+	what := fmt.Sprintf("%d items", len(body.Paths))
+	if len(body.Paths) == 1 {
+		what = body.Paths[0]
+	}
+	api.gameFilesJob(w, u, g, "Moving "+what, g.Name+", to "+folderOf(body.To),
+		protocol.GameFileArgs{Op: "move", Path: body.Path, Paths: body.Paths, To: body.To})
 }
 
 // unarchiveGameFile unpacks a .zip, .tar.gz or .tar into the folder it's in.
@@ -186,11 +184,17 @@ func (api *API) unarchiveGameFile(w http.ResponseWriter, r *http.Request, u *aut
 		writeError(w, http.StatusBadRequest, over)
 		return
 	}
-	api.slowly(w, r, func(ctx context.Context) error {
-		_, err := api.files(ctx, g, protocol.GameFileArgs{Op: "unarchive", Path: body.Path})
-		api.log.Info("game file unarchived", "user", u.Username, "game", g.ID, "path", body.Path, "ok", err == nil)
-		return err
-	})
+	api.gameFilesJob(w, u, g, "Unpacking "+path.Base(body.Path), g.Name+", "+folderOf(path.Dir("/"+body.Path)),
+		protocol.GameFileArgs{Op: "unarchive", Path: body.Path})
+}
+
+// folderOf is a folder as it's shown: "/plugins/", or "/" for the game's own.
+func folderOf(p string) string {
+	p = path.Clean("/" + p)
+	if p == "/" {
+		return p
+	}
+	return p + "/"
 }
 
 // uploadGameFile takes a file as the request's body and sends it on to the agent in pieces.

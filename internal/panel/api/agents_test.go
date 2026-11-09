@@ -1,10 +1,13 @@
 package api
 
 import (
+	"archive/tar"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -295,5 +298,89 @@ func TestAgentRejoinedWhileRunning(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	if !online(true) {
 		t.Fatal("the running agent didn't pick up its new credentials")
+	}
+}
+
+// The whole way, with the real agent: unpacking a game's archive is a job whose progress comes back from
+// the agent, and stopping it stops the agent's unpacking, which says what it left.
+func TestUnpackJobWithRealAgent(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	dir := t.TempDir()
+	t.Setenv("BASTION_AGENT_CONFIG", filepath.Join(dir, "agent.json"))
+	t.Setenv("BASTION_AGENT_GAMES_DIR", filepath.Join(dir, "games"))
+	id, secret := b.joinAgent()
+	raw, _ := json.Marshal(agent.Config{Panel: b.server.URL, AgentID: id, Secret: secret, StacksDir: dir})
+	_ = os.WriteFile(filepath.Join(dir, "agent.json"), raw, 0o600)
+	cfg, _ := agent.LoadConfig()
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go agent.Run(ctx, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
+	b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)})
+	_, _ = b.api.db.Exec(`INSERT INTO games (id, name, egg_id, server_id, image, memory_mb, ports) VALUES (1, 'Survival', 1, 1, 'x', 1024, '[25565]')`)
+	// A tar of incompressible data: the agent reads it slowly enough to be stopped part-way.
+	_ = os.MkdirAll(filepath.Join(dir, "games", "1"), 0o755)
+	f, _ := os.Create(filepath.Join(dir, "games", "1", "world.tar"))
+	tw := tar.NewWriter(f)
+	chunk := make([]byte, 8<<20)
+	for i := 0; i < 64; i++ {
+		_, _ = rand.Read(chunk)
+		_ = tw.WriteHeader(&tar.Header{Name: fmt.Sprintf("world/r.%d.mca", i), Mode: 0o644, Size: int64(len(chunk)), Typeflag: tar.TypeReg})
+		_, _ = tw.Write(chunk)
+	}
+	_ = tw.Close()
+	_ = f.Close()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for !b.api.hub.Live(1).Online && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	status, job := b.call(b.client, "POST", "/api/games/1/files/unarchive", map[string]string{"path": "/world.tar"})
+	if status != 202 {
+		t.Fatalf("starting: %d %v", status, job)
+	}
+	jobNow := func() map[string]any {
+		res, err := b.client.Get(b.server.URL + "/api/jobs")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var list []map[string]any
+		_ = json.NewDecoder(res.Body).Decode(&list)
+		for _, j := range list {
+			if j["id"] == job["id"] {
+				return j
+			}
+		}
+		return nil
+	}
+	// Progress arrives from the agent.
+	deadline = time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if j := jobNow(); j["total"].(float64) > 0 || j["state"] != "running" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	j := jobNow()
+	if j["state"] == "running" {
+		if j["total"].(float64) == 0 {
+			t.Fatalf("no progress came: %v", j)
+		}
+		b.call(b.client, "DELETE", "/api/jobs/"+job["id"].(string), nil)
+		deadline = time.Now().Add(10 * time.Second)
+		for jobNow()["state"] != "stopped" && time.Now().Before(deadline) {
+			time.Sleep(20 * time.Millisecond)
+		}
+		if j := jobNow(); j["state"] != "stopped" || j["error"] != "Stopped: what was unpacked so far stays." {
+			t.Fatalf("not stopped: %v", j)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "games", "1", "world", "r.63.mca")); err == nil {
+			t.Fatal("it unpacked to the end though stopped")
+		}
+	} else {
+		t.Logf("it finished before it could be stopped: %v", j)
 	}
 }

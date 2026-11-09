@@ -91,6 +91,15 @@
 
   const describe = (item: NpmItem) => item.domain_names?.join(', ') || item.name || item.nice_name || `port ${item.incoming_port}`;
   const enabled = (item: NpmItem) => item.enabled === true || item.enabled === 1;
+  // Who can reach a host: its access lists by name, from the host when NPM included them, else from the
+  // lists themselves (an NPM that can't include them still gives its ID).
+  function accessOf(item: NpmItem): string {
+    const named = item.access_list?.name ?? item.access_lists?.map((l: { name: string }) => l.name).join(', ');
+    if (named) return named;
+    const id: number = item.access_list_id ?? 0;
+    return id > 0 ? (accessLists.find((l) => l.id === id)?.name ?? `List ${id}`) : 'Public';
+  }
+
   const certName = (item: NpmItem) => {
     if (!item.certificate_id) return 'HTTP only';
     const cert = item.certificate ?? certificates.find((c) => c.id === item.certificate_id);
@@ -183,7 +192,7 @@
               <td><b>{item.domain_names.join(', ')}</b></td>
               <td class="muted"><span class="address">{item.forward_scheme}://{item.forward_host}:{item.forward_port}</span></td>
               <td>{certName(item)}</td>
-              <td>{item.access_list?.name ?? (item.access_lists?.map((l: { name: string }) => l.name).join(', ') || 'Public')}</td>
+              <td>{accessOf(item)}</td>
               <td>
                 {#if !enabled(item)}
                   <span class="badge">Disabled</span>

@@ -164,9 +164,17 @@ with them, and gets `404` for the rest. Friends can use everything below except 
 | `POST /games/{id}/files/unarchive` | `{"path"}`: unpacks a `.zip`, `.tar.gz`, `.tgz` or `.tar` into its folder (files and folders only; up to 50 GB and 200,000 files) |
 | `POST /games/{id}/files/move` | `{"path", "paths", "to"}`: moves files and folders in `path` into the folder `to`. Nothing is replaced: a name already taken there stops it |
 
-Archive, unarchive and move can take minutes. If one isn't done in 5 seconds the answer is `200` with the
-header `X-Bastion-Slow: 1`, a space every 15 seconds (so a proxy in front doesn't give up on a quiet
-request), then `{}` or `{"error", "status"}`.
+Archive, unarchive and move can take minutes, so each starts a **job** on the panel and answers `202` with
+it at once. A job carries on whatever the browser does; its progress is in `GET /jobs`.
+
+### Jobs
+
+| Route | What it does |
+|---|---|
+| `GET /jobs` | Your jobs: running, and those ended in the last 10 minutes. Each has `id`, `title`, `detail`, `gameId`, `state` (`running`, `stopping`, `done`, `failed`, `stopped`), `done` and `total` (bytes, or items for a move; `total` is 0 while not known) and `error` |
+| `DELETE /jobs/{id}` | Stops a running job (the agent is told to stop), or clears an ended one. Only your own |
+
+Up to 5 jobs each at once (`429` past that); a job runs for 6 hours at most.
 | `GET /games/{id}/files/download?path=` | The file, as a download |
 | `GET` / `POST /games/{id}/backups` | Its backups; or starts one (`{"name"}`, optional), which shows as `making` until it's `done` or `failed` |
 | `PUT /games/{id}/backups/{backup}` | `{"locked"}`: a locked backup can't be deleted |

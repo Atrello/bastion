@@ -26,6 +26,7 @@ type API struct {
 	hub   *agents.Hub
 	npm   *npmState
 	games *gameState
+	jobs  *jobList
 	log   *slog.Logger
 	mux   *http.ServeMux
 }
@@ -70,6 +71,7 @@ func (api *API) routes() {
 	api.npmRoutes()
 	api.eggRoutes()
 	api.gameRoutes()
+	api.jobRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {

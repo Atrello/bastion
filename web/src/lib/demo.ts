@@ -7,6 +7,7 @@ import type {
   GameBackup,
   GameFile,
   GameServer,
+  Job,
   Schedule,
   Server,
   Stack,
@@ -274,7 +275,38 @@ const npm: Record<string, unknown[]> = {
   certificates,
 };
 
+// Jobs (archiving, unpacking, moving) pretend to make progress each time they're looked at.
+const demoJobs: Job[] = [];
+let demoJobId = 1;
+
+function demoJob(path: string, body: unknown): Job {
+  const b = body as { path: string; paths?: string[]; to?: string };
+  const name = (p: string) => p.slice(p.lastIndexOf('/') + 1);
+  const title = path.endsWith('/unarchive')
+    ? `Unpacking ${name(b.path)}`
+    : path.endsWith('/archive')
+      ? `Archiving into ${name(b.to ?? '')}`
+      : `Moving ${b.paths?.length === 1 ? b.paths[0] : `${b.paths?.length} items`}`;
+  const job: Job = { id: String(demoJobId++), title, detail: 'Survival SMP, /', gameId: 1, state: 'running', done: 0, total: 2.4 * GB };
+  demoJobs.push(job);
+  return { ...job };
+}
+
 export function demo(method: string, path: string, body?: unknown): unknown {
+  if (path === '/jobs') {
+    for (const j of demoJobs) {
+      if (j.state === 'running') j.done = Math.min(j.total, j.done + j.total / 12);
+      if (j.state === 'running' && j.done >= j.total) j.state = 'done';
+    }
+    return demoJobs.map((j) => ({ ...j }));
+  }
+  if (method === 'DELETE' && path.startsWith('/jobs/')) {
+    const i = demoJobs.findIndex((j) => j.id === path.slice(6));
+    if (i >= 0 && demoJobs[i].state === 'running') Object.assign(demoJobs[i], { state: 'stopped', error: 'Stopped.' });
+    else if (i >= 0) demoJobs.splice(i, 1);
+    return undefined;
+  }
+  if (method === 'POST' && /^\/games\/\d+\/files\/(unarchive|archive|move)$/.test(path)) return demoJob(path, body);
   if (path === '/auth/state') return { setupNeeded: false, signedIn: true, username: 'robin', passkeys: true, version: '0.4.0' };
   if (path === '/account')
     return {

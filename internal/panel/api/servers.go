@@ -354,22 +354,29 @@ func pathID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 
 // agentFail answers with why an agent couldn't do something: offline, refused, or too slow.
 func (api *API) agentFail(w http.ResponseWriter, r *http.Request, err error) {
+	status, message := api.agentProblem(r.URL.Path, err)
+	writeError(w, status, message)
+}
+
+// agentProblem is what to say about an agent's failure, and with which status. A failure that isn't the
+// agent's is logged, and only a general message given.
+func (api *API) agentProblem(where string, err error) (int, string) {
 	var agentErr *agents.AgentError
 	switch {
 	case errors.Is(err, agents.ErrOffline):
-		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return http.StatusServiceUnavailable, err.Error()
 	case errors.Is(err, agents.ErrNoServer):
-		writeError(w, http.StatusNotFound, err.Error())
+		return http.StatusNotFound, err.Error()
 	case errors.As(err, &agentErr) && (strings.HasPrefix(agentErr.Message, "unknown request") || strings.HasPrefix(agentErr.Message, "unknown file operation")):
 		// The panel asked for something newer than this agent.
-		writeError(w, http.StatusBadRequest, "this server's agent is older than the panel and can't do that yet: update it from the server's page")
+		return http.StatusBadRequest, "this server's agent is older than the panel and can't do that yet: update it from the server's page"
 	case errors.As(err, &agentErr):
-		writeError(w, http.StatusBadRequest, agentErr.Message)
+		return http.StatusBadRequest, agentErr.Message
 	case errors.Is(err, context.DeadlineExceeded):
-		writeError(w, http.StatusGatewayTimeout, "the server took too long to answer")
-	default:
-		api.fail(w, r, err)
+		return http.StatusGatewayTimeout, "the server took too long to answer"
 	}
+	api.log.Error("request failed", "path", where, "error", err)
+	return http.StatusInternalServerError, "something went wrong on the panel; its log has the details"
 }
 
 func (api *API) stackFiles(w http.ResponseWriter, r *http.Request, _ *auth.User) {

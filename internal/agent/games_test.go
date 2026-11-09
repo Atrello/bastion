@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,7 @@ func TestGameFilesStayInside(t *testing.T) {
 	}
 
 	write := func(p, data string) error {
-		_, err := gameFiles(protocol.GameFileArgs{ID: 1, Op: "write", Path: p, Data: []byte(data)})
+		_, err := gameFiles(protocol.GameFileArgs{ID: 1, Op: "write", Path: p, Data: []byte(data)}, nil)
 		return err
 	}
 	if err := write("server.properties", "motd=Hello"); err != nil {
@@ -42,14 +43,14 @@ func TestGameFilesStayInside(t *testing.T) {
 		t.Fatalf("a path left the game's folder: %q", raw)
 	}
 	for _, op := range []protocol.GameFileArgs{{ID: 1, Op: "read", Path: "link"}, {ID: 1, Op: "download", Path: "link"}, {ID: 1, Op: "write", Path: "link", Data: []byte("x")}} {
-		if res, err := gameFiles(op); err == nil && strings.Contains(string(res.Data), "not yours") {
+		if res, err := gameFiles(op, nil); err == nil && strings.Contains(string(res.Data), "not yours") {
 			t.Fatalf("%s followed a link out", op.Op)
 		}
 	}
 	if raw, _ := os.ReadFile(filepath.Join(base, "secret")); string(raw) != "not yours" {
 		t.Fatalf("a link let a write out: %q", raw)
 	}
-	if _, err := gameFiles(protocol.GameFileArgs{ID: 1, Op: "delete", Path: "/"}); err == nil {
+	if _, err := gameFiles(protocol.GameFileArgs{ID: 1, Op: "delete", Path: "/"}, nil); err == nil {
 		t.Fatal("the game's folder itself was deleted")
 	}
 
@@ -65,7 +66,7 @@ func TestGameFilesStayInside(t *testing.T) {
 	if _, err := gameBackup(context.Background(), protocol.GameBackupArgs{ID: 1, Op: "restore", Name: "first.tar.gz"}); err != nil {
 		t.Fatal(err)
 	}
-	res, err := gameFiles(protocol.GameFileArgs{ID: 1, Op: "read", Path: "server.properties"})
+	res, err := gameFiles(protocol.GameFileArgs{ID: 1, Op: "read", Path: "server.properties"}, nil)
 	if err != nil || string(res.Data) != "motd=Hello" {
 		t.Fatalf("restored: %v %v", res, err)
 	}
@@ -131,7 +132,7 @@ func TestArchiveAndUnarchive(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(gameDir(3), "world", "region", "r.0.0.mca"), []byte("chunks"), 0o644)
 	_ = os.WriteFile(filepath.Join(gameDir(3), "server.properties"), []byte("motd=Hi"), 0o644)
 
-	do := func(a protocol.GameFileArgs) error { a.ID = 3; _, err := gameFiles(a); return err }
+	do := func(a protocol.GameFileArgs) error { a.ID = 3; _, err := gameFiles(a, nil); return err }
 	if err := do(protocol.GameFileArgs{Op: "archive", Path: "/", Paths: []string{"world", "server.properties"}, To: "/backup.tar.gz"}); err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +188,7 @@ func TestMoveGameFiles(t *testing.T) {
 		_ = os.WriteFile(filepath.Join(dir, f), []byte(f), 0o644)
 	}
 	move := func(from string, names []string, to string) error {
-		_, err := gameFiles(protocol.GameFileArgs{ID: 4, Op: "move", Path: from, Paths: names, To: to})
+		_, err := gameFiles(protocol.GameFileArgs{ID: 4, Op: "move", Path: from, Paths: names, To: to}, nil)
 		return err
 	}
 	if err := move("/", []string{"a.jar"}, "/plugins/"); err != nil {
@@ -219,5 +220,40 @@ func TestMoveGameFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "b.jar")); err != nil {
 		t.Fatal("b.jar didn't come back to the top")
+	}
+}
+
+// Unpacking says how far it's got, and stops when cancelled.
+func TestUnpackProgressAndCancel(t *testing.T) {
+	t.Setenv("BASTION_AGENT_GAMES_DIR", filepath.Join(t.TempDir(), "games"))
+	_ = os.MkdirAll(gameDir(6), 0o755)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for i := 0; i < 20; i++ {
+		w, _ := zw.Create(fmt.Sprintf("world/region/r.%d.mca", i))
+		_, _ = w.Write(bytes.Repeat([]byte{byte(i)}, 256<<10))
+	}
+	_ = zw.Close()
+	_ = os.WriteFile(filepath.Join(gameDir(6), "world.zip"), buf.Bytes(), 0o644)
+
+	var lastDone, lastTotal int64
+	tr := newTracker(context.Background(), func(done, total int64) { lastDone, lastTotal = done, total })
+	tr.last.Store(0)
+	if _, err := gameFiles(protocol.GameFileArgs{ID: 6, Op: "unarchive", Path: "/world.zip"}, tr); err != nil {
+		t.Fatal(err)
+	}
+	if tr.total.Load() != 20*256<<10 || tr.done.Load() != tr.total.Load() || lastTotal != tr.total.Load() || lastDone == 0 {
+		t.Fatalf("progress: done %d of %d, last reported %d of %d", tr.done.Load(), tr.total.Load(), lastDone, lastTotal)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := gameFiles(protocol.GameFileArgs{ID: 6, Op: "unarchive", Path: "/world.zip"}, newTracker(ctx, nil))
+	if err == nil || !strings.HasPrefix(err.Error(), "stopped") {
+		t.Fatalf("a cancelled unpack: %v", err)
+	}
+	_, err = gameFiles(protocol.GameFileArgs{ID: 6, Op: "archive", Path: "/", Paths: []string{"world"}, To: "/again.tar.gz"}, newTracker(ctx, nil))
+	if _, serr := os.Stat(filepath.Join(gameDir(6), "again.tar.gz")); err == nil || serr == nil {
+		t.Fatalf("a cancelled archive: %v, left behind: %v", err, serr == nil)
 	}
 }

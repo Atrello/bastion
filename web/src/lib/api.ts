@@ -18,6 +18,7 @@ import type {
   GameBackup,
   GameFile,
   GameServer,
+  Job,
   Schedule,
   Server,
   Stack,
@@ -75,12 +76,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       // not JSON: use the text as it is
     }
     throw new ApiError(message, res.status, body);
-  }
-  if (res.headers.get('X-Bastion-Slow')) {
-    // A long job (internal/panel/api/slow.go): kept open with spaces, then its outcome.
-    const outcome = await res.json();
-    if (outcome.error) throw new ApiError(outcome.error, outcome.status ?? 500, outcome);
-    return undefined as T;
   }
   return res.status === 204 ? (undefined as T) : res.json();
 }
@@ -175,7 +170,7 @@ export const api = {
   makeGameFolder: (id: number, path: string) => request<void>('POST', `/games/${id}/files/folder`, { path }),
   renameGameFile: (id: number, from: string, to: string) => request<void>('POST', `/games/${id}/files/rename`, { from, to }),
   deleteGameFile: (id: number, path: string) => request<void>('DELETE', `/games/${id}/files?path=${encodeURIComponent(path)}`),
-  /** Sends a file as it is (not JSON), up to 50 GB (less if the game's disk limit leaves less room), telling onprogress how much has gone (0 to 1). Use lib/uploads.svelte.ts, which keeps uploads going across pages. */
+  /** Sends a file as it is (not JSON), up to 50 GB (less if the game's disk limit leaves less room), telling onprogress how much has gone (0 to 1). Use lib/tasks.svelte.ts, which keeps uploads going across pages. */
   uploadGameFile: (id: number, path: string, file: File, onprogress?: (done: number) => void, signal?: AbortSignal) =>
     new Promise<void>((resolve, reject) => {
       if (DEMO) {
@@ -215,11 +210,15 @@ export const api = {
       xhr.send(file);
     }),
   /** Packs files and folders from one folder into a .tar.gz there. */
-  archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<void>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<Job>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  /** Long jobs on the panel (archiving, unpacking, moving): the signed-in person's, running or just ended. */
+  jobs: () => request<Job[]>('GET', '/jobs'),
+  /** Stops a running job, or clears an ended one from the list. */
+  stopJob: (id: string) => request<void>('DELETE', `/jobs/${id}`),
   /** Moves files and folders (names in the folder path) into the folder to. */
-  moveGameFiles: (id: number, path: string, paths: string[], to: string) => request<void>('POST', `/games/${id}/files/move`, { path, paths, to }),
+  moveGameFiles: (id: number, path: string, paths: string[], to: string) => request<Job>('POST', `/games/${id}/files/move`, { path, paths, to }),
   /** Unpacks a .zip, .tar.gz or .tar into the folder it's in. */
-  unarchiveGameFile: (id: number, path: string) => request<void>('POST', `/games/${id}/files/unarchive`, { path }),
+  unarchiveGameFile: (id: number, path: string) => request<Job>('POST', `/games/${id}/files/unarchive`, { path }),
   gameFileDownload: (id: number, path: string) => `/api/games/${id}/files/download?path=${encodeURIComponent(path)}`,
   gameStartup: (id: number) =>
     request<{ command: string; image: string; images: EggImage[]; variables: StartupVariable[] }>('GET', `/games/${id}/startup`),

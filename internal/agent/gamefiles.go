@@ -58,7 +58,8 @@ func openGame(id int64) (*os.Root, error) {
 	return root, nil
 }
 
-func gameFiles(a protocol.GameFileArgs) (*protocol.GameFileResult, error) {
+// t, which may be nil, reports progress and stops archiving, unpacking and moving when cancelled.
+func gameFiles(a protocol.GameFileArgs, t *tracker) (*protocol.GameFileResult, error) {
 	if a.Op == "install-log" {
 		data, err := installLog(a.ID)
 		return &protocol.GameFileResult{Data: data}, err
@@ -161,25 +162,32 @@ func gameFiles(a protocol.GameFileArgs) (*protocol.GameFileResult, error) {
 		if to == "." || !strings.HasSuffix(to, ".tar.gz") {
 			return nil, errors.New("the archive's name ends .tar.gz")
 		}
-		return &protocol.GameFileResult{}, archive(root, p, a.Paths, to)
+		return &protocol.GameFileResult{}, archive(root, p, a.Paths, to, t)
 	case "move":
 		if len(a.Paths) == 0 || len(a.Paths) > 1000 {
 			return nil, errors.New("pick what to move")
 		}
-		return &protocol.GameFileResult{}, move(root, p, a.Paths, insidePath(a.To))
+		return &protocol.GameFileResult{}, move(root, p, a.Paths, insidePath(a.To), t)
 	case "unarchive":
-		return &protocol.GameFileResult{}, unarchive(root, p)
+		return &protocol.GameFileResult{}, unarchive(root, p, t)
 	}
 	return nil, errors.New("unknown file operation " + a.Op)
 }
 
 // move moves files and folders from one folder into another, keeping their names. Nothing is replaced:
 // one whose name is already taken there stops the move (those before it have moved).
-func move(root *os.Root, dir string, names []string, to string) error {
+func move(root *os.Root, dir string, names []string, to string, t *tracker) error {
 	if info, err := root.Stat(to); err != nil || !info.IsDir() {
 		return errors.New("there's no folder to move them to")
 	}
+	if t != nil {
+		t.total.Store(int64(len(names)))
+	}
 	for _, name := range names {
+		if err := t.stopped(); err != nil {
+			return errors.New("stopped: what had moved stays moved")
+		}
+		t.add(1)
 		from := insidePath(path.Join(dir, insidePath(name)))
 		dest := insidePath(path.Join(to, path.Base(from)))
 		switch {
@@ -202,13 +210,27 @@ func move(root *os.Root, dir string, names []string, to string) error {
 
 // archive packs files and folders from one folder into a .tar.gz beside them, named inside it as they
 // are in that folder. Only plain files and folders go in.
-func archive(root *os.Root, dir string, names []string, to string) error {
+func archive(root *os.Root, dir string, names []string, to string, t *tracker) error {
 	out, err := root.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return errors.New("there's already a file with that name")
 		}
 		return err
+	}
+	if t != nil {
+		// What's to be packed, to say how far it's got.
+		for _, name := range names {
+			start := insidePath(path.Join(dir, path.Base("/"+name)))
+			_ = fs.WalkDir(root.FS(), start, func(_ string, d fs.DirEntry, err error) error {
+				if err == nil && d.Type().IsRegular() {
+					if info, ierr := d.Info(); ierr == nil {
+						t.total.Add(info.Size())
+					}
+				}
+				return t.stopped()
+			})
+		}
 	}
 	gz := gzip.NewWriter(out)
 	tw := tar.NewWriter(gz)
@@ -220,6 +242,9 @@ func archive(root *os.Root, dir string, names []string, to string) error {
 			}
 			err := fs.WalkDir(root.FS(), start, func(p string, d fs.DirEntry, err error) error {
 				if err != nil || !(d.IsDir() || d.Type().IsRegular()) || p == to {
+					return err
+				}
+				if err := t.stopped(); err != nil {
 					return err
 				}
 				info, err := d.Info()
@@ -246,7 +271,7 @@ func archive(root *os.Root, dir string, names []string, to string) error {
 					return err
 				}
 				defer f.Close()
-				_, err = io.CopyN(tw, f, info.Size())
+				_, err = io.CopyN(tw, t.reader(f), info.Size())
 				return err
 			})
 			if err != nil {
@@ -262,6 +287,9 @@ func archive(root *os.Root, dir string, names []string, to string) error {
 	}
 	if err != nil {
 		_ = root.Remove(to)
+		if t.stopped() != nil {
+			return errors.New("stopped: the part-made archive was removed")
+		}
 		return fmt.Errorf("the archive couldn't be made: %w", err)
 	}
 	_ = root.Lchown(to, gameUID, gameGID)
@@ -276,7 +304,15 @@ const (
 
 // unarchive unpacks a .zip, .tar.gz (.tgz) or .tar into the folder it's in. Files and folders only, and
 // every name stays inside the game's folder.
-func unarchive(root *os.Root, archivePath string) error {
+func unarchive(root *os.Root, archivePath string, t *tracker) error {
+	err := unpack(root, archivePath, t)
+	if err != nil && t.stopped() != nil {
+		return errors.New("stopped: what was unpacked so far stays")
+	}
+	return err
+}
+
+func unpack(root *os.Root, archivePath string, t *tracker) error {
 	dest := path.Dir(archivePath)
 	var total int64
 	var count int
@@ -334,6 +370,11 @@ func unarchive(root *os.Root, archivePath string) error {
 		if err != nil {
 			return errors.New("that zip can't be read: it may be incomplete (an upload that was cut off, say) or not really a zip")
 		}
+		if t != nil {
+			for _, zf := range zr.File {
+				t.total.Add(int64(min(zf.UncompressedSize64, maxUnpacked)))
+			}
+		}
 		for _, zf := range zr.File {
 			mode := zf.Mode()
 			if !mode.IsDir() && !mode.IsRegular() {
@@ -346,7 +387,7 @@ func unarchive(root *os.Root, archivePath string) error {
 			if err != nil {
 				return err
 			}
-			err = write(zf.Name, mode.IsDir(), rc)
+			err = write(zf.Name, mode.IsDir(), t.reader(rc))
 			rc.Close()
 			if err != nil {
 				return fmt.Errorf("unpacking %s: %w", zf.Name, err)
@@ -354,9 +395,14 @@ func unarchive(root *os.Root, archivePath string) error {
 		}
 		return nil
 	case strings.HasSuffix(lower, ".tar.gz"), strings.HasSuffix(lower, ".tgz"), strings.HasSuffix(lower, ".tar"):
-		var r io.Reader = f
+		if t != nil {
+			if info, err := f.Stat(); err == nil {
+				t.total.Store(info.Size()) // counted as the archive is read, before unpacking
+			}
+		}
+		r := t.reader(f)
 		if !strings.HasSuffix(lower, ".tar") {
-			gz, err := gzip.NewReader(f)
+			gz, err := gzip.NewReader(r)
 			if err != nil {
 				return errors.New("that archive can't be read: it isn't gzip-compressed, or it's incomplete")
 			}

@@ -27,6 +27,8 @@ type npmState struct {
 	clients map[int64]*npm.Client
 	// Each proxy host's last check, by instance and host ID.
 	health map[int64]map[int64]hostHealth
+	// The expand each NPM accepted for each kind of list, by instance and kind (see npmList).
+	expands map[int64]map[string]string
 }
 
 type hostHealth struct {
@@ -38,7 +40,7 @@ type hostHealth struct {
 }
 
 func (api *API) npmRoutes() {
-	api.npm = &npmState{clients: map[int64]*npm.Client{}, health: map[int64]map[int64]hostHealth{}}
+	api.npm = &npmState{clients: map[int64]*npm.Client{}, health: map[int64]map[int64]hostHealth{}, expands: map[int64]map[string]string{}}
 	m := api.mux
 	m.Handle("GET /api/npm", api.owner(api.npmInstances))
 	m.Handle("POST /api/npm", api.owner(api.addNPM))
@@ -194,18 +196,8 @@ func (api *API) npmList(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 	if !ok {
 		return
 	}
-	expand := map[string]string{
-		"proxy-hosts": "certificate,access_list", "redirection-hosts": "certificate", "dead-hosts": "certificate",
-		"access-lists": "items,clients", "certificates": "",
-	}[r.PathValue("kind")]
-	if c.Flavour() == npm.FlavourNPMplus && r.PathValue("kind") == "proxy-hosts" {
-		expand = "certificate,access_lists" // a host can have several access lists in NPMplus
-	}
-	if expand != "" {
-		path += "?expand=" + expand
-	}
-	var items []map[string]any
-	if err := c.Call(r.Context(), http.MethodGet, path, nil, &items); err != nil {
+	items, err := api.npmListExpanded(r.Context(), c, id, r.PathValue("kind"), path)
+	if err != nil {
 		api.npmFail(w, err)
 		return
 	}
@@ -224,6 +216,59 @@ func (api *API) npmList(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 		api.npm.mu.Unlock()
 	}
 	writeJSON(w, items)
+}
+
+// What each list asks NPM to include with its items (a host's certificate and access lists, say), most
+// wanted first. The names differ between NPM, NPMplus and their versions (NPMplus has "access_lists", as a
+// host can have several), and one NPM doesn't know fails the whole list ("Internal Error"), so the next is
+// tried, down to none, and the one that worked is remembered.
+var npmExpands = map[string][]string{
+	"proxy-hosts":       {"certificate,access_list", "certificate,access_lists", "certificate", ""},
+	"redirection-hosts": {"certificate", ""},
+	"dead-hosts":        {"certificate", ""},
+	"access-lists":      {"items,clients", "items", ""},
+	"certificates":      {""},
+}
+
+func (api *API) npmListExpanded(ctx context.Context, c *npm.Client, id int64, kind, path string) ([]map[string]any, error) {
+	tries := npmExpands[kind]
+	if kind == "proxy-hosts" && c.Flavour() == npm.FlavourNPMplus {
+		tries = []string{"certificate,access_lists", "certificate,access_list", "certificate", ""}
+	}
+	api.npm.mu.Lock()
+	if known, ok := api.npm.expands[id][kind]; ok {
+		tries = append([]string{known}, tries...)
+	}
+	api.npm.mu.Unlock()
+
+	var lastErr error
+	for i, expand := range tries {
+		if i > 0 && expand == tries[0] {
+			continue
+		}
+		p := path
+		if expand != "" {
+			p += "?expand=" + expand
+		}
+		var items []map[string]any
+		err := c.Call(ctx, http.MethodGet, p, nil, &items)
+		var npmErr *npm.Error
+		if errors.As(err, &npmErr) && (npmErr.Status == http.StatusInternalServerError || npmErr.Status == http.StatusBadRequest) {
+			lastErr = err
+			continue // this NPM doesn't know that expand: try the next
+		}
+		if err != nil {
+			return nil, err
+		}
+		api.npm.mu.Lock()
+		if api.npm.expands[id] == nil {
+			api.npm.expands[id] = map[string]string{}
+		}
+		api.npm.expands[id][kind] = expand
+		api.npm.mu.Unlock()
+		return items, nil
+	}
+	return nil, lastErr
 }
 
 // npmChange passes a create, update or delete through to NPM, with the item as NPM has it.

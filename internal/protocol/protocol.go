@@ -50,6 +50,7 @@ const (
 	OpStreamResize    = "stream.resize"    // StreamResize: the terminal's new size
 	OpStreamStop      = "stream.stop"      // ends a stream
 	OpAgentUpdate     = "agent.update"     // AgentUpdateArgs: replace this agent with the panel's, then restart
+	OpCancel          = "cancel"           // CancelArgs: stop a request still running (archiving, unpacking, moving)
 )
 
 // Stream parts.
@@ -60,9 +61,10 @@ const (
 
 // Events the agent sends without being asked.
 const (
-	EventHello   = "hello"   // Hello, once on connecting
-	EventMetrics = "metrics" // Metrics, every 10 seconds
-	EventState   = "state"   // State, on connecting, when Docker reports a change, and every minute
+	EventHello    = "hello"    // Hello, once on connecting
+	EventMetrics  = "metrics"  // Metrics, every 10 seconds
+	EventState    = "state"    // State, on connecting, when Docker reports a change, and every minute
+	EventProgress = "progress" // Progress, while a long request runs, at most twice a second
 )
 
 type Hello struct {
@@ -78,6 +80,19 @@ type Hello struct {
 	Docker   string `json:"docker"`
 	// Address is the server's address on its network, for proxy hosts pointing at it.
 	Address string `json:"address,omitempty"`
+}
+
+// CancelArgs names the request to stop, by its message ID.
+type CancelArgs struct {
+	ID string `json:"id"`
+}
+
+// Progress, sent as EventProgress while a long request runs: how far it has got, in bytes (or items for a
+// move). Total is 0 when it isn't known.
+type Progress struct {
+	ID    string `json:"id"`
+	Done  int64  `json:"done"`
+	Total int64  `json:"total"`
 }
 
 // AgentUpdateArgs: the SHA-256 of the program the panel offers at /downloads. The agent downloads it,

@@ -42,6 +42,8 @@ type agentConn struct {
 	// Requests waiting for their answer, and streams open, by ID.
 	waiting map[string]chan protocol.Message
 	streams map[string]chan protocol.Message
+	// Where progress on a request goes (RequestOptions.Progress), by its ID.
+	progress map[string]func(done, total int64)
 }
 
 // Live is what the hub knows about a server right now.
@@ -93,6 +95,7 @@ func (h *Hub) ServeAgent(w http.ResponseWriter, r *http.Request) {
 	c := &agentConn{
 		serverID: serverID, ws: ws, done: make(chan struct{}),
 		waiting: map[string]chan protocol.Message{}, streams: map[string]chan protocol.Message{},
+		progress: map[string]func(done, total int64){},
 	}
 	h.mu.Lock()
 	old := h.conns[serverID]
@@ -187,6 +190,18 @@ func (h *Hub) read(c *agentConn) {
 }
 
 func (h *Hub) event(c *agentConn, m protocol.Message) {
+	if m.Event == protocol.EventProgress {
+		var p protocol.Progress
+		if json.Unmarshal(m.Data, &p) == nil {
+			c.mu.Lock()
+			report := c.progress[p.ID]
+			c.mu.Unlock()
+			if report != nil {
+				report(p.Done, p.Total)
+			}
+		}
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch m.Event {
@@ -237,6 +252,19 @@ func (c *agentConn) send(m protocol.Message) error {
 
 // Request asks a server's agent to do something and waits for its answer, decoding it into result.
 func (h *Hub) Request(ctx context.Context, serverID int64, op string, args, result any) error {
+	return h.RequestWith(ctx, serverID, op, args, result, RequestOptions{})
+}
+
+// RequestOptions are for long requests: archiving, unpacking or moving a game's files.
+type RequestOptions struct {
+	// How long to wait for the answer (15 minutes if 0).
+	Limit time.Duration
+	// Called as the agent reports how far it's got.
+	Progress func(done, total int64)
+}
+
+// RequestWith is Request with options. If ctx ends first the agent is told to stop (OpCancel).
+func (h *Hub) RequestWith(ctx context.Context, serverID int64, op string, args, result any, opts RequestOptions) error {
 	c, err := h.conn(serverID)
 	if err != nil {
 		return err
@@ -249,17 +277,25 @@ func (h *Hub) Request(ctx context.Context, serverID int64, op string, args, resu
 	answer := make(chan protocol.Message, 1)
 	c.mu.Lock()
 	c.waiting[id] = answer
+	if opts.Progress != nil {
+		c.progress[id] = opts.Progress
+	}
 	c.mu.Unlock()
 	defer func() {
 		c.mu.Lock()
 		delete(c.waiting, id)
+		delete(c.progress, id)
 		c.mu.Unlock()
 	}()
 
 	if err := c.send(protocol.Message{ID: id, Op: op, Args: raw}); err != nil {
 		return ErrOffline
 	}
-	ctx, cancel := context.WithTimeout(ctx, requestLimit)
+	limit := opts.Limit
+	if limit == 0 {
+		limit = requestLimit
+	}
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	select {
 	case m := <-answer:
@@ -273,6 +309,8 @@ func (h *Hub) Request(ctx context.Context, serverID int64, op string, args, resu
 	case <-c.done:
 		return ErrOffline
 	case <-ctx.Done():
+		stop, _ := json.Marshal(protocol.CancelArgs{ID: id})
+		_ = c.send(protocol.Message{ID: auth.RandomToken()[:16], Op: protocol.OpCancel, Args: stop})
 		return ctx.Err()
 	}
 }

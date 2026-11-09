@@ -2,7 +2,8 @@
      current address. -->
 <script lang="ts">
   import Ask from './components/Ask.svelte';
-  import Uploads from './components/Uploads.svelte';
+  import Tasks from './components/Tasks.svelte';
+  import { watchJobs } from './lib/tasks.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import { api, type AuthState } from './lib/api';
   import Account from './pages/Account.svelte';
@@ -36,6 +37,7 @@
   async function checkAuth() {
     auth = await api.authState();
     if (auth.signedIn && (route.path === '/setup' || route.path === '/invite')) navigate('/');
+    if (auth.signedIn) void watchJobs(); // any started before a reload
   }
   void checkAuth();
   addEventListener('bastion:signed-out', () => void checkAuth());
@@ -57,7 +59,7 @@
 <svelte:document onclick={followLink} />
 
 <Ask />
-<Uploads />
+<Tasks />
 
 {#if updated}
   <div class="updated" role="status">

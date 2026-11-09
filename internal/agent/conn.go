@@ -31,6 +31,22 @@ type conn struct {
 	ws         *websocket.Conn
 	writeMu    sync.Mutex
 	streams    *streams
+	// Requests running, by ID, so the panel can stop one (OpCancel).
+	runMu   sync.Mutex
+	running map[string]context.CancelFunc
+}
+
+// cancel stops a running request. One that's already finished, or unknown, is let be.
+func (c *conn) cancel(m protocol.Message) {
+	var a protocol.CancelArgs
+	_ = decode(m.Args, &a)
+	c.runMu.Lock()
+	stop := c.running[a.ID]
+	c.runMu.Unlock()
+	if stop != nil {
+		stop()
+	}
+	c.answer(m.ID, nil, nil)
 }
 
 func (c *conn) send(m protocol.Message) {
@@ -107,7 +123,7 @@ func connect(ctx context.Context, cfg *Config, log *slog.Logger) error {
 	defer ws.Close()
 	log.Info("connected to the panel", "panel", cfg.Panel)
 
-	c := &conn{cfg: cfg, log: log, ws: ws, updatesNow: make(chan struct{}, 1)}
+	c := &conn{cfg: cfg, log: log, ws: ws, updatesNow: make(chan struct{}, 1), running: map[string]context.CancelFunc{}}
 	c.streams = newStreams(c)
 	defer c.streams.stopAll()
 
@@ -137,6 +153,10 @@ func connect(ctx context.Context, cfg *Config, log *slog.Logger) error {
 		// Everything else runs on its own, so a slow pull holds nothing up.
 		if m.Op == protocol.OpStreamInput || m.Op == protocol.OpStreamResize || m.Op == protocol.OpStreamStop {
 			c.streams.control(m)
+			continue
+		}
+		if m.Op == protocol.OpCancel {
+			c.cancel(m)
 			continue
 		}
 		go c.handle(m)
@@ -270,10 +290,23 @@ func (c *conn) handle(m protocol.Message) {
 	}
 }
 
-// do runs one request. A pull or an update can take a while, so each has up to 15 minutes.
+// do runs one request. A pull or an update can take a while, so each has up to 15 minutes; game files
+// (unpacking a big archive, say) up to 6 hours. Any can be stopped with OpCancel.
 func (c *conn) do(m protocol.Message) (any, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	limit := 15 * time.Minute
+	if m.Op == protocol.OpGameFiles {
+		limit = 6 * time.Hour
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
+	c.runMu.Lock()
+	c.running[m.ID] = cancel
+	c.runMu.Unlock()
+	defer func() {
+		c.runMu.Lock()
+		delete(c.running, m.ID)
+		c.runMu.Unlock()
+	}()
 	dir := c.cfg.StacksDir
 	switch m.Op {
 	case protocol.OpStackFiles:
@@ -372,7 +405,9 @@ func (c *conn) do(m protocol.Message) (any, error) {
 		if err := decode(m.Args, &a); err != nil {
 			return nil, err
 		}
-		return gameFiles(a)
+		return gameFiles(a, newTracker(ctx, func(done, total int64) {
+			c.event(protocol.EventProgress, protocol.Progress{ID: m.ID, Done: done, Total: total})
+		}))
 	case protocol.OpGameBackup:
 		var a protocol.GameBackupArgs
 		if err := decode(m.Args, &a); err != nil {
