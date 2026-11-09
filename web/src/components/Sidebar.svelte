@@ -2,7 +2,7 @@
 <script lang="ts">
   import { route } from '../lib/router.svelte';
 
-  let { username, onsignout }: { username: string; onsignout: () => void } = $props();
+  let { username, friend = false, onsignout }: { username: string; friend?: boolean; onsignout: () => void } = $props();
 
   type Link = { href: string; label: string; icon: string };
   const groups: { title?: string; links: Link[] }[] = [
@@ -36,6 +36,8 @@
       ],
     },
   ];
+  // A friend has only the game servers shared with them.
+  const shown = $derived(friend ? [{ links: groups.flatMap((g) => g.links).filter((l) => l.href === '/games') }] : groups);
   const current = (href: string) => (href === '/' ? route.path === '/' : route.path === href || route.path.startsWith(href + '/'));
 </script>
 
@@ -44,7 +46,7 @@
     <img src="/favicon.svg" alt="" width="26" height="26" />
     Bastion
   </a>
-  {#each groups as group, i (i)}
+  {#each shown as group, i (i)}
     {#if group.title}<p class="group">{group.title}</p>{/if}
     {#each group.links as link (link.href)}
       <a class="link" class:on={current(link.href)} href={link.href} aria-current={current(link.href) ? 'page' : undefined}>

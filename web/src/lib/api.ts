@@ -5,6 +5,9 @@ import type {
   ComposeVersion,
   Container,
   Egg,
+  EggDetail,
+  EggImage,
+  GameShare,
   GitStack,
   Image,
   NpmInstance,
@@ -60,7 +63,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-export type AuthState = { setupNeeded: boolean; signedIn: boolean; username?: string; passkeys: boolean };
+export type AuthState = { setupNeeded: boolean; signedIn: boolean; username?: string; role?: 'owner' | 'friend'; passkeys: boolean };
 export type Account = {
   username: string;
   hasAuthenticator: boolean;
@@ -79,6 +82,7 @@ const stackPath = (serverId: number, name: string) => `/servers/${serverId}/stac
 
 export type StackAction = 'up' | 'down' | 'stop' | 'start' | 'restart' | 'pull' | 'update';
 export type GamePower = 'start' | 'stop' | 'restart' | 'kill';
+export type GameSettings = { name: string; image?: string; memoryMb: number; cpuPercent: number; diskMb: number; ports: number[]; warnCommand?: string };
 
 export const api = {
   authState: () => request<AuthState>('GET', '/auth/state'),
@@ -128,18 +132,46 @@ export const api = {
 
   games: () => request<GameServer[]>('GET', '/games'),
   game: (id: number) => request<GameServer>('GET', `/games/${id}`),
-  createGame: (game: { name: string; eggId: number; serverId: number; memoryMb: number; port: number }) =>
-    request<GameServer>('POST', '/games', game),
-  gamePower: (id: number, action: GamePower) => request<void>('POST', `/games/${id}/power/${action}`),
-  /** The console's recent output; new lines then arrive over the console's websocket. */
+  createGame: (game: GameSettings & { eggId: number; serverId: number }) => request<GameServer>('POST', '/games', game),
+  updateGame: (id: number, settings: GameSettings) => request<void>('PUT', `/games/${id}`, settings),
+  deleteGame: (id: number) => request<void>('DELETE', `/games/${id}`),
+  reinstallGame: (id: number) => request<void>('POST', `/games/${id}/reinstall`),
+  /** Stop and restart can warn players first, then wait this many seconds. */
+  gamePower: (id: number, action: GamePower, warn = 0) => request<void>('POST', `/games/${id}/power/${action}`, warn ? { warn } : undefined),
+  /** The console's recent output; new lines then arrive over the game's stream. */
   gameConsole: (id: number) => request<{ lines: string[] }>('GET', `/games/${id}/console`),
   gameCommand: (id: number, command: string) => request<void>('POST', `/games/${id}/command`, { command }),
   gameFiles: (id: number, path: string) => request<GameFile[]>('GET', `/games/${id}/files?path=${encodeURIComponent(path)}`),
-  gameStartup: (id: number) => request<{ command: string; image: string; variables: StartupVariable[] }>('GET', `/games/${id}/startup`),
+  readGameFile: (id: number, path: string) => request<{ content: string }>('GET', `/games/${id}/files/content?path=${encodeURIComponent(path)}`),
+  writeGameFile: (id: number, path: string, content: string) => request<void>('PUT', `/games/${id}/files/content`, { path, content }),
+  makeGameFolder: (id: number, path: string) => request<void>('POST', `/games/${id}/files/folder`, { path }),
+  renameGameFile: (id: number, from: string, to: string) => request<void>('POST', `/games/${id}/files/rename`, { from, to }),
+  deleteGameFile: (id: number, path: string) => request<void>('DELETE', `/games/${id}/files?path=${encodeURIComponent(path)}`),
+  /** Sends a file as it is (not JSON), up to 1 GB. */
+  uploadGameFile: async (id: number, path: string, file: File) => {
+    if (DEMO) return;
+    const res = await fetch(`/api/games/${id}/files/upload?path=${encodeURIComponent(path)}`, { method: 'POST', body: file });
+    if (!res.ok) throw new ApiError((await res.json().catch(() => null))?.error ?? res.statusText, res.status);
+  },
+  gameFileDownload: (id: number, path: string) => `/api/games/${id}/files/download?path=${encodeURIComponent(path)}`,
+  gameStartup: (id: number) =>
+    request<{ command: string; image: string; images: EggImage[]; variables: StartupVariable[] }>('GET', `/games/${id}/startup`),
   saveGameStartup: (id: number, values: Record<string, string>) => request<void>('PUT', `/games/${id}/startup`, values),
   gameSchedules: (id: number) => request<Schedule[]>('GET', `/games/${id}/schedules`),
+  saveSchedule: (id: number, s: Pick<Schedule, 'name' | 'when' | 'action' | 'payload' | 'enabled'>, scheduleId?: number) =>
+    request<void>(scheduleId ? 'PUT' : 'POST', `/games/${id}/schedules${scheduleId ? `/${scheduleId}` : ''}`, s),
+  deleteSchedule: (id: number, scheduleId: number) => request<void>('DELETE', `/games/${id}/schedules/${scheduleId}`),
+  runSchedule: (id: number, scheduleId: number) => request<void>('POST', `/games/${id}/schedules/${scheduleId}/run`),
   gameBackups: (id: number) => request<GameBackup[]>('GET', `/games/${id}/backups`),
-  createGameBackup: (id: number) => request<GameBackup>('POST', `/games/${id}/backups`),
+  createGameBackup: (id: number, name = '') => request<GameBackup>('POST', `/games/${id}/backups`, { name }),
+  lockGameBackup: (id: number, backupId: number, locked: boolean) => request<void>('PUT', `/games/${id}/backups/${backupId}`, { locked }),
+  deleteGameBackup: (id: number, backupId: number) => request<void>('DELETE', `/games/${id}/backups/${backupId}`),
+  restoreGameBackup: (id: number, backupId: number) => request<void>('POST', `/games/${id}/backups/${backupId}/restore`),
+  gameBackupDownload: (id: number, backupId: number) => `/api/games/${id}/backups/${backupId}/download`,
+  gameShares: (id: number) => request<GameShare[]>('GET', `/games/${id}/shares`),
+  /** A one-time link for a new friend, or (with a username) shares it with a friend who has an account. */
+  shareGame: (id: number, username = '') => request<{ link?: string }>('POST', `/games/${id}/shares`, username ? { username } : undefined),
+  unshareGame: (id: number, userId: number) => request<void>('DELETE', `/games/${id}/shares/${userId}`),
   alerts: () => request<AlertsPage>('GET', '/alerts'),
   setAlertKinds: (kinds: string[]) => request<void>('PUT', '/alerts/kinds', { kinds }),
   addChannel: (kind: string, name: string, config: Record<string, string | number>) => request<void>('POST', '/alerts/channels', { kind, name, config }),
@@ -161,6 +193,8 @@ export const api = {
   npmUpload: (id: number, certId: number, files: { certificate: string; certificateKey: string; intermediate: string }) =>
     request<void>('POST', `/npm/${id}/certificates/${certId}/upload`, files),
   eggs: () => request<Egg[]>('GET', '/eggs'),
-  /** Imports a Pterodactyl egg: the egg's JSON file, as it's exported from Pterodactyl or a community repo. */
-  importEgg: (json: string) => request<Egg>('POST', '/eggs', JSON.parse(json)),
+  egg: (id: number) => request<EggDetail>('GET', `/eggs/${id}`),
+  /** Imports a Pterodactyl egg from its JSON or a link to it. A name already here gives a 409 unless replace is set. */
+  importEgg: (egg: { json?: string; url?: string; category: string; replace?: boolean }) => request<void>('POST', '/eggs', egg),
+  deleteEgg: (id: number) => request<void>('DELETE', `/eggs/${id}`),
 };

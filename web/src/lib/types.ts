@@ -79,28 +79,44 @@ export type GameServer = {
   id: number;
   name: string;
   egg: string;
+  eggId: number;
   serverId: number;
   serverName: string;
-  state: 'running' | 'starting' | 'stopping' | 'stopped' | 'crashed';
-  /** Where players connect, e.g. "mc.example.co.uk:25565". */
+  state: 'running' | 'stopping' | 'stopped' | 'crashed' | 'installing' | 'install-failed' | 'offline';
+  /** Where players connect, e.g. "192.168.1.11:25565". */
   address: string;
   players: { online: number; max: number } | null;
+  image: string;
+  ports: number[];
   cpuPercent: number;
+  /** 100 is one core; 0 is no limit. */
+  cpuLimit: number;
   memUsed: number;
   memLimit: number;
   diskUsed: number;
+  /** 0 is no limit. */
+  diskLimit: number;
   uptimeSecs: number;
+  /** Typed into its console before a stop, with %s for the message; empty when it can't warn players. */
+  warnCommand: string;
+  /** The viewer is the panel's owner, who can change its limits, delete and share it. */
+  owner: boolean;
 };
 
 export type Egg = {
   id: number;
   name: string;
-  /** What kind of game, from the egg's nest: Minecraft, Steam, Voice and the like. */
+  /** What kind of game: Minecraft, Steam, Voice and the like, chosen when it's imported. */
   category: string;
   author: string;
   description: string;
   servers: number;
 };
+
+export type EggImage = { label: string; image: string };
+
+/** What the new game server form needs from an egg. */
+export type EggDetail = { name: string; images: EggImage[]; startup: string };
 
 /** A setting the egg lets each game server choose, like the version or the world's seed. */
 export type StartupVariable = {
@@ -108,15 +124,30 @@ export type StartupVariable = {
   name: string;
   description: string;
   value: string;
-  /** Changing it needs a restart, and some can only be changed by an admin. */
+  /** Laravel-style rules from the egg, like "required|string|max:20". */
+  rules: string;
+  /** Friends can only change the ones the egg lets players change. */
   editable: boolean;
 };
 
 export type GameFile = { name: string; dir: boolean; size: number; modified: string };
 
-export type Schedule = { id: number; name: string; when: string; action: string; nextRun: string; enabled: boolean };
+export type Schedule = {
+  id: number;
+  name: string;
+  /** A cron expression: minute, hour, day, month, weekday. */
+  when: string;
+  action: 'restart' | 'command' | 'backup';
+  payload: string;
+  enabled: boolean;
+  nextRun: string;
+  lastRunAt: string;
+  lastError: string;
+};
 
-export type GameBackup = { id: number; name: string; size: number; createdAt: string; locked: boolean };
+export type GameBackup = { id: number; name: string; size: number; createdAt: string; locked: boolean; state: 'making' | 'done' | 'failed' };
+
+export type GameShare = { userId: number; username: string };
 
 export type Volume = { name: string; driver: string; size: number; containers: number; usedBy: string[] | null; stack: string };
 export type Image = { id: string; repository: string; tag: string; size: number; uniqueSize: number; containers: number; created: string };

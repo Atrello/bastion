@@ -293,13 +293,13 @@ func powerGame(ctx context.Context, a protocol.GamePowerArgs) error {
 			err = sendCommand(a.ID, a.StopWith)
 		}
 		if err != nil {
-			_, err = docker(ctx, "", "stop", "--time", "10", gameContainer(a.ID))
+			_, err = docker(ctx, "", "stop", "-t", "10", gameContainer(a.ID))
 			return err
 		}
 		wait, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		if _, err := docker(wait, "", "wait", gameContainer(a.ID)); err != nil {
-			_, err = docker(ctx, "", "stop", "--time", "10", gameContainer(a.ID))
+			_, err = docker(ctx, "", "stop", "-t", "10", gameContainer(a.ID))
 			return err
 		}
 		return nil

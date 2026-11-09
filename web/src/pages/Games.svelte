@@ -9,12 +9,13 @@
   import { gameStatus } from '../lib/status';
 
   const games = load(api.games);
+  let { owner = true }: { owner?: boolean } = $props();
   let creating = $state(false);
 </script>
 
 <div class="page-head">
   <h1>Game servers</h1>
-  <button class="primary" onclick={() => (creating = true)}>New game server</button>
+  {#if owner}<button class="primary" onclick={() => (creating = true)}>New game server</button>{/if}
 </div>
 
 {#if games.error}<p class="error">{games.error}</p>{/if}
@@ -36,15 +37,15 @@
       <p class="mono address">{g.address}</p>
       {#if g.state === 'running'}
         <Meter label="Memory" value="{bytes(g.memUsed)} / {bytes(g.memLimit)}" percent={percent(g.memUsed, g.memLimit)} />
-        <p class="muted small">CPU {g.cpuPercent}% · up {duration(g.uptimeSecs)}</p>
+        <p class="muted small">CPU {Math.round(g.cpuPercent)}% · up {duration(g.uptimeSecs)}</p>
       {:else}
         <p class="muted small stopped">
-          {g.state === 'crashed' ? 'Stopped unexpectedly. Its console shows why.' : `Not running · ${bytes(g.diskUsed)} on disk`}
+          {g.state === 'crashed' ? 'Stopped unexpectedly. Its console shows why.' : g.state === 'installing' ? 'Installing…' : `Not running · ${bytes(g.diskUsed)} on disk`}
         </p>
       {/if}
     </a>
   {:else}
-    {#if games.data}<p class="empty">No game servers yet. Import an egg, then start one from it.</p>{/if}
+    {#if games.data}<p class="empty">{owner ? 'No game servers yet. Import an egg, then start one from it.' : 'Nothing has been shared with you yet.'}</p>{/if}
   {/each}
 </div>
 

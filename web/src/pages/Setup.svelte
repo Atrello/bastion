@@ -6,7 +6,8 @@
   import { api } from '../lib/api';
   import { createPasskey } from '../lib/webauthn';
 
-  let { passkeys, ondone }: { passkeys: boolean; ondone: () => void } = $props();
+  // invited: a friend's invite link to a shared game server, rather than the owner's setup link.
+  let { passkeys, ondone, invited = false }: { passkeys: boolean; ondone: () => void; invited?: boolean } = $props();
 
   const token = location.hash.slice(1);
   let step = $state<'account' | 'factor' | 'authenticator' | 'codes'>('account');
@@ -70,8 +71,11 @@
       <span class="mono">https://…/setup#…</span></p>
   </AuthCard>
 {:else if step === 'account'}
-  <AuthCard title="Set up Bastion">
-    <p class="muted">Make the owner's account. You'll add a second way to sign in next: it's required.</p>
+  <AuthCard title={invited ? "You've been invited" : 'Set up Bastion'}>
+    <p class="muted">
+      {invited ? 'A game server has been shared with you. Make an account to use it.' : "Make the owner's account."}
+      You'll add a second way to sign in next: it's required.
+    </p>
     <form onsubmit={account}>
       <label>Username <input required autocomplete="username" bind:value={username} /></label>
       <label>Password <input required type="password" minlength="12" autocomplete="new-password" bind:value={password} /></label>

@@ -144,37 +144,41 @@ const logs = [
 
 const MB = 1024 ** 2;
 
+const game = (g: Omit<GameServer, 'image' | 'ports' | 'cpuLimit' | 'diskLimit' | 'warnCommand' | 'owner'> & Partial<GameServer>): GameServer => ({
+  image: 'ghcr.io/pterodactyl/yolks:java_21', ports: [Number(g.address.split(':')[1])], cpuLimit: 200, diskLimit: 0, warnCommand: '', owner: true, ...g,
+});
+
 const games: GameServer[] = [
-  {
-    id: 1, name: 'Survival SMP', egg: 'Paper', serverId: 2, serverName: 'forge', state: 'running',
-    address: 'mc.example.co.uk:25565', players: { online: 7, max: 20 },
+  game({
+    id: 1, name: 'Survival SMP', egg: 'Paper', eggId: 1, warnCommand: 'say %s', serverId: 2, serverName: 'forge', state: 'running',
+    address: 'mc.example.co.uk:25565', players: null,
     cpuPercent: 38, memUsed: 6.2 * GB, memLimit: 8 * GB, diskUsed: 4.2 * GB, uptimeSecs: 273_600,
-  },
-  {
-    id: 2, name: 'Valheim', egg: 'Valheim (BepInEx)', serverId: 2, serverName: 'forge', state: 'running',
-    address: 'forge.home.lab:2456', players: { online: 2, max: 10 },
+  }),
+  game({
+    id: 2, name: 'Valheim', egg: 'Valheim (BepInEx)', eggId: 4, serverId: 2, serverName: 'forge', state: 'running',
+    address: 'forge.home.lab:2456', players: null,
     cpuPercent: 21, memUsed: 3.1 * GB, memLimit: 6 * GB, diskUsed: 1.9 * GB, uptimeSecs: 86_400,
-  },
-  {
-    id: 3, name: 'Satisfactory', egg: 'Satisfactory', serverId: 2, serverName: 'forge', state: 'running',
-    address: 'forge.home.lab:7777', players: { online: 0, max: 4 },
+  }),
+  game({
+    id: 3, name: 'Satisfactory', egg: 'Satisfactory', eggId: 5, serverId: 2, serverName: 'forge', state: 'running',
+    address: 'forge.home.lab:7777', players: null,
     cpuPercent: 12, memUsed: 9.8 * GB, memLimit: 12 * GB, diskUsed: 11 * GB, uptimeSecs: 43_200,
-  },
-  {
-    id: 4, name: 'Creative', egg: 'Fabric', serverId: 2, serverName: 'forge', state: 'crashed',
+  }),
+  game({
+    id: 4, name: 'Creative', egg: 'Fabric', eggId: 2, warnCommand: 'say %s', serverId: 2, serverName: 'forge', state: 'crashed',
     address: 'forge.home.lab:25566', players: null,
     cpuPercent: 0, memUsed: 0, memLimit: 4 * GB, diskUsed: 1.1 * GB, uptimeSecs: 0,
-  },
-  {
-    id: 5, name: 'CS2 retakes', egg: 'Counter-Strike 2', serverId: 1, serverName: 'atlas', state: 'stopped',
+  }),
+  game({
+    id: 5, name: 'CS2 retakes', egg: 'Counter-Strike 2', eggId: 6, serverId: 1, serverName: 'atlas', state: 'stopped',
     address: 'atlas.home.lab:27015', players: null,
     cpuPercent: 0, memUsed: 0, memLimit: 4 * GB, diskUsed: 38 * GB, uptimeSecs: 0,
-  },
-  {
-    id: 6, name: 'TeamSpeak', egg: 'TeamSpeak 3', serverId: 4, serverName: 'edge-vps', state: 'running',
-    address: 'ts.example.co.uk:9987', players: { online: 3, max: 32 },
+  }),
+  game({
+    id: 6, name: 'TeamSpeak', egg: 'TeamSpeak 3', eggId: 7, serverId: 4, serverName: 'edge-vps', state: 'running',
+    address: 'ts.example.co.uk:9987', players: null,
     cpuPercent: 1, memUsed: 48 * MB, memLimit: 256 * MB, diskUsed: 22 * MB, uptimeSecs: 1_728_000,
-  },
+  }),
 ];
 
 const eggs: Egg[] = [
@@ -214,27 +218,28 @@ const gameFiles: GameFile[] = [
   { name: 'whitelist.json', dir: false, size: 812, modified: minutesAgo(60 * 24 * 3) },
 ];
 
-const startup: { command: string; image: string; variables: StartupVariable[] } = {
+const startup = {
   command: 'java -Xms128M -XX:MaxRAMPercentage=95.0 -Dterminal.jline=false -jar {{SERVER_JARFILE}}',
   image: 'ghcr.io/pterodactyl/yolks:java_21',
-  variables: [
-    { key: 'MINECRAFT_VERSION', name: 'Minecraft version', description: 'The version to run, or "latest".', value: '1.21.4', editable: true },
-    { key: 'BUILD_NUMBER', name: 'Build number', description: 'The Paper build to use, or "latest".', value: 'latest', editable: true },
-    { key: 'SERVER_JARFILE', name: 'Server jar file', description: 'The name of the jar to run.', value: 'paper.jar', editable: true },
-    { key: 'EULA', name: 'Accept the EULA', description: 'Mojang\'s EULA must be accepted to run a server.', value: 'true', editable: false },
+  images: [{ label: 'Java 21', image: 'ghcr.io/pterodactyl/yolks:java_21' }, { label: 'Java 17', image: 'ghcr.io/pterodactyl/yolks:java_17' }],
+  variables: <StartupVariable[]>[
+    { key: 'MINECRAFT_VERSION', name: 'Minecraft version', description: 'The version to run, or "latest".', value: '1.21.4', rules: 'nullable|string|max:20', editable: true },
+    { key: 'BUILD_NUMBER', name: 'Build number', description: 'The Paper build to use, or "latest".', value: 'latest', rules: 'required|string|max:20', editable: true },
+    { key: 'SERVER_JARFILE', name: 'Server jar file', description: 'The name of the jar to run.', value: 'paper.jar', rules: 'required|regex:/^([\\w\\d._-]+)(\\.jar)$/', editable: true },
+    { key: 'EULA', name: 'Accept the EULA', description: 'Mojang\'s EULA must be accepted to run a server.', value: 'true', rules: 'required|in:true', editable: false },
   ],
 };
 
 const schedules: Schedule[] = [
-  { id: 1, name: 'Nightly restart', when: 'Every day at 05:00', action: 'Warn players, then restart', nextRun: new Date(now + 10 * 3600_000).toISOString(), enabled: true },
-  { id: 2, name: 'World backup', when: 'Every day at 03:00', action: 'Back up world, keep 7', nextRun: new Date(now + 8 * 3600_000).toISOString(), enabled: true },
-  { id: 3, name: 'Weekend whitelist off', when: 'Fridays at 18:00', action: 'Run: whitelist off', nextRun: new Date(now + 4 * 86400_000).toISOString(), enabled: false },
+  { id: 1, name: 'Nightly restart', when: '0 5 * * *', action: 'restart', payload: '', nextRun: new Date(now + 10 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 14), lastError: '' },
+  { id: 2, name: 'World backup', when: '0 3 * * *', action: 'backup', payload: '', nextRun: new Date(now + 8 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 16), lastError: '' },
+  { id: 3, name: 'Weekend whitelist off', when: '0 18 * * 5', action: 'command', payload: 'whitelist off', nextRun: '', enabled: false, lastRunAt: '', lastError: '' },
 ];
 
 const backups: GameBackup[] = [
-  { id: 41, name: 'Nightly', size: 4.1 * GB, createdAt: minutesAgo(60 * 16), locked: false },
-  { id: 40, name: 'Before 1.21.4 update', size: 3.9 * GB, createdAt: minutesAgo(60 * 76), locked: true },
-  { id: 39, name: 'Nightly', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false },
+  { id: 41, name: 'Nightly', size: 4.1 * GB, createdAt: minutesAgo(60 * 16), locked: false, state: 'done' },
+  { id: 40, name: 'Before 1.21.4 update', size: 3.9 * GB, createdAt: minutesAgo(60 * 76), locked: true, state: 'done' },
+  { id: 39, name: 'Nightly', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false, state: 'done' },
 ];
 
 const health = (status: number, ms: number) => ({ status, ms, checkedAt: minutesAgo(2) });
@@ -339,6 +344,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
   if (method === 'GET' && npmList) return npm[npmList[1]] ?? [];
   if (method === 'GET' && path === '/games') return games;
   if (method === 'GET' && path === '/eggs') return eggs;
+  if (method === 'GET' && /^\/eggs\/\d+$/.test(path)) return { name: 'Paper', images: startup.images, startup: startup.command };
   const game = /^\/games\/(\d+)(\/[a-z]+)?/.exec(path);
   if (method === 'GET' && game) {
     const part = game[2] ?? '';
@@ -347,6 +353,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
     if (part === '/startup') return startup;
     if (part === '/schedules') return schedules;
     if (part === '/backups') return backups;
+    if (part === '/shares') return [{ userId: 2, username: 'jane' }];
     return games.find((g) => g.id === Number(game[1]));
   }
   if (method === 'POST' && path === '/servers') {

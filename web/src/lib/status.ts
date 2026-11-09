@@ -19,8 +19,10 @@ export function containerTone(state: Container['state']): Tone {
 
 export const gameStatus: Record<GameServer['state'], { tone: Tone; label: string }> = {
   running: { tone: 'green', label: 'Running' },
-  starting: { tone: 'amber', label: 'Starting' },
   stopping: { tone: 'amber', label: 'Stopping' },
   stopped: { tone: 'grey', label: 'Stopped' },
   crashed: { tone: 'red', label: 'Crashed' },
+  installing: { tone: 'amber', label: 'Installing' },
+  'install-failed': { tone: 'red', label: 'Install failed' },
+  offline: { tone: 'grey', label: 'Server offline' },
 };

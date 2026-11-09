@@ -32,7 +32,7 @@
   let auth = $state<AuthState>();
   async function checkAuth() {
     auth = await api.authState();
-    if (auth.signedIn && route.path === '/setup') navigate('/');
+    if (auth.signedIn && (route.path === '/setup' || route.path === '/invite')) navigate('/');
   }
   void checkAuth();
   addEventListener('bastion:signed-out', () => void checkAuth());
@@ -52,15 +52,26 @@
 
 {#if !auth}
   <!-- Checking whether anyone's signed in: a moment, so nothing is shown. -->
+{:else if route.path === '/invite' && !auth.signedIn}
+  <Setup invited passkeys={auth.passkeys} ondone={checkAuth} />
 {:else if auth.setupNeeded}
   <Setup passkeys={auth.passkeys} ondone={checkAuth} />
 {:else if !auth.signedIn}
   <SignIn passkeys={auth.passkeys} ondone={checkAuth} />
 {:else}
 <div class="frame">
-  <Sidebar username={auth.username ?? ''} onsignout={signOut} />
+  <Sidebar username={auth.username ?? ''} friend={auth.role === 'friend'} onsignout={signOut} />
   <main>
-    {#if route.path === '/'}
+    {#if auth.role === 'friend'}
+      <!-- A friend sees only the game servers shared with them, and their own account. -->
+      {#if game}
+        {#key route.path}<Game id={Number(game.id)} />{/key}
+      {:else if route.path === '/account'}
+        <Account passkeys={auth.passkeys} />
+      {:else}
+        <Games owner={false} />
+      {/if}
+    {:else if route.path === '/'}
       <Overview />
     {:else if route.path === '/servers'}
       <Servers />

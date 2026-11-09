@@ -149,15 +149,20 @@ func (c *conn) ping(ctx context.Context) {
 	}
 }
 
+// metrics is the server's use, and its games'.
+func (c *conn) metrics(ctx context.Context) protocol.Metrics {
+	m := readMetrics()
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	m.Games = gameStatuses(ctx)
+	return m
+}
+
 func (c *conn) reportMetrics(ctx context.Context) {
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
 	for {
-		m := readMetrics()
-		statusCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-		m.Games = gameStatuses(statusCtx)
-		cancel()
-		c.event(protocol.EventMetrics, m)
+		c.event(protocol.EventMetrics, c.metrics(ctx))
 		select {
 		case <-ctx.Done():
 			return
@@ -230,6 +235,10 @@ func (c *conn) handle(m protocol.Message) {
 		return
 	}
 	data, err := c.do(m)
+	if strings.HasPrefix(m.Op, "game.") && m.Op != protocol.OpGameFiles {
+		// A game's state has changed: the panel hears it before the answer, so it never shows the old one.
+		c.event(protocol.EventMetrics, c.metrics(context.Background()))
+	}
 	c.answer(m.ID, data, err)
 }
 

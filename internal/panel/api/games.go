@@ -423,7 +423,7 @@ func (api *API) power(ctx context.Context, g *game, action string, warnSecs int)
 	switch action {
 	case "start":
 		if over := api.overDisk(g); over != "" {
-			return errors.New(over)
+			return refusal(over)
 		}
 		return api.hub.Request(ctx, g.ServerID, protocol.OpGameStart, spec, nil)
 	case "kill":
@@ -479,12 +479,22 @@ func (api *API) powerGame(w http.ResponseWriter, r *http.Request, u *auth.User, 
 		return
 	}
 	if err := api.power(r.Context(), g, action, min(max(body.Warn, 0), 600)); err != nil {
-		api.agentFail(w, r, err)
+		var no refusal
+		if errors.As(err, &no) {
+			writeError(w, http.StatusBadRequest, err.Error())
+		} else {
+			api.agentFail(w, r, err)
+		}
 		return
 	}
 	api.log.Info("game server power", "user", u.Username, "game", g.ID, "action", action)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// refusal is something the panel won't do, said to the person asking.
+type refusal string
+
+func (r refusal) Error() string { return string(r) }
 
 // overDisk says why a game can't start or take more files, if it's over its disk limit.
 func (api *API) overDisk(g *game) string {
@@ -497,9 +507,14 @@ func (api *API) overDisk(g *game) string {
 	return ""
 }
 
-// gameConsole is the console's recent output: the install log while it installs, otherwise the game's.
+// gameConsole is the console's recent output: the game's, or the install log while it installs and until
+// it first runs.
 func (api *API) gameConsole(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
-	if v := api.view(g, "", false); v.State == "installing" || v.State == "install-failed" {
+	var lines protocol.LogLines
+	v := api.view(g, "", false)
+	ran := v.State != "installing" && v.State != "install-failed" &&
+		api.hub.Request(r.Context(), g.ServerID, protocol.OpStackLogs, protocol.LogsArgs{Container: "bastion-game-" + strconv.FormatInt(g.ID, 10), Tail: 300}, &lines) == nil
+	if !ran {
 		var res protocol.GameFileResult
 		if err := api.hub.Request(r.Context(), g.ServerID, protocol.OpGameFiles, protocol.GameFileArgs{ID: g.ID, Op: "install-log"}, &res); err != nil {
 			api.agentFail(w, r, err)
@@ -507,11 +522,6 @@ func (api *API) gameConsole(w http.ResponseWriter, r *http.Request, _ *auth.User
 		}
 		writeJSON(w, map[string]any{"lines": strings.Split(strings.TrimRight(string(res.Data), "\n"), "\n")})
 		return
-	}
-	var lines protocol.LogLines
-	err := api.hub.Request(r.Context(), g.ServerID, protocol.OpStackLogs, protocol.LogsArgs{Container: "bastion-game-" + strconv.FormatInt(g.ID, 10), Tail: 300}, &lines)
-	if err != nil {
-		lines.Lines = []string{} // never started: nothing to show yet
 	}
 	writeJSON(w, lines)
 }
