@@ -1,11 +1,47 @@
 # Developing Bastion
 
-## The web app
+## Building and checking
 
-The panel's web app is in `panel/web`: Svelte 5 with TypeScript, built by Vite.
+Requires Go (the version in `go.mod`; Go fetches it if yours is older) and Node.js 22.
 
 ```sh
-cd panel/web
+make            # builds the web app, then the panel into bin/bastion
+make test       # Go tests
+make check      # everything a change must pass: tests, vet, formatting, govulncheck, npm audit, type check
+```
+
+Run the panel locally:
+
+```sh
+BASTION_PUBLIC_URL=http://localhost:8080 ./bin/bastion
+```
+
+The first time, its log prints a one-time setup link to make your account. Use `localhost`, not
+`127.0.0.1`: passkeys need a name.
+
+## The panel's server
+
+Go, in `cmd/bastion` and `internal/panel`:
+
+| Package | What it does |
+|---|---|
+| `config` | Settings from the environment |
+| `store` | The SQLite database and its migrations (`store/migrations`, numbered, run once each) |
+| `auth` | Passwords, authenticator and recovery codes, passkeys, sessions, sign-in limits, first-run setup |
+| `api` | The HTTP API: routing, the same-origin check, JSON in and out, and the handlers |
+| `server` | Security headers, logging, and the API and web app on one address |
+
+The web app is built into the binary (`web/web.go`), so the panel is one file to run.
+
+Tests are beside the code (`*_test.go`). The API's tests drive a real panel in memory the way a browser
+would, including trying what an attacker would: a second setup, a reused code, a cross-site request.
+
+## The web app
+
+The panel's web app is in `web`: Svelte 5 with TypeScript, built by Vite.
+
+```sh
+cd web
 npm install
 npm run demo     # the app on demo data (src/lib/demo.ts), no panel needed
 npm run dev      # the app against a panel on :8080 (Vite passes /api through)

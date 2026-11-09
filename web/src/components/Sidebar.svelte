@@ -2,6 +2,8 @@
 <script lang="ts">
   import { route } from '../lib/router.svelte';
 
+  let { username, onsignout }: { username: string; onsignout: () => void } = $props();
+
   type Link = { href: string; label: string; icon: string };
   const groups: { title?: string; links: Link[] }[] = [
     {
@@ -42,7 +44,13 @@
       </a>
     {/each}
   {/each}
-  <p class="version muted small">Bastion 0.1</p>
+  <div class="foot">
+    <a class="link" class:on={current('/account')} href="/account">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0" /></svg>
+      {username}
+    </a>
+    <button class="signout" onclick={onsignout}>Sign out</button>
+  </div>
 </nav>
 
 <style>
@@ -101,8 +109,19 @@
     stroke-linejoin: round;
     stroke-linecap: round;
   }
-  .version {
-    margin: auto 0 0;
-    padding: 0 10px;
+  .foot {
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 4px;
+  }
+  .signout {
+    border: 0;
+    background: none;
+    color: var(--muted);
+    text-align: left;
+    padding: 4px 10px;
+    font-weight: 400;
   }
 </style>

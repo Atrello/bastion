@@ -15,31 +15,29 @@ Early. The panel's screens are built and run on demo data; the panel's server an
 
 | Part | State |
 |---|---|
-| Panel web app (`panel/web`) | Built: overview and servers; Docker (stacks, a stack's compose file, `.env`, containers, logs and history; containers); game servers (each one's console, files, startup settings, schedules and backups; the egg library) |
-| Panel server (`panel`) | Next: Go, SQLite, sign-in, the API in [docs/api.md](docs/api.md) |
-| Agent (`agent`) | After the panel server: Go, one binary per server |
+| Panel web app (`web`) | Built: overview and servers; Docker (stacks, a stack's compose file, `.env`, containers, logs and history; containers); game servers (each one's console, files, startup settings, schedules and backups; the egg library) |
+| Panel server (`cmd/bastion`, `internal/panel`) | Started: one Go binary with the web app built in, SQLite, sign-in with two-factor required and passkeys. Servers and stacks next |
+| Agent | Next: Go, one binary per server |
 
 What's planned is in [docs/roadmap.md](docs/roadmap.md), and how it's being built, step by step, in
 [docs/plan.md](docs/plan.md).
 
-## Trying the screens
+## Trying it
 
-Requires Node.js 22.
+Requires Go and Node.js 22.
 
 ```sh
-cd panel/web
-npm install
-npm run demo        # http://localhost:5173, with a made-up homelab
+make
+BASTION_PUBLIC_URL=http://localhost:8080 ./bin/bastion     # its log prints the setup link
 ```
 
-More in [docs/development.md](docs/development.md).
+Or just the screens, on a made-up homelab: `cd web && npm install && npm run demo`.
+
+More in [docs/development.md](docs/development.md); how it's kept secure in [docs/security.md](docs/security.md).
 
 ## Layout
 
 ```
-panel/web/          the panel's web app (Svelte, Vite)
-  src/pages/        one file per screen
-  src/components/   pieces the screens share
-  src/lib/          the API client, demo data, router and helpers
-docs/               how it's built, the API, development, the roadmap
+web/          the panel's web app (Svelte, Vite)
+docs/               the plan, security, the API, development, the roadmap
 ```

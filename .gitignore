@@ -1,6 +1,12 @@
 node_modules/
-dist/
+# The built web app, except the file that lets the Go build embed it before it's been built.
+web/dist/*
+!web/dist/.gitkeep
+# Programs built with make.
+/bin/
 # The panel's database and its settings, wherever they're run from in development.
 *.db
 *.db-*
 .env
+# Vite's cache while developing.
+.vite/

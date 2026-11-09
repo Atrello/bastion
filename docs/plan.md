@@ -25,16 +25,33 @@ the bottom.
 | Panel and agent | `github.com/gorilla/websocket` | The agent connection and live updates to the browser |
 | Panel | `modernc.org/sqlite` | SQLite without a C compiler, so the panel builds anywhere |
 | Panel | `golang.org/x/crypto` (argon2id) | Hashing the sign-in password |
+| Panel | `github.com/go-webauthn/webauthn` | Passkeys (WebAuthn), the standard Go implementation |
+| Panel | `github.com/pquerna/otp` | Authenticator app codes (TOTP) |
 | Agent | `github.com/creack/pty` | A real terminal for container consoles and game consoles |
 | Web app | Svelte, Vite, CodeMirror | As it is now |
 
+## Layout
+
+One Go module for the panel and the agent, so they share the protocol's types:
+
+```
+cmd/bastion/          the panel's program
+cmd/bastion-agent/    the agent's program
+internal/protocol/    the messages between them
+internal/panel/...    the panel: store (database), auth, agents (connections), api (HTTP)
+internal/agent/...    the agent: connection, docker, metrics
+web/                  the web app (Svelte), built into the panel's binary
+```
+
 ## Milestone 0.1: Docker stacks, for real
 
-1. **Panel server skeleton.** `panel/cmd/bastion`: config from flags and environment, SQLite with
-   migrations, the web app built into the binary, request logging. `panel/internal/...` packages: `store`
-   (database), `api` (HTTP handlers), `agents` (connected agents), `auth`.
-2. **Sign-in.** One owner account made on first run (a setup page), password hashed with argon2id,
-   session cookie, sign-in page in the web app, limits on failed attempts.
+1. **Panel server skeleton.** Config from flags and environment, SQLite with migrations, the web app
+   built into the binary, security headers, request logging.
+2. **Sign-in, with two-factor required.** A one-time setup link (printed in the panel's log) to make
+   the owner's account, so nobody else can claim a new panel. Password (argon2id) plus a second factor,
+   always: an authenticator app (with recovery codes) or a passkey. Passkeys can also sign in on their
+   own. Sessions in a cookie that scripts can't read, ending after idle time; limits on failed attempts.
+   The threat model this answers is in `docs/security.md`.
 3. **Agent protocol.** One websocket per agent, JSON messages: requests and answers, streams (logs,
    consoles), and events (hello, metrics, state changes). Written down in `docs/protocol.md` first, with
    shared Go types.
@@ -48,9 +65,17 @@ the bottom.
    when opened).
 7. **Image updates.** The agent checks image digests against the registry; stacks show "update
    available" and Update images pulls and recreates.
-8. **Install.** `install.sh` for the join command, a systemd unit for the agent, a container image and
+8. **Volumes and images.** Pages for each server's volumes and images: what uses each, its size, and
+   which are unused. **Clean-up**: remove unused images, volumes and build cache, showing what goes and how
+   much space it frees before anything is deleted.
+9. **Git-backed stacks** (optional, per stack). A stack follows a folder in a Git repository; the panel
+   shows when the repo has changes and deploys them on request (or by itself, if turned on). A deploy key
+   per repository, kept on the panel.
+10. **Alerts.** A server going offline, a container crash-looping or unhealthy, a disk over 90%, an image
+    update available: sent to ntfy, Discord or email, with each kind switched on or off.
+11. **Install.** `install.sh` for the join command, a systemd unit for the agent, a container image and
    compose file for the panel, `docs/install.md`.
-9. **Done when:** a fresh panel and two servers can be set up from the docs alone, and every screen in the
+12. **Done when:** a fresh panel and two servers can be set up from the docs alone, and every screen in the
    Docker section works against real Docker.
 
 ## Milestone 0.2: Nginx Proxy Manager
@@ -80,8 +105,20 @@ the bottom.
 Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, planned in detail when
 0.3 is done.
 
+## Progress
+
+| Step | State |
+|---|---|
+| 0.1 step 1: panel server skeleton | Done |
+| 0.1 step 2: sign-in with two-factor and passkeys | Done |
+| 0.1 step 3: agent protocol | Next |
+
 ## Changes to the plan
 
 | Date | Change | Why |
 |---|---|---|
 | 9 Nov 2026 | Plan written | |
+| 9 Nov 2026 | Added volumes and images pages, clean-up, Git-backed stacks and alerts to 0.1; two-factor sign-in required, with passkeys | Asked for |
+| 9 Nov 2026 | One Go module at the top of the repo (`cmd/`, `internal/`, `web/`) instead of `panel/` and `agent/` | The panel and agent share the protocol's types |
+| 9 Nov 2026 | Passkeys are off when the panel is reached by an IP address, rather than refusing to start | WebAuthn needs a name; authenticator apps still work |
+| 9 Nov 2026 | Two-factor and passkeys with `go-webauthn` and `pquerna/otp`, not Better Auth | Better Auth is a JavaScript library and the panel is Go; these are its established Go equivalents |

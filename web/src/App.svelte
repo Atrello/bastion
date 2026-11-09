@@ -1,6 +1,11 @@
-<!-- The panel's frame: the menu, and the page for the current address. -->
+<!-- The panel's frame: setup or sign-in until someone's signed in, then the menu and the page for the
+     current address. -->
 <script lang="ts">
   import Sidebar from './components/Sidebar.svelte';
+  import { api, type AuthState } from './lib/api';
+  import Account from './pages/Account.svelte';
+  import Setup from './pages/Setup.svelte';
+  import SignIn from './pages/SignIn.svelte';
   import { match, navigate, route } from './lib/router.svelte';
   import Containers from './pages/Containers.svelte';
   import Eggs from './pages/Eggs.svelte';
@@ -19,14 +24,34 @@
     navigate(a.pathname + a.search);
   }
 
+  let auth = $state<AuthState>();
+  async function checkAuth() {
+    auth = await api.authState();
+    if (auth.signedIn && route.path === '/setup') navigate('/');
+  }
+  void checkAuth();
+  addEventListener('bastion:signed-out', () => void checkAuth());
+
+  async function signOut() {
+    await api.signOut();
+    await checkAuth();
+  }
+
   const stack = $derived(match('/stacks/:server/:name'));
   const game = $derived(match('/games/:id'));
 </script>
 
 <svelte:document onclick={followLink} />
 
+{#if !auth}
+  <!-- Checking whether anyone's signed in: a moment, so nothing is shown. -->
+{:else if auth.setupNeeded}
+  <Setup passkeys={auth.passkeys} ondone={checkAuth} />
+{:else if !auth.signedIn}
+  <SignIn passkeys={auth.passkeys} ondone={checkAuth} />
+{:else}
 <div class="frame">
-  <Sidebar />
+  <Sidebar username={auth.username ?? ''} onsignout={signOut} />
   <main>
     {#if route.path === '/'}
       <Overview />
@@ -44,11 +69,14 @@
       {#key route.path}<Game id={Number(game.id)} />{/key}
     {:else if route.path === '/eggs'}
       <Eggs />
+    {:else if route.path === '/account'}
+      <Account passkeys={auth.passkeys} />
     {:else}
       <p class="empty">There's nothing at this address. <a href="/">Back to the overview</a></p>
     {/if}
   </main>
 </div>
+{/if}
 
 <style>
   .frame {

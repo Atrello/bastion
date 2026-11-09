@@ -234,6 +234,17 @@ const backups: GameBackup[] = [
 ];
 
 export function demo(method: string, path: string, body?: unknown): unknown {
+  if (path === '/auth/state') return { setupNeeded: false, signedIn: true, username: 'robin', passkeys: true };
+  if (path === '/account')
+    return {
+      username: 'robin',
+      hasAuthenticator: true,
+      recoveryCodesLeft: 9,
+      passkeys: [
+        { id: 1, name: 'Laptop', createdAt: minutesAgo(60 * 24 * 20), lastUsedAt: minutesAgo(40) },
+        { id: 2, name: 'Phone', createdAt: minutesAgo(60 * 24 * 6), lastUsedAt: minutesAgo(60 * 24 * 2) },
+      ],
+    };
   if (method === 'GET' && path === '/servers') return servers;
   if (method === 'GET' && path === '/stacks') return stacks;
   if (method === 'GET' && path === '/containers') return containers;

@@ -35,6 +35,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (res.status === 401 && !path.startsWith('/auth/') && path !== '/setup') {
+    // The session has ended: the app goes back to the sign-in page.
+    dispatchEvent(new Event('bastion:signed-out'));
+  }
   if (!res.ok) {
     const text = await res.text();
     let message = text || res.statusText;
@@ -48,12 +52,39 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
+export type AuthState = { setupNeeded: boolean; signedIn: boolean; username?: string; passkeys: boolean };
+export type Account = {
+  username: string;
+  hasAuthenticator: boolean;
+  recoveryCodesLeft: number;
+  passkeys: { id: number; name: string; createdAt: string; lastUsedAt: string | null }[];
+};
+type PasskeyOptions = { publicKey: Record<string, any> };
+
 const stackPath = (serverId: number, name: string) => `/servers/${serverId}/stacks/${encodeURIComponent(name)}`;
 
 export type StackAction = 'up' | 'down' | 'stop' | 'start' | 'restart' | 'pull' | 'update';
 export type GamePower = 'start' | 'stop' | 'restart' | 'kill';
 
 export const api = {
+  authState: () => request<AuthState>('GET', '/auth/state'),
+  setup: (token: string, username: string, password: string) => request<void>('POST', '/setup', { token, username, password }),
+  signIn: (username: string, password: string) => request<{ code: boolean; passkey: boolean }>('POST', '/auth/signin', { username, password }),
+  signInWithCode: (code: string) => request<void>('POST', '/auth/signin/code', { code }),
+  signInWithRecoveryCode: (code: string) => request<void>('POST', '/auth/signin/recovery', { code }),
+  passkeyBegin: () => request<PasskeyOptions>('POST', '/auth/passkey/begin'),
+  passkeyFinish: (answer: unknown) => request<void>('POST', '/auth/passkey/finish', answer),
+  authenticatorBegin: (password = '') => request<{ secret: string; qrCode: string }>('POST', '/auth/authenticator/begin', { password }),
+  authenticatorFinish: (code: string) => request<{ recoveryCodes: string[] }>('POST', '/auth/authenticator/finish', { code }),
+  passkeyRegisterBegin: (name: string, password = '') => request<PasskeyOptions>('POST', '/auth/passkey/register/begin', { name, password }),
+  passkeyRegisterFinish: (answer: unknown) => request<void>('POST', '/auth/passkey/register/finish', answer),
+  signOut: () => request<void>('POST', '/auth/signout'),
+  account: () => request<Account>('GET', '/account'),
+  changePassword: (current: string, next: string) => request<void>('POST', '/account/password', { current, next }),
+  newRecoveryCodes: (password: string) => request<{ recoveryCodes: string[] }>('POST', '/account/recovery-codes', { password }),
+  deletePasskey: (id: number) => request<void>('DELETE', `/account/passkeys/${id}`),
+  signOutEverywhere: () => request<void>('POST', '/account/signout-everywhere'),
+
   servers: () => request<Server[]>('GET', '/servers'),
   addServer: (name: string) => request<{ server: Server; joinCommand: string }>('POST', '/servers', { name }),
   stacks: () => request<Stack[]>('GET', '/stacks'),
