@@ -154,10 +154,23 @@ th {
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
 }
+/* Cells wrap their text so a table fits its card; buttons, badges and short values stay on one line. */
 td {
   padding: 9px 10px;
   border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+td button,
+td .button,
+td .badge,
+td .mono,
+td.num {
   white-space: nowrap;
+}
+td.buttons,
+td:last-child:has(button) {
+  white-space: nowrap;
+  width: 1%;
 }
 tr:last-child td {
   border-bottom: 0;
@@ -204,6 +217,7 @@ tbody tr:hover td {
 /* A page's title row: the title, then its buttons on the right. */
 .page-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   margin-bottom: 20px;
@@ -222,14 +236,44 @@ tbody tr:hover td {
   display: none !important;
 }
 
-/* Forms: fields one above another, with their labels above them; .pair puts two side by side. */
+/* Forms: fields one above another, with their labels above them; .pair and .three put two or three side
+   by side (one above another again on a narrow screen). Fields fill their space and never push past it:
+   a field's own minimum width would otherwise spill it out of a narrow column. */
 .form {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 .form label {
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+.form label > input:not([type='checkbox']):not([type='radio']),
+.form label > select,
+.form label > textarea {
+  width: 100%;
+}
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+.form > *,
+.pair > *,
+.three > * {
+  min-width: 0;
+}
+/* Side by side, labels of different lengths still leave the fields lined up. */
+.pair > label,
+.three > label {
+  align-content: end;
+}
+.three {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
 }
 .form label.check {
   display: flex;
@@ -288,4 +332,15 @@ tbody tr:hover td {
 }
 .ansi-bold {
   font-weight: 700;
+}
+
+/* Narrow screens: side-by-side fields stack, and a row of buttons wraps rather than overflows. */
+@media (max-width: 640px) {
+  .pair,
+  .three {
+    grid-template-columns: 1fr;
+  }
+  .row {
+    flex-wrap: wrap;
+  }
 }

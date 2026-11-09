@@ -103,11 +103,6 @@
   .check {
     display: flex;
   }
-  .pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
   .key {
     margin: 0;
     white-space: pre-wrap;

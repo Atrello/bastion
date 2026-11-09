@@ -184,6 +184,11 @@
     gap: 16px;
     align-items: start;
   }
+  @media (max-width: 900px) {
+    .console-layout {
+      grid-template-columns: 1fr;
+    }
+  }
   .stats p {
     margin: 0 0 10px;
   }

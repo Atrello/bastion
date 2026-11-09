@@ -137,14 +137,17 @@
       {/if}
       {#if error}<p class="error">{error}</p>{/if}
     </form>
-    {#snippet footer()}<button type="submit" form="channel" class="primary">Add</button>{/snippet}
+    {#snippet footer()}
+      <button onclick={() => (adding = false)}>Cancel</button>
+      <button type="submit" form="channel" class="primary">Add</button>
+    {/snippet}
   </Modal>
 {/if}
 
 <style>
   .grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
     gap: 16px;
   }
   .grid .card {

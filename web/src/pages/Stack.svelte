@@ -26,6 +26,13 @@
   const history = load(() => api.stackHistory(serverId, name));
 
   const stack = $derived(stacks.data?.find((s) => s.serverId === serverId && s.name === name));
+  // A stack made a moment ago may not be in the panel's list yet: look again for a few seconds.
+  let looked = 0;
+  $effect(() => {
+    if (!stacks.data || stack || looked >= 8) return;
+    const timer = setTimeout(() => (looked++, void stacks.reload()), 1500);
+    return () => clearTimeout(timer);
+  });
   const mine = $derived(containers.data?.filter((c) => c.serverId === serverId && c.stack === name) ?? []);
 
   let tab = $state('compose');

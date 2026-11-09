@@ -5,6 +5,7 @@
   import { EditorState } from '@codemirror/state';
   import { tags } from '@lezer/highlight';
   import { EditorView, basicSetup } from 'codemirror';
+  import { untrack } from 'svelte';
 
   let { value = $bindable(), language = 'text', label }: { value: string; language?: 'yaml' | 'text'; label: string } = $props();
   let host: HTMLDivElement;
@@ -29,11 +30,14 @@
     { tag: [tags.punctuation, tags.separator], color: '#8d8a84' },
   ]);
 
+  let view: EditorView | undefined;
+
+  // The editor is made once. Reading `value` here would remake it on every keystroke, so it's read untracked.
   $effect(() => {
-    const view = new EditorView({
+    view = new EditorView({
       parent: host,
       state: EditorState.create({
-        doc: value,
+        doc: untrack(() => value),
         extensions: [
           basicSetup,
           theme,
@@ -46,7 +50,15 @@
         ],
       }),
     });
-    return () => view.destroy();
+    return () => view?.destroy();
+  });
+
+  // Text changed from outside (Discard, or a file loaded): put it in the editor.
+  $effect(() => {
+    const text = value;
+    if (view && text !== view.state.doc.toString()) {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+    }
   });
 </script>
 

@@ -169,7 +169,7 @@
           <tr class:off={'enabled' in item && !enabled(item)}>
             {#if kind === 'proxy-hosts'}
               <td><b>{item.domain_names.join(', ')}</b></td>
-              <td class="mono muted">{item.forward_scheme}://{item.forward_host}:{item.forward_port}</td>
+              <td class="muted"><span class="address">{item.forward_scheme}://{item.forward_host}:{item.forward_port}</span></td>
               <td>{certName(item)}</td>
               <td>{item.access_list?.name ?? 'Public'}</td>
               <td>
@@ -277,6 +277,11 @@
   .buttons button {
     margin-left: 6px;
     padding: 4px 10px;
+  }
+  .address {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    word-break: break-all;
   }
   tr.off td {
     opacity: 0.6;

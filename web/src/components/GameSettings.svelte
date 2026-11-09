@@ -94,14 +94,19 @@
       </div>
       <div class="three">
         <label>Memory (MB) <input type="number" min="256" required bind:value={limits.memoryMb} /></label>
-        <label>CPU (%, 100 is a core; 0 no limit) <input type="number" min="0" max="6400" bind:value={limits.cpuPercent} /></label>
-        <label>Disk (MB, 0 no limit) <input type="number" min="0" bind:value={limits.diskMb} /></label>
+        <label>CPU (%) <input type="number" min="0" max="6400" bind:value={limits.cpuPercent} /></label>
+        <label>Disk (MB) <input type="number" min="0" bind:value={limits.diskMb} /></label>
       </div>
       <div class="pair">
-        <label>Ports <span class="muted small">(the first is the game's; each is TCP and UDP)</span> <input required class="mono" bind:value={limits.ports} /></label>
-        <label>Warn players with <span class="muted small">(%s is the message; empty if it can't)</span> <input class="mono" placeholder="say %s" bind:value={limits.warnCommand} /></label>
+        <label>Ports <input required class="mono" bind:value={limits.ports} /></label>
+        <label>Warn players with <input class="mono" placeholder="say %s" bind:value={limits.warnCommand} /></label>
       </div>
-      <p class="muted small">Docker can't cap a folder's size, so a game over its disk limit is stopped (within a minute) and can't start until it's under.</p>
+      <p class="muted small">
+        100% CPU is one core, and 0 means no limit for CPU or disk. A game over its disk limit is stopped within a
+        minute (Docker can't cap a folder's size). The first port is the game's own; each is opened for TCP and UDP.
+        The warning is typed into the game's console before a stop, with %s where the message goes; leave it
+        empty if the game can't be told.
+      </p>
       <div class="row end"><button type="submit" class="primary">Save</button></div>
     </form>
   </section>
@@ -160,7 +165,7 @@
   }
   .variables {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
     gap: 14px;
   }
   .variable {
@@ -170,11 +175,6 @@
   .end {
     grid-column: 1 / -1;
     justify-content: flex-end;
-  }
-  .three {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
   }
   .shares {
     list-style: none;

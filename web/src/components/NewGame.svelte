@@ -95,10 +95,3 @@
   {/snippet}
 </Modal>
 
-<style>
-  .three {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
-</style>

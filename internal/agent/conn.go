@@ -235,6 +235,12 @@ func (c *conn) handle(m protocol.Message) {
 		return
 	}
 	data, err := c.do(m)
+	if err == nil && (strings.HasPrefix(m.Op, "stack.") || m.Op == protocol.OpContainerAction || m.Op == protocol.OpGitSync || m.Op == protocol.OpCleanup) && m.Op != protocol.OpStackFiles && m.Op != protocol.OpStackLogs {
+		// What Docker runs has changed: the panel hears it before the answer, so a new stack is there at once.
+		if state, serr := readState(context.Background(), c.cfg.StacksDir); serr == nil {
+			c.event(protocol.EventState, state)
+		}
+	}
 	if strings.HasPrefix(m.Op, "game.") && m.Op != protocol.OpGameFiles {
 		// A game's state has changed: the panel hears it before the answer, so it never shows the old one.
 		c.event(protocol.EventMetrics, c.metrics(context.Background()))

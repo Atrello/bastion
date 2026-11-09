@@ -12,13 +12,18 @@
 </div>
 
 <style>
+  /* On a narrow screen the tabs scroll sideways by themselves, rather than widening the page. */
   .tabs {
     display: flex;
     gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
     border-bottom: 1px solid var(--line);
     margin-bottom: 16px;
   }
   button {
+    flex: none;
+    white-space: nowrap;
     background: none;
     border: 0;
     border-bottom: 2px solid transparent;

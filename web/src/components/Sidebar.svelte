@@ -1,4 +1,5 @@
-<!-- The menu down the left: the logo and each area of the panel. -->
+<!-- The menu down the left: the logo and each area of the panel. On a phone it's a bar along the top, and
+     the menu slides in from the left when its button is pressed. -->
 <script lang="ts">
   import { route } from '../lib/router.svelte';
 
@@ -38,10 +39,25 @@
   ];
   // A friend has only the game servers shared with them.
   const shown = $derived(friend ? [{ links: groups.flatMap((g) => g.links).filter((l) => l.href === '/games') }] : groups);
+  let open = $state(false);
+  // Going somewhere closes the menu on a phone.
+  $effect(() => {
+    void route.path;
+    open = false;
+  });
+
   const current = (href: string) => (href === '/' ? route.path === '/' : route.path === href || route.path.startsWith(href + '/'));
 </script>
 
-<nav>
+<header class="topbar">
+  <button class="menu" aria-label="Menu" aria-expanded={open} onclick={() => (open = !open)}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+  </button>
+  <a class="logo" href="/"><img src="/favicon.svg" alt="" width="24" height="24" /> Bastion</a>
+</header>
+{#if open}<button class="backdrop" aria-label="Close the menu" onclick={() => (open = false)}></button>{/if}
+
+<nav class:open>
   <a class="logo" href="/">
     <img src="/favicon.svg" alt="" width="26" height="26" />
     Bastion
@@ -77,6 +93,10 @@
     padding: 16px 12px;
     background: var(--panel);
     border-right: 1px solid var(--line);
+  }
+  .topbar,
+  .backdrop {
+    display: none;
   }
   .logo {
     display: flex;
@@ -138,5 +158,53 @@
     text-align: left;
     padding: 4px 10px;
     font-weight: 400;
+  }
+
+  @media (max-width: 760px) {
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar .logo {
+      padding: 0;
+      font-size: 15px;
+    }
+    .menu {
+      border: 0;
+      background: none;
+      padding: 6px;
+      display: flex;
+    }
+    .menu svg {
+      width: 22px;
+      height: 22px;
+    }
+    nav {
+      position: fixed;
+      left: 0;
+      z-index: 40;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+      box-shadow: 0 0 40px rgb(0 0 0 / 50%);
+    }
+    nav.open {
+      transform: none;
+    }
+    .backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      border: 0;
+      border-radius: 0;
+      background: rgb(0 0 0 / 50%);
+    }
   }
 </style>

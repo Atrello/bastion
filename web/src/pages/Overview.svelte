@@ -97,7 +97,7 @@
 <style>
   .servers {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr));
     gap: 16px;
     margin-bottom: 16px;
   }

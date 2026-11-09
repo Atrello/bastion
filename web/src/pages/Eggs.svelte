@@ -108,7 +108,7 @@
       <label>
         Kind of game
         <input list="egg-categories" required maxlength="40" bind:value={category} />
-        <datalist id="egg-categories">{#each ['Minecraft', 'Steam', 'Voice', ...categories] as c (c)}<option value={c}></option>{/each}</datalist>
+        <datalist id="egg-categories">{#each [...new Set(['Minecraft', 'Steam', 'Voice', ...categories])] as c (c)}<option value={c}></option>{/each}</datalist>
       </label>
       <p class="muted small">It's checked first: its images, installer, settings and config files.</p>
       {#if importError}<p class="error">{importError}</p>{/if}

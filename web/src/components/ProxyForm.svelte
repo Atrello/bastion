@@ -259,8 +259,8 @@
           <label>
             Code
             <select bind:value={httpCode}>
-              {#each [['300', 'Multiple choices'], ['301', 'Moved permanently'], ['302', 'Found'], ['303', 'See other'], ['307', 'Temporary'], ['308', 'Permanent']] as [code, label] (code)}
-                <option value={code}>{code} {label}</option>
+              {#each [['300', 'choices'], ['301', 'permanent'], ['302', 'temporary'], ['303', 'see other'], ['307', 'temporary'], ['308', 'permanent']] as [code, label] (code)}
+                <option value={code}>{code} ({label})</option>
               {/each}
             </select>
           </label>
@@ -383,7 +383,7 @@
 <style>
   .forward {
     display: grid;
-    grid-template-columns: 90px 1fr 100px;
+    grid-template-columns: 90px 1fr 140px;
     gap: 8px;
   }
   .forward > :global(*),

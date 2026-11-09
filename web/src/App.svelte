@@ -114,4 +114,13 @@
     min-width: 0;
     padding: 20px 28px 40px;
   }
+  /* On a phone the menu is a bar along the top. */
+  @media (max-width: 760px) {
+    .frame {
+      flex-direction: column;
+    }
+    main {
+      padding: 16px 14px 32px;
+    }
+  }
 </style>
