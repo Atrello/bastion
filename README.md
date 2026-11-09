@@ -19,7 +19,8 @@ Early. The panel's screens are built and run on demo data; the panel's server an
 | Panel server (`panel`) | Next: Go, SQLite, sign-in, the API in [docs/api.md](docs/api.md) |
 | Agent (`agent`) | After the panel server: Go, one binary per server |
 
-What's planned, in order, is in [docs/roadmap.md](docs/roadmap.md).
+What's planned is in [docs/roadmap.md](docs/roadmap.md), and how it's being built, step by step, in
+[docs/plan.md](docs/plan.md).
 
 ## Trying the screens
 
