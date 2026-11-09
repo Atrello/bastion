@@ -1,5 +1,5 @@
 # The Bastion panel, behind your reverse proxy (Nginx Proxy Manager, Caddy, Traefik) which gives it HTTPS.
-# See docs/install.md.
+# See docs/install.md. Settings can go in a .env file beside this one, e.g. BASTION_PUBLIC_URL=https://bastion.example.com
 services:
   bastion:
     build: ..
@@ -7,9 +7,9 @@ services:
     restart: unless-stopped
     environment:
       # The address people and agents reach the panel at, with HTTPS.
-      BASTION_PUBLIC_URL: https://bastion.home.lab
+      BASTION_PUBLIC_URL: ${BASTION_PUBLIC_URL:-https://bastion.home.lab}
       # The reverse proxy passes on the visitor's address, for sign-in limits.
-      BASTION_TRUST_PROXY: "true"
+      BASTION_TRUST_PROXY: ${BASTION_TRUST_PROXY:-true}
     volumes:
       - bastion-data:/data
     ports:

@@ -1,0 +1,4 @@
+# Linux line endings everywhere, even when checked out on Windows: install.sh is served to servers as it is.
+* text=auto eol=lf
+*.png binary
+*.svg text eol=lf

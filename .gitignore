@@ -10,3 +10,6 @@ web/dist/*
 .env
 # Vite's cache while developing.
 .vite/
+
+# Your own settings for deploy/compose.yaml
+deploy/.env
