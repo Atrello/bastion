@@ -46,5 +46,8 @@ WantedBy=multi-user.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable --now bastion-agent
+systemctl enable bastion-agent
+# restart, not just start: on a server joining again the old agent is still running, with the
+# credentials this join has just replaced.
+systemctl restart bastion-agent
 echo "Done. This server shows as online in the panel in a few seconds."

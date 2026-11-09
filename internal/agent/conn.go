@@ -71,6 +71,16 @@ func Run(ctx context.Context, cfg *Config, log *slog.Logger) {
 		if time.Since(started) > time.Minute {
 			wait = time.Second // it was up a while: try again straight away
 		}
+		if errors.Is(err, errNotKnown) {
+			// The server may have joined again (a new join command run on it) while this agent ran: its
+			// new credentials are in the settings file.
+			if fresh, lerr := LoadConfig(); lerr == nil && (fresh.AgentID != cfg.AgentID || fresh.Secret != cfg.Secret) {
+				log.Info("the settings have new credentials: using them")
+				cfg = fresh
+				wait = time.Second
+				continue
+			}
+		}
 		log.Warn("disconnected from the panel", "error", err, "retrying in", wait)
 		select {
 		case <-ctx.Done():
@@ -81,6 +91,8 @@ func Run(ctx context.Context, cfg *Config, log *slog.Logger) {
 	}
 }
 
+var errNotKnown = errors.New("the panel doesn't know this agent any more: run a new join command on this server")
+
 func connect(ctx context.Context, cfg *Config, log *slog.Logger) error {
 	url := "ws" + strings.TrimPrefix(cfg.Panel, "http") + "/api/agent/connect"
 	header := http.Header{"Authorization": {"Bearer " + cfg.AgentID + "." + cfg.Secret}}
@@ -88,7 +100,7 @@ func connect(ctx context.Context, cfg *Config, log *slog.Logger) error {
 	ws, res, err := dialer.DialContext(ctx, url, header)
 	if err != nil {
 		if res != nil && res.StatusCode == http.StatusUnauthorized {
-			return errors.New("the panel doesn't know this agent any more: remove " + ConfigPath() + " and join again")
+			return errNotKnown
 		}
 		return err
 	}

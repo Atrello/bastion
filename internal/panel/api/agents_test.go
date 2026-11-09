@@ -1,9 +1,12 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Atrello/bastion/internal/agent"
 	"github.com/Atrello/bastion/internal/protocol"
 	"github.com/gorilla/websocket"
 )
@@ -240,5 +244,56 @@ func TestAgentUpdate(t *testing.T) {
 	// Friends can't.
 	if status, _ := b.call(b.newClient(), "POST", "/api/servers/1/agent/update", nil); status != 401 {
 		t.Fatalf("updating signed out: %d", status)
+	}
+}
+
+// A server joined again while its agent runs (a new join command run on it): the running agent finds the
+// new credentials in its settings and reconnects with them, rather than being refused for good.
+func TestAgentRejoinedWhileRunning(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	dir := t.TempDir()
+	t.Setenv("BASTION_AGENT_CONFIG", filepath.Join(dir, "agent.json"))
+	t.Setenv("BASTION_AGENT_GAMES_DIR", filepath.Join(dir, "games"))
+	write := func(id, secret string) {
+		raw, _ := json.Marshal(agent.Config{Panel: b.server.URL, AgentID: id, Secret: secret, StacksDir: dir})
+		_ = os.WriteFile(filepath.Join(dir, "agent.json"), raw, 0o600)
+	}
+	online := func(want bool) bool {
+		deadline := time.Now().Add(8 * time.Second)
+		for time.Now().Before(deadline) {
+			var servers []map[string]any
+			res, _ := b.client.Get(b.server.URL + "/api/servers")
+			_ = json.NewDecoder(res.Body).Decode(&servers)
+			res.Body.Close()
+			if len(servers) == 1 && servers[0]["online"] == want {
+				return true
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		return false
+	}
+
+	id, secret := b.joinAgent()
+	write(id, secret)
+	cfg, _ := agent.LoadConfig()
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	go agent.Run(ctx, cfg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if !online(true) {
+		t.Fatal("the agent didn't connect")
+	}
+
+	_, made := b.call(b.client, "POST", "/api/servers/1/join-command", nil)
+	command := made["joinCommand"].(string)
+	token := command[strings.LastIndex(command, " ")+1:]
+	status, reply := b.call(b.newClient(), "POST", "/api/agent/enrol", map[string]string{"token": token, "hostname": "atlas"})
+	if status != 200 {
+		t.Fatalf("joining again: %d", status)
+	}
+	write(reply["agentId"].(string), reply["secret"].(string))
+	time.Sleep(200 * time.Millisecond)
+	if !online(true) {
+		t.Fatal("the running agent didn't pick up its new credentials")
 	}
 }
