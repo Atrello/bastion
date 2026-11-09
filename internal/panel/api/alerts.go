@@ -21,7 +21,7 @@ import (
 // container keeps restarting or is unhealthy, a disk is over 90%, or an image update is available. Each is
 // sent once to every channel (ntfy, Discord, email), and again when it clears.
 
-var alertKinds = []string{"offline", "crash", "unhealthy", "disk", "update"}
+var alertKinds = []string{"offline", "crash", "unhealthy", "disk", "update", "host", "certificate"}
 
 func (api *API) alertRoutes() {
 	m := api.mux
@@ -304,7 +304,7 @@ func (api *API) findProblems(ctx context.Context) ([]problem, error) {
 			}
 		}
 	}
-	return found, nil
+	return append(found, api.npmProblems(ctx)...), nil
 }
 
 // watchAlerts checks for problems every 30 seconds, raising new ones and clearing those that have gone.

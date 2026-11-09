@@ -24,6 +24,7 @@ type API struct {
 	db   *sql.DB
 	auth *auth.Auth
 	hub  *agents.Hub
+	npm  *npmState
 	log  *slog.Logger
 	mux  *http.ServeMux
 }
@@ -52,6 +53,7 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 	go api.pruneSessions(ctx)
 	go api.watchGit(ctx)
 	go api.watchAlerts(ctx)
+	go api.watchNPM(ctx)
 	return api, nil
 }
 
@@ -63,6 +65,7 @@ func (api *API) routes() {
 	api.streamRoutes()
 	api.gitRoutes()
 	api.alertRoutes()
+	api.npmRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
