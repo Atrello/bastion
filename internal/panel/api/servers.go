@@ -25,6 +25,7 @@ func (api *API) serverRoutes() {
 	m.Handle("POST /api/servers", api.signedIn(api.addServer))
 	m.Handle("POST /api/servers/{id}/join-command", api.signedIn(api.newJoinCommand))
 	m.Handle("DELETE /api/servers/{id}", api.signedIn(api.deleteServer))
+	m.Handle("POST /api/updates/check", api.signedIn(api.checkUpdates))
 	m.Handle("GET /api/stacks", api.signedIn(api.stacks))
 	m.Handle("GET /api/containers", api.signedIn(api.containers))
 	m.Handle("GET /api/servers/{id}/stacks/{name}/files", api.signedIn(api.stackFiles))
@@ -133,6 +134,22 @@ func (api *API) newJoinCommand(w http.ResponseWriter, r *http.Request, _ *auth.U
 	writeJSON(w, map[string]string{"joinCommand": api.joinCommand(token)})
 }
 
+// checkUpdates asks every connected agent to check its images' registries now. The results arrive with
+// each agent's next state, a few seconds later.
+func (api *API) checkUpdates(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+	list, err := api.hub.Servers(r.Context())
+	if err != nil {
+		api.fail(w, r, err)
+		return
+	}
+	for _, s := range list {
+		if api.hub.Live(s.ID).Online {
+			_ = api.hub.Request(r.Context(), s.ID, protocol.OpCheckUpdates, nil, nil)
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (api *API) deleteServer(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 	id, ok := pathID(w, r)
 	if !ok {
@@ -155,6 +172,7 @@ type stackView struct {
 	Total      int    `json:"total"`
 	ConfigFile string `json:"configFile"`
 	HasEnv     bool   `json:"hasEnv"`
+	Updates    int    `json:"updates"`
 }
 
 func stackState(s protocol.Stack) string {
@@ -180,7 +198,7 @@ func (api *API) stacks(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 		if state := api.hub.Live(s.ID).State; state != nil {
 			for _, st := range state.Stacks {
 				views = append(views, stackView{ServerID: s.ID, ServerName: s.Name, Name: st.Name, State: stackState(st),
-					Running: st.Running, Total: st.Total, ConfigFile: st.ConfigFile, HasEnv: st.HasEnv})
+					Running: st.Running, Total: st.Total, ConfigFile: st.ConfigFile, HasEnv: st.HasEnv, Updates: st.Updates})
 			}
 		}
 	}

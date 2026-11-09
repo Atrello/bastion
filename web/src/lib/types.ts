@@ -34,6 +34,8 @@ export type Stack = {
   total: number;
   configFile: string;
   hasEnv: boolean;
+  /** How many of its containers have a newer image in their registry. */
+  updates: number;
 };
 
 export type Container = {
@@ -46,6 +48,8 @@ export type Container = {
   ports: string;
   stack: string;
   service: string;
+  /** The registry has a newer image for its tag. */
+  update: boolean;
 };
 
 export type StackFiles = {

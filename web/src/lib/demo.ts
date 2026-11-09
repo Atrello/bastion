@@ -44,6 +44,7 @@ const stack = (serverId: number, name: string, running: number, total: number, h
   serverId, serverName: servers[serverId - 1].name, name, running, total, hasEnv,
   state: total === 0 ? 'new' : running === total ? 'running' : running === 0 ? 'stopped' : 'partial',
   configFile: `/opt/stacks/${name}/compose.yaml`,
+  updates: name === 'immich' ? 2 : name === 'home-assistant' ? 1 : 0,
 });
 
 const stacks: Stack[] = [
@@ -74,6 +75,7 @@ const containers: Container[] = [
   serverId: stackName === 'immich' ? 3 : 1,
   name, image, status, ports, stack: stackName, service,
   state: state as Container['state'],
+  update: name === 'immich_server' || name === 'immich_machine_learning',
 }));
 
 const files: StackFiles = {

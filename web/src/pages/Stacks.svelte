@@ -9,6 +9,16 @@
   const servers = load(api.servers);
   let server = $state(new URLSearchParams(location.search).get('server') ?? '');
   let search = $state('');
+  let checking = $state(false);
+
+  // Asks the servers to check their images now, then reloads once they've had a moment to answer.
+  async function check() {
+    checking = true;
+    await api.checkUpdates().catch(() => {});
+    await new Promise((r) => setTimeout(r, 6000));
+    await stacks.reload();
+    checking = false;
+  }
 
   const shown = $derived(
     (stacks.data ?? []).filter(
@@ -24,6 +34,7 @@
 
 <div class="page-head">
   <h1>Stacks</h1>
+  <button disabled={checking} onclick={check}>{checking ? 'Checking…' : 'Check for updates'}</button>
   <input type="search" placeholder="Search stacks" aria-label="Search stacks" bind:value={search} />
   <select aria-label="Server" bind:value={server}>
     <option value="">All servers</option>
@@ -42,7 +53,10 @@
       {#each shown as s (`${s.serverId}/${s.name}`)}
         {@const status = stackStatus[s.state]}
         <tr>
-          <td><a href="/stacks/{s.serverId}/{s.name}"><b>{s.name}</b></a></td>
+          <td>
+            <a href="/stacks/{s.serverId}/{s.name}"><b>{s.name}</b></a>
+            {#if s.updates}<span class="badge amber">{s.updates === 1 ? 'Update' : `${s.updates} updates`}</span>{/if}
+          </td>
           <td class="muted">{s.serverName}</td>
           <td><span class="row"><StatusDot tone={status.tone} />{status.label}</span></td>
           <td>{s.running} / {s.total} running</td>

@@ -31,6 +31,7 @@ const (
 	OpStackAction     = "stack.action"     // StackActionArgs → ActionResult
 	OpStackLogs       = "stack.logs"       // LogsArgs → LogLines (the last lines, once)
 	OpContainerAction = "container.action" // ContainerActionArgs → ActionResult
+	OpCheckUpdates    = "updates.check"    // nothing → nothing; checks registries now, then sends state
 	OpLogsFollow      = "logs.follow"      // LogsArgs → a stream of log lines until stopped
 	OpExec            = "exec"             // ExecArgs → a terminal stream until stopped
 	OpStreamInput     = "stream.input"     // StreamInput: keys typed into a terminal
@@ -83,6 +84,8 @@ type Stack struct {
 	HasEnv     bool   `json:"hasEnv"`
 	Running    int    `json:"running"`
 	Total      int    `json:"total"`
+	// How many of its containers have a newer image in their registry.
+	Updates int `json:"updates"`
 }
 
 type Container struct {
@@ -94,6 +97,8 @@ type Container struct {
 	Ports   string `json:"ports"`
 	Stack   string `json:"stack"`
 	Service string `json:"service"`
+	// The registry has a newer image for its tag.
+	Update bool `json:"update"`
 }
 
 type StackArgs struct {

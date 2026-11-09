@@ -70,7 +70,10 @@
   <h1>{name}</h1>
   {#if stack}
     {@const status = stackStatus[stack.state]}
-    <span class="row status"><StatusDot tone={status.tone} />{status.label} · {stack.running} of {stack.total} containers</span>
+    <span class="row status">
+      <StatusDot tone={status.tone} />{status.label} · {stack.running} of {stack.total} containers
+      {#if stack.updates}<span class="badge amber">{stack.updates === 1 ? 'An image update' : `${stack.updates} image updates`}</span>{/if}
+    </span>
   {/if}
   <button disabled={!!busy} onclick={() => action('update', 'Updating', 'Pulled the latest images and recreated what changed.')}>Update images</button>
   <button disabled={!!busy} onclick={() => action('restart', 'Restarting', 'Restarted.')}>Restart</button>

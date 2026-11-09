@@ -71,3 +71,22 @@ func TestFilesAreOnlyPlainFiles(t *testing.T) {
 		t.Fatal("read a file over the size limit")
 	}
 }
+
+func TestParseRef(t *testing.T) {
+	for image, want := range map[string]string{
+		"alpine":                              "registry-1.docker.io library/alpine latest",
+		"alpine:3.20":                         "registry-1.docker.io library/alpine 3.20",
+		"louislam/uptime-kuma:1":              "registry-1.docker.io louislam/uptime-kuma 1",
+		"docker.io/library/redis:7":           "registry-1.docker.io library/redis 7",
+		"ghcr.io/immich-app/immich-server:v1": "ghcr.io immich-app/immich-server v1",
+		"localhost:5000/mine":                 "localhost:5000 mine latest",
+	} {
+		r, repo, tag, err := parseRef(image)
+		if got := r + " " + repo + " " + tag; err != nil || got != want {
+			t.Errorf("%s: got %q (%v), want %q", image, got, err, want)
+		}
+	}
+	if _, _, _, err := parseRef("Bad Image"); err == nil {
+		t.Error("a bad reference was accepted")
+	}
+}

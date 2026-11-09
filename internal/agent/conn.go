@@ -23,11 +23,13 @@ const (
 )
 
 type conn struct {
-	cfg     *Config
-	log     *slog.Logger
-	ws      *websocket.Conn
-	writeMu sync.Mutex
-	streams *streams
+	// Asks for an update check now (the panel's Check for updates).
+	updatesNow chan struct{}
+	cfg        *Config
+	log        *slog.Logger
+	ws         *websocket.Conn
+	writeMu    sync.Mutex
+	streams    *streams
 }
 
 func (c *conn) send(m protocol.Message) {
@@ -91,7 +93,7 @@ func connect(ctx context.Context, cfg *Config, log *slog.Logger) error {
 	defer ws.Close()
 	log.Info("connected to the panel", "panel", cfg.Panel)
 
-	c := &conn{cfg: cfg, log: log, ws: ws}
+	c := &conn{cfg: cfg, log: log, ws: ws, updatesNow: make(chan struct{}, 1)}
 	c.streams = newStreams(c)
 	defer c.streams.stopAll()
 
@@ -164,6 +166,7 @@ func (c *conn) reportMetrics(ctx context.Context) {
 func (c *conn) reportState(ctx context.Context) {
 	changed := make(chan struct{}, 1)
 	go watchDocker(ctx, changed)
+	go c.checkUpdates(ctx, changed)
 	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
 	for {
@@ -183,6 +186,33 @@ func (c *conn) reportState(ctx context.Context) {
 			case <-time.After(time.Second):
 			}
 		}
+	}
+}
+
+// checkUpdates asks the registries about the images in use soon after connecting, then every 6 hours or
+// when asked, and sends the state again with what it found.
+func (c *conn) checkUpdates(ctx context.Context, changed chan<- struct{}) {
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		case <-c.updatesNow:
+		}
+		if containers, err := listContainers(ctx); err == nil {
+			images := make([]string, 0, len(containers))
+			for _, ct := range containers {
+				images = append(images, ct.Image)
+			}
+			imageUpdates.check(ctx, images)
+			select {
+			case changed <- struct{}{}:
+			default:
+			}
+		}
+		timer.Reset(6 * time.Hour)
 	}
 }
 
@@ -240,6 +270,12 @@ func (c *conn) do(m protocol.Message) (any, error) {
 			return nil, err
 		}
 		return containerAction(ctx, a)
+	case protocol.OpCheckUpdates:
+		select {
+		case c.updatesNow <- struct{}{}:
+		default: // a check is already waiting
+		}
+		return nil, nil
 	}
 	return nil, errors.New("unknown request " + m.Op)
 }

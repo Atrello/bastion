@@ -144,6 +144,9 @@ func readState(ctx context.Context, stacksDir string) (protocol.State, error) {
 				if c.State == "running" {
 					st.Running++
 				}
+				if c.Update {
+					st.Updates++
+				}
 			}
 		}
 		state.Stacks = append(state.Stacks, st)
@@ -176,6 +179,7 @@ func listContainers(ctx context.Context) ([]protocol.Container, error) {
 		containers = append(containers, protocol.Container{
 			ID: c.ID[:min(12, len(c.ID))], Name: c.Names, Image: c.Image, State: c.State, Status: c.Status, Ports: c.Ports,
 			Stack: labels["com.docker.compose.project"], Service: labels["com.docker.compose.service"],
+			Update: imageUpdates.available(c.Image),
 		})
 	}
 	return containers, nil

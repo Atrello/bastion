@@ -55,12 +55,21 @@ The agent does these and nothing else.
 | `stack.action` | `name`, `action` | `up`, `down`, `start`, `stop`, `restart`, `pull`, `update`: Docker's output |
 | `stack.logs` | `stack` or `container`, `tail` | The last lines |
 | `container.action` | `id`, `action` | `start`, `stop`, `restart` |
+| `updates.check` | | Checks the images' registries now (otherwise every 6 hours); the results come in the next `state` |
 | `logs.follow` | `stack` or `container`, `tail` | A stream of lines, until `stream.stop` |
 | `exec` | `container`, `cols`, `rows` | A terminal in the container (its shell), as a stream; keys arrive as `stream.input` |
 
 Stacks are found by name among those Docker knows and the folders in `/opt/stacks`; only their compose
 file and `.env` are ever read or written. Names are checked (`[a-z0-9][a-z0-9_-]*`), so a name can't reach
 anywhere else on the server.
+
+## Image updates
+
+For each container's image, the agent asks its registry which digest the tag points at now (a `HEAD`
+request for the manifest, with an anonymous token if the registry wants one; Docker Hub doesn't count
+these against pull limits) and compares it with the image the server has. Images pinned by digest never
+update, and images on registries that need signing in are skipped. The result is `update` on each
+container and `updates` on each stack in `state`.
 
 ## Versions
 

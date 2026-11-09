@@ -48,7 +48,8 @@ it's 400 with Docker's own message.
 | `POST /servers` | Adds a server: `{"name"}`. Returns it and the one-time command that installs and joins its agent (it works once, for an hour) |
 | `POST /servers/{id}/join-command` | A new join command for the server (a reinstalled server, say). Its agent's old secret stops working |
 | `DELETE /servers/{id}` | Removes a server. Its agent is disconnected; its stacks keep running |
-| `GET /stacks` | Every stack on every server |
+| `GET /stacks` | Every stack on every server, with `updates`: how many of its containers have a newer image |
+| `POST /updates/check` | Asks every server to check its images' registries now (they also check every 6 hours) |
 | `GET /containers` | Every container on every server |
 | `GET /servers/{id}/stacks/{name}/files` | The stack's compose file and `.env`, as they are on the server (`env` is null when there's no `.env`) |
 | `PUT /servers/{id}/stacks/{name}/files` | Saves both, after Docker has checked them. Doesn't deploy. The compose file it replaced is kept in the history |

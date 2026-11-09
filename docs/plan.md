@@ -116,7 +116,8 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.1 step 4: agent | Done (`cmd/bastion-agent`, `internal/agent`) |
 | 0.1 step 5: the API, wired up | Done: tested end to end with a real agent and Docker (a stack found, its files read and saved, a broken file refused by Docker, deployed, logs, history) |
 | 0.1 step 6: live logs and container consoles | Done: tested live (new lines arriving; a command typed into a container's shell) |
-| 0.1 step 7: image updates | Next |
+| 0.1 step 7: image updates | Done: tested against Docker Hub (an out-of-date image found; Update images cleared it) |
+| 0.1 step 8: volumes, images and clean-up | Next |
 
 ## Changes to the plan
 

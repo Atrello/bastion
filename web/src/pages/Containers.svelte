@@ -34,7 +34,7 @@
           <td><span class="row"><StatusDot tone={containerTone(c.state)} label={c.state} /><b>{c.name}</b></span></td>
           <td>{#if c.stack}<a href="/stacks/{c.serverId}/{c.stack}">{c.stack}</a>{/if}</td>
           <td class="muted">{serverName(c.serverId)}</td>
-          <td class="mono muted">{c.image}</td>
+          <td class="mono muted">{c.image} {#if c.update}<span class="badge amber">Newer image</span>{/if}</td>
           <td class:failed={c.state === 'exited' && /Exited \([1-9]/.test(c.status)}>{c.status}</td>
           <td class="mono muted">{c.ports}</td>
         </tr>

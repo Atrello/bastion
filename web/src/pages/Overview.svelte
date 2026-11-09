@@ -23,6 +23,14 @@
         title: s.name,
         detail: `${s.running} of ${s.total} containers running on ${s.serverName}`,
       })),
+    ...(stacks.data ?? [])
+      .filter((s) => s.updates > 0)
+      .map((s) => ({
+        key: `update-${s.serverId}-${s.name}`,
+        href: `/stacks/${s.serverId}/${s.name}`,
+        title: s.name,
+        detail: `${s.updates === 1 ? 'An image update is' : `${s.updates} image updates are`} available on ${s.serverName}`,
+      })),
   ]);
 </script>
 

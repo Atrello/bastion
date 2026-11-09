@@ -89,6 +89,8 @@ export const api = {
   addServer: (name: string) => request<{ server: Server; joinCommand: string }>('POST', '/servers', { name }),
   stacks: () => request<Stack[]>('GET', '/stacks'),
   containers: () => request<Container[]>('GET', '/containers'),
+  /** Asks every server to check its images' registries now; results arrive a few seconds later. */
+  checkUpdates: () => request<void>('POST', '/updates/check'),
   stackFiles: (serverId: number, name: string) => request<StackFiles>('GET', `${stackPath(serverId, name)}/files`),
   saveStack: (serverId: number, name: string, files: StackFiles) => request<void>('PUT', `${stackPath(serverId, name)}/files`, files),
   /** The last lines of a stack's logs, all its containers together. */
