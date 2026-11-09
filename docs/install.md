@@ -9,13 +9,16 @@ The panel runs in Docker, behind the reverse proxy you already use for HTTPS (Ng
 Caddy, Traefik). HTTPS matters: sign-in cookies and passkeys need it, and agents won't talk to a panel
 over plain `http://` on a public address.
 
+Put [`deploy/compose.yaml`](../deploy/compose.yaml) in a folder, with [`deploy/.env.example`](../deploy/.env.example)
+beside it as `.env` (set `BASTION_PUBLIC_URL` in it), then:
+
 ```sh
-git clone https://github.com/Atrello/bastion.git
-cd bastion/deploy
-# Set BASTION_PUBLIC_URL in compose.yaml to the address you'll reach it at, then:
-docker compose up -d
+docker compose up -d             # pulls ghcr.io/atrello/bastion
 docker compose logs bastion      # shows the one-time setup link
 ```
+
+To build the image yourself instead of pulling it: `docker build -t ghcr.io/atrello/bastion:latest .` in the
+repository, then `docker compose up -d` as above.
 
 In your reverse proxy, point the panel's address (e.g. `bastion.home.lab`) at port 8080 on that host, with
 **websockets turned on** (live logs, consoles and the agents use them). Port 8080 listens only on
@@ -67,7 +70,8 @@ through.
 
 ## Updating
 
-- **The panel:** `git pull && docker compose up -d --build` in `deploy`.
+- **The panel:** `docker compose pull && docker compose up -d` (or, building it yourself, `git pull`, the
+  `docker build` above, and `docker compose up -d`).
 - **An agent:** after the panel is updated, a server whose agent is older shows **Update agent** on its
   page (and the Servers page offers to update them all). The agent downloads the panel's copy of itself,
   checks it's exactly that program (its SHA-256), swaps it in and restarts; it's back in a few seconds and

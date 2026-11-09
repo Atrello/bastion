@@ -29,8 +29,47 @@ What's planned is in [docs/roadmap.md](docs/roadmap.md), and how it's being buil
 
 ## Installing
 
-[docs/install.md](docs/install.md): the panel in Docker behind your reverse proxy, then one command on each
-server.
+The panel runs in Docker behind your reverse proxy (which gives it HTTPS); each server then runs one command
+from the panel. In full: [docs/install.md](docs/install.md).
+
+1. In a new folder, save this as `compose.yaml` (or take [deploy/compose.yaml](deploy/compose.yaml)):
+
+   ```yaml
+   services:
+     bastion:
+       image: ghcr.io/atrello/bastion:${BASTION_VERSION:-latest}
+       restart: unless-stopped
+       environment:
+         BASTION_PUBLIC_URL: ${BASTION_PUBLIC_URL:?set BASTION_PUBLIC_URL in .env}
+         BASTION_TRUST_PROXY: ${BASTION_TRUST_PROXY:-true}
+         BASTION_SESSION_IDLE: ${BASTION_SESSION_IDLE:-12h}
+       volumes:
+         - bastion-data:/data
+       ports:
+         - "${BASTION_BIND:-127.0.0.1}:${BASTION_PORT:-8080}:8080"
+
+   volumes:
+     bastion-data:
+   ```
+
+2. Beside it, save [deploy/.env.example](deploy/.env.example) as `.env` and set `BASTION_PUBLIC_URL` to the
+   panel's address, like `https://bastion.example.com`. If your reverse proxy is on another machine, set
+   `BASTION_BIND` to this machine's LAN address.
+3. `docker compose up -d`, then `docker compose logs bastion` for the one-time setup link.
+4. In your reverse proxy, send the address to port 8080 here with **websockets on**. For Nginx Proxy Manager,
+   add this to the host's Advanced tab, for big uploads and long jobs:
+
+   ```nginx
+   client_max_body_size 0;
+   proxy_request_buffering off;
+   proxy_read_timeout 3600s;
+   proxy_send_timeout 3600s;
+   ```
+
+5. Open the setup link, make your account, then **Servers**, **Add a server** and run its command on each
+   server.
+
+To update: `docker compose pull && docker compose up -d`, then **Update agent** on each server.
 
 ## Trying it
 

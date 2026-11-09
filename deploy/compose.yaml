@@ -1,22 +1,20 @@
-# The Bastion panel, behind your reverse proxy (Nginx Proxy Manager, Caddy, Traefik) which gives it HTTPS.
-# See docs/install.md. Settings can go in a .env file beside this one, e.g. BASTION_PUBLIC_URL=https://bastion.example.com
+# The Bastion panel, behind your reverse proxy (Nginx Proxy Manager, Caddy, Traefik), which gives it HTTPS.
+# Put this file and .env (copied from .env.example) in a folder, then: docker compose up -d
+# The image is published from the repository (.github/workflows/image.yml); to build your own instead,
+# run `docker build -t ghcr.io/atrello/bastion:latest .` in the repository first. See docs/install.md.
 services:
   bastion:
-    build: ..
-    image: bastion:latest
+    image: ghcr.io/atrello/bastion:${BASTION_VERSION:-latest}
     restart: unless-stopped
     environment:
-      # The address people and agents reach the panel at, with HTTPS.
-      BASTION_PUBLIC_URL: ${BASTION_PUBLIC_URL:-https://bastion.home.lab}
-      # The reverse proxy passes on the visitor's address, for sign-in limits.
+      BASTION_PUBLIC_URL: ${BASTION_PUBLIC_URL:?set BASTION_PUBLIC_URL in .env}
       BASTION_TRUST_PROXY: ${BASTION_TRUST_PROXY:-true}
+      BASTION_SESSION_IDLE: ${BASTION_SESSION_IDLE:-12h}
     volumes:
       - bastion-data:/data
     ports:
-      # Only the reverse proxy should reach this. With the proxy on this host, the default (localhost) is
-      # right; with it on another machine, set BASTION_BIND to this host's LAN address in .env, and let
-      # only the proxy's address through the firewall to port 8080.
-      - "${BASTION_BIND:-127.0.0.1}:8080:8080"
+      # Only the reverse proxy should reach this: see BASTION_BIND in .env.example.
+      - "${BASTION_BIND:-127.0.0.1}:${BASTION_PORT:-8080}:8080"
 
 volumes:
   bastion-data:
