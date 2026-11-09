@@ -13,7 +13,7 @@ func TestPrune(t *testing.T) {
 		_, _ = w.Write([]byte(`{"paths":{"/nginx/proxy-hosts/{hostID}":{"put":{"requestBody":{"content":{"application/json":{"schema":{"properties":{
 			"domain_names":{},"forward_port":{},"npmplus_http3_support":{},
 			"meta":{"properties":{"dns_challenge":{}}},
-			"locations":{"items":{"properties":{"path":{},"npmplus_access_list_type":{}}}}}}}}}}}}`))
+			"locations":{"items":{"properties":{"path":{},"npmplus_access_list_type":{}}}}}}}}}}}}}`))
 	}))
 	defer srv.Close()
 	c := &Client{URL: srv.URL}
