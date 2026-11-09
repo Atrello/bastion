@@ -5,6 +5,7 @@ import type {
   ComposeVersion,
   Container,
   Egg,
+  GitStack,
   Image,
   Volume,
   GameBackup,
@@ -104,6 +105,13 @@ export const api = {
   /** The last lines of a stack's logs, all its containers together. */
   stackLogs: (serverId: number, name: string, tail = 200) =>
     request<{ lines: string[] }>('GET', `${stackPath(serverId, name)}/logs?tail=${tail}`),
+  createStack: (serverId: number, name: string, compose: string, env: string | null) =>
+    request<{ output: string }>('POST', `/servers/${serverId}/stacks`, { name, compose, env }),
+  git: (serverId: number, name: string) => request<GitStack | null>('GET', `${stackPath(serverId, name)}/git`),
+  setGit: (serverId: number, name: string, git: { repo: string; branch: string; path: string; autoDeploy: boolean }) =>
+    request<GitStack>('PUT', `${stackPath(serverId, name)}/git`, git),
+  unlinkGit: (serverId: number, name: string) => request<void>('DELETE', `${stackPath(serverId, name)}/git`),
+  deployGit: (serverId: number, name: string) => request<{ output: string }>('POST', `${stackPath(serverId, name)}/git/deploy`),
   stackHistory: (serverId: number, name: string) => request<ComposeVersion[]>('GET', `${stackPath(serverId, name)}/history`),
   stackAction: (serverId: number, name: string, action: StackAction) =>
     request<{ output: string }>('POST', `${stackPath(serverId, name)}/actions/${action}`),

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"github.com/Atrello/bastion/internal/protocol"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,5 +97,27 @@ func TestParseSize(t *testing.T) {
 		if got := parseSize(in); got != want {
 			t.Errorf("%s: got %d, want %d", in, got, want)
 		}
+	}
+}
+
+func TestGitChecks(t *testing.T) {
+	ok := protocol.GitArgs{Repo: "https://github.com/acme/homelab.git", Branch: "main", Path: "stacks/immich/compose.yaml"}
+	if err := checkGit(ok); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []protocol.GitArgs{
+		{Repo: "file:///etc", Branch: "main", Path: "x"},
+		{Repo: "ext::sh -c touch% /tmp/pwned", Branch: "main", Path: "x"},
+		{Repo: "--upload-pack=touch /tmp/x", Branch: "main", Path: "x"},
+		{Repo: ok.Repo, Branch: "-x", Path: "x"},
+		{Repo: ok.Repo, Branch: "main", Path: "../../etc/shadow"},
+		{Repo: ok.Repo, Branch: "main", Path: "/etc/shadow"},
+	} {
+		if checkGit(bad) == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+	if checkGit(protocol.GitArgs{Repo: "git@github.com:acme/homelab.git", Branch: "release/1.0", Path: "compose.yaml"}) != nil {
+		t.Error("refused an ssh address")
 	}
 }

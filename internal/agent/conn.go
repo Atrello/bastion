@@ -282,6 +282,15 @@ func (c *conn) do(m protocol.Message) (any, error) {
 			return nil, err
 		}
 		return cleanup(ctx, a)
+	case protocol.OpGitHead, protocol.OpGitSync:
+		var a protocol.GitArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		if m.Op == protocol.OpGitHead {
+			return gitHead(ctx, a)
+		}
+		return gitSync(ctx, dir, a)
 	case protocol.OpCheckUpdates:
 		select {
 		case c.updatesNow <- struct{}{}:

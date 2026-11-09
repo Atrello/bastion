@@ -252,6 +252,14 @@ export function demo(method: string, path: string, body?: unknown): unknown {
   if (method === 'GET' && path === '/containers') return containers;
   if (method === 'GET' && path.endsWith('/files')) return files;
   if (method === 'GET' && path.endsWith('/history')) return history;
+  if (method === 'GET' && path.endsWith('/git'))
+    return path.includes('/immich/')
+      ? {
+          repo: 'git@github.com:robin/homelab.git', branch: 'main', path: 'stacks/immich/compose.yaml', autoDeploy: false,
+          publicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK0n8yq3Xc1Hq6c4mJpS1fE2xYbQe9Zt7uLwV5rN3aP bastion-immich',
+          deployedCommit: '3f9c2a1e7b4d', remoteCommit: '8a1d4c7e2f90', checkedAt: minutesAgo(3), error: '',
+        }
+      : null;
   if (method === 'GET' && path.includes('/logs')) return { lines: logs };
   if (method === 'GET' && path.endsWith('/volumes'))
     return [

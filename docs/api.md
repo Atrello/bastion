@@ -57,6 +57,11 @@ it's 400 with Docker's own message.
 | `GET /servers/{id}/stacks/{name}/history` | Earlier versions of the compose file |
 | `POST /servers/{id}/stacks/{name}/actions/{action}` | `up`, `down`, `start`, `stop`, `restart`, `pull`, or `update` (pull and recreate what changed). Returns Docker's output |
 | `POST /servers/{id}/containers/{id}/actions/{action}` | `start`, `stop` or `restart` one container |
+| `POST /servers/{id}/stacks` | A new stack: `{"name", "compose", "env"}`. Made in `/opt/stacks/<name>`, checked by Docker, and started |
+| `GET /servers/{id}/stacks/{name}/git` | The stack's repository, branch, path, deploy key (public half), and the deployed and latest commits; `null` if it doesn't follow one |
+| `PUT /servers/{id}/stacks/{name}/git` | `{"repo", "branch", "path", "autoDeploy"}`: follow a compose file in a repository (makes its deploy key the first time) |
+| `DELETE /servers/{id}/stacks/{name}/git` | Stop following it; the stack stays as it is |
+| `POST /servers/{id}/stacks/{name}/git/deploy` | Copy the compose file from the branch and start the stack |
 | `GET /servers/{id}/volumes` | The server's volumes: size, the containers using each, its stack |
 | `GET /servers/{id}/images` | The server's images: size, how much is its own, how many containers use it |
 | `GET /servers/{id}/cleanup` | What clean-up would remove (images and volumes nothing uses, build cache) and what each frees |

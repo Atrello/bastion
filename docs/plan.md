@@ -118,7 +118,8 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.1 step 6: live logs and container consoles | Done: tested live (new lines arriving; a command typed into a container's shell) |
 | 0.1 step 7: image updates | Done: tested against Docker Hub (an out-of-date image found; Update images cleared it) |
 | 0.1 step 8: volumes, images and clean-up | Done: tested for real (unused image and volume listed; image clean-up kept the volume; volumes only removed when ticked) |
-| 0.1 step 9: Git-backed stacks | Next |
+| 0.1 step 9: Git-backed stacks | Done: linking and the branch check tested against GitHub; file:// refused. Deploying from Git and ssh deploy keys are on the testing list (this sandbox has no ssh client and won't run outside code) |
+| 0.1 step 10: alerts | Next |
 
 ## Changes to the plan
 
@@ -127,5 +128,6 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | Plan written | |
 | 9 Nov 2026 | Added volumes and images pages, clean-up, Git-backed stacks and alerts to 0.1; two-factor sign-in required, with passkeys | Asked for |
 | 9 Nov 2026 | One Go module at the top of the repo (`cmd/`, `internal/`, `web/`) instead of `panel/` and `agent/` | The panel and agent share the protocol's types |
+| 9 Nov 2026 | New stacks can be made from the web app (writing a compose file, or from Git) | It wasn't in the plan's screens, but stacks couldn't be created without it |
 | 9 Nov 2026 | Passkeys are off when the panel is reached by an IP address, rather than refusing to start | WebAuthn needs a name; authenticator apps still work |
 | 9 Nov 2026 | Two-factor and passkeys with `go-webauthn` and `pquerna/otp`, not Better Auth | Better Auth is a JavaScript library and the panel is Go; these are its established Go equivalents |

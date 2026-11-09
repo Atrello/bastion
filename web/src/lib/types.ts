@@ -58,6 +58,18 @@ export type StackFiles = {
   env: string | null;
 };
 
+export type GitStack = {
+  repo: string;
+  branch: string;
+  path: string;
+  autoDeploy: boolean;
+  publicKey: string;
+  deployedCommit: string;
+  remoteCommit: string;
+  checkedAt: string | null;
+  error: string;
+};
+
 export type ComposeVersion = { id: number; savedAt: string; savedBy: string; note: string };
 
 /** A game server, run from an egg (Pterodactyl's game definitions) as a container on one of the servers. */

@@ -1,5 +1,6 @@
 <!-- Every compose stack on every server, to search or narrow to one server. -->
 <script lang="ts">
+  import NewStack from '../components/NewStack.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import { api } from '../lib/api';
   import { load } from '../lib/load.svelte';
@@ -10,6 +11,7 @@
   let server = $state(new URLSearchParams(location.search).get('server') ?? '');
   let search = $state('');
   let checking = $state(false);
+  let creating = $state(false);
 
   // Asks the servers to check their images now, then reloads once they've had a moment to answer.
   async function check() {
@@ -35,6 +37,7 @@
 <div class="page-head">
   <h1>Stacks</h1>
   <button disabled={checking} onclick={check}>{checking ? 'Checking…' : 'Check for updates'}</button>
+  <button class="primary" onclick={() => (creating = true)}>New stack</button>
   <input type="search" placeholder="Search stacks" aria-label="Search stacks" bind:value={search} />
   <select aria-label="Server" bind:value={server}>
     <option value="">All servers</option>
@@ -68,3 +71,5 @@
     </tbody>
   </table>
 </div>
+
+{#if creating}<NewStack onclose={() => (creating = false)} />{/if}

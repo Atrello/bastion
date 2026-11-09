@@ -1,5 +1,6 @@
 <!-- One stack: what it's running, its compose file and .env to edit, its logs, and earlier versions. -->
 <script lang="ts">
+  import GitStack from '../components/GitStack.svelte';
   import LiveLogs from '../components/LiveLogs.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import Tabs from '../components/Tabs.svelte';
@@ -96,6 +97,7 @@
     { id: 'logs', label: 'Logs' },
     { id: 'console', label: 'Console' },
     { id: 'history', label: 'History' },
+    { id: 'git', label: 'Git' },
   ]}
 />
 
@@ -159,6 +161,8 @@
       {/await}
     {/key}
   {/if}
+{:else if tab === 'git'}
+  <GitStack {serverId} {name} ondeployed={() => void Promise.all([files.reload(), history.reload()])} />
 {:else if tab === 'history'}
   <div class="card table-card">
     <table>

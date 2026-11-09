@@ -25,6 +25,8 @@ try to break in. This is what it protects, from whom, and how.
 | A fake agent | Each agent signs in with its own secret, issued when it joins; the panel keeps only a hash. Join tokens work once and expire in an hour |
 | A fake panel | Agents only connect to the address they joined, over HTTPS (plain HTTP is refused unless the address is a private network and you explicitly allow it) |
 | A compromised panel reaching beyond Docker | The agent has a fixed list of operations. It finds stacks by name and only reads or writes their compose file and `.env`; it never runs a shell command the panel sends, apart from consoles into containers |
+| A repository address used to run something | Only `https://` and `ssh` addresses are accepted (`GIT_ALLOW_PROTOCOL`), never `file://` or `ext::`; options can't be slipped in; the compose file's path can't leave the checkout or follow a link |
+| Deploy keys | One per stack, made by the panel and kept in its database (keep the data folder private); sent to that stack's agent only while it fetches, written to a file only root can read and deleted after |
 | Vulnerable dependencies | Few dependencies, each listed in `docs/plan.md`; `make check` runs `govulncheck` and `npm audit` and must pass. The Go toolchain is pinned to a patched release in `go.mod` |
 | A request too big, or slow | Bodies are capped at 64 KB, headers at 64 KB and must arrive within 10 seconds |
 | Flooding sign-in | Sign-in steps in progress are capped, so they can't use up the panel's memory |

@@ -36,6 +36,8 @@ const (
 	OpImages          = "images.list"      // nothing → []Image
 	OpCleanupPreview  = "cleanup.preview"  // nothing → Cleanup: what clean-up would remove
 	OpCleanup         = "cleanup.run"      // CleanupArgs → ActionResult
+	OpGitHead         = "git.head"         // GitArgs → GitResult: the branch's commit in the repository
+	OpGitSync         = "git.sync"         // GitArgs → GitResult: the stack's compose file from the repository
 	OpLogsFollow      = "logs.follow"      // LogsArgs → a stream of log lines until stopped
 	OpExec            = "exec"             // ExecArgs → a terminal stream until stopped
 	OpStreamInput     = "stream.input"     // StreamInput: keys typed into a terminal
@@ -209,4 +211,18 @@ type CleanupArgs struct {
 	Images     bool `json:"images"`
 	Volumes    bool `json:"volumes"`
 	BuildCache bool `json:"buildCache"`
+}
+
+// GitArgs is a Git-backed stack: its repository, branch, the compose file's path in it, and the deploy
+// key (an OpenSSH private key) the panel made for it.
+type GitArgs struct {
+	Stack  string `json:"stack"`
+	Repo   string `json:"repo"`
+	Branch string `json:"branch"`
+	Path   string `json:"path"`
+	Key    string `json:"key"`
+}
+
+type GitResult struct {
+	Commit string `json:"commit"`
 }

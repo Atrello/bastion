@@ -58,6 +58,8 @@ The agent does these and nothing else.
 | `volumes.list`, `images.list` | | From `docker system df -v`: sizes, and what uses each |
 | `cleanup.preview` | | What clean-up would remove, and what it frees |
 | `cleanup.run` | `images`, `volumes`, `buildCache` | `docker image prune --all`, `volume prune --all`, `builder prune`, as asked |
+| `git.head` | `repo`, `branch`, `path`, `key` | The branch's commit now (`git ls-remote`) |
+| `git.sync` | `stack`, `repo`, `branch`, `path`, `key` | Fetches the branch into `/var/lib/bastion/git/<stack>` and copies the compose file into the stack (checked by Docker first). Only `https` and `ssh` repositories; the path can't leave the checkout; `.env` is never touched |
 | `updates.check` | | Checks the images' registries now (otherwise every 6 hours); the results come in the next `state` |
 | `logs.follow` | `stack` or `container`, `tail` | A stream of lines, until `stream.stop` |
 | `exec` | `container`, `cols`, `rows` | A terminal in the container (its shell), as a stream; keys arrive as `stream.input` |

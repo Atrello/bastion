@@ -50,6 +50,7 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 		log.Warn("Passkeys are off: they need the panel to be reached by a name (BASTION_PUBLIC_URL), not an IP address")
 	}
 	go api.pruneSessions(ctx)
+	go api.watchGit(ctx)
 	return api, nil
 }
 
@@ -59,6 +60,7 @@ func (api *API) routes() {
 	api.authRoutes()
 	api.serverRoutes()
 	api.streamRoutes()
+	api.gitRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
