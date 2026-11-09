@@ -123,3 +123,46 @@ func TestNewJoinCommandKeepsTheAgentUntilUsed(t *testing.T) {
 		t.Fatalf("the replaced agent still connects: %d", code)
 	}
 }
+
+// A server added but not yet joined isn't listed. Adding it again under the same name makes a new command
+// and the old one stops working; once its agent joins, it's listed.
+func TestServerListedOnceJoined(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	list := func() []map[string]any {
+		res, err := b.client.Get(b.server.URL + "/api/servers")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var servers []map[string]any
+		_ = json.NewDecoder(res.Body).Decode(&servers)
+		return servers
+	}
+	tokenOf := func(added map[string]any) string {
+		command := added["joinCommand"].(string)
+		return command[strings.LastIndex(command, " ")+1:]
+	}
+
+	_, first := b.call(b.client, "POST", "/api/servers", map[string]string{"name": "vega"})
+	if servers := list(); len(servers) != 0 {
+		t.Fatalf("a server that hasn't joined is listed: %v", servers)
+	}
+	status, second := b.call(b.client, "POST", "/api/servers", map[string]string{"name": "vega"})
+	if status != 200 {
+		t.Fatalf("adding a waiting server again: %d %v", status, second)
+	}
+	if status, _ := b.call(b.newClient(), "POST", "/api/agent/enrol", map[string]string{"token": tokenOf(first), "hostname": "vega"}); status != 401 {
+		t.Fatalf("the replaced join command still worked: %d", status)
+	}
+	if status, reply := b.call(b.newClient(), "POST", "/api/agent/enrol", map[string]string{"token": tokenOf(second), "hostname": "vega"}); status != 200 {
+		t.Fatalf("enrol: %d %v", status, reply)
+	}
+	if servers := list(); len(servers) != 1 || servers[0]["name"] != "vega" {
+		t.Fatalf("the joined server isn't listed: %v", servers)
+	}
+	// Once joined, the name is taken.
+	if status, _ := b.call(b.client, "POST", "/api/servers", map[string]string{"name": "vega"}); status != 400 {
+		t.Fatalf("a joined server's name was reused: %d", status)
+	}
+}

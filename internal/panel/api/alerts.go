@@ -330,7 +330,7 @@ func (api *API) findProblems(ctx context.Context) ([]problem, error) {
 	for _, s := range servers {
 		live := api.hub.Live(s.ID)
 		if !live.Online {
-			if s.Joined && s.LastSeen.Valid {
+			if s.LastSeen.Valid {
 				if seen, err := time.Parse(time.RFC3339, s.LastSeen.String); err == nil && time.Since(seen) > 2*time.Minute {
 					found = append(found, problem{fmt.Sprintf("offline:%d", s.ID), "offline", s.Name + " is offline", "Its agent hasn't been connected since " + seen.Format("15:04 on 2 Jan") + "."})
 				}

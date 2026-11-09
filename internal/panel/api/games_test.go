@@ -1,7 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -148,5 +151,48 @@ func TestGamesAndSharing(t *testing.T) {
 	}
 	if status, _ := b.call(friend, "GET", "/api/games/1", nil); status != 404 {
 		t.Errorf("unshared, the friend still sees it: %d", status)
+	}
+}
+
+// An upload can't take a game past its disk limit: refused up front when its size is given, and removed
+// when it isn't and runs over.
+func TestUploadKeepsToDiskLimit(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	asked := fakeAgent(t, b)
+	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
+	b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)})
+	if status, r := b.call(b.client, "POST", "/api/games", map[string]any{"name": "Small", "eggId": 1, "serverId": 1, "memoryMb": 1024, "diskMb": 3, "ports": []int{25565}}); status != 200 {
+		t.Fatalf("making a game: %d %v", status, r)
+	}
+	upload := func(body io.Reader) int {
+		req, _ := http.NewRequest("POST", b.server.URL+"/api/games/1/files/upload?path=/world.zip", body)
+		req.Header.Set("Origin", b.server.URL)
+		res, err := b.client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.StatusCode
+	}
+	ops := func(op string) (n int) {
+		for _, m := range *asked {
+			var a protocol.GameFileArgs
+			if m.Op == protocol.OpGameFiles && json.Unmarshal(m.Args, &a) == nil && a.Op == op {
+				n++
+			}
+		}
+		return n
+	}
+
+	if status := upload(bytes.NewReader(make([]byte, 4<<20))); status != 413 || ops("append") != 0 {
+		t.Fatalf("an upload over the disk limit, size given: %d, %d pieces sent", status, ops("append"))
+	}
+	// A reader of unknown size is sent without a length.
+	if status := upload(io.MultiReader(bytes.NewReader(make([]byte, 4<<20)))); status != 413 || ops("delete") != 1 {
+		t.Fatalf("an upload over the disk limit, size not given: %d, %d deletes", status, ops("delete"))
+	}
+	if status := upload(bytes.NewReader(make([]byte, 1<<20))); status != 204 {
+		t.Fatalf("an upload within the limit: %d", status)
 	}
 }

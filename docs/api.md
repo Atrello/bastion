@@ -44,9 +44,9 @@ it's 400 with Docker's own message.
 
 | Method and path | What it does |
 |---|---|
-| `GET /servers` | Every server, with its health and counts |
-| `POST /servers` | Adds a server: `{"name"}`. Returns it and the one-time command that installs and joins its agent (it works once, for an hour) |
-| `POST /servers/{id}/join-command` | A new join command for the server (a reinstalled server, say). Its agent's old secret stops working |
+| `GET /servers` | Every server whose agent has joined, with its health and counts. One added but not yet joined isn't listed |
+| `POST /servers` | Adds a server: `{"name"}`. Returns it and the one-time command that installs and joins its agent (it works once, for an hour). It's listed once its agent has joined; if it never joins it's forgotten when the command expires, or when a server is added again under the same name |
+| `POST /servers/{id}/join-command` | A new join command for the server (a reinstalled server, say). Its agent keeps working until the command is used |
 | `DELETE /servers/{id}` | Removes a server. Its agent is disconnected; its stacks keep running |
 | `GET /stacks` | Every stack on every server, with `updates`: how many of its containers have a newer image |
 | `POST /updates/check` | Asks every server to check its images' registries now (they also check every 6 hours) |
@@ -158,7 +158,7 @@ with them, and gets `404` for the rest. Friends can use everything below except 
 | `POST /games/{id}/files/folder` | `{"path"}` |
 | `POST /games/{id}/files/rename` | `{"from", "to"}`; a path into another folder moves it |
 | `DELETE /games/{id}/files?path=` | A file, or a folder and everything in it |
-| `POST /games/{id}/files/upload?path=` | The file as the body (not JSON), up to 1 GB |
+| `POST /games/{id}/files/upload?path=` | The file as the body (not JSON), up to 50 GB, and no more than the room left under the game's disk limit |
 | `POST /games/{id}/files/archive` | `{"path", "paths", "to"}`: packs files and folders in `path` into the `.tar.gz` at `to` |
 | `POST /games/{id}/files/unarchive` | `{"path"}`: unpacks a `.zip`, `.tar.gz`, `.tgz` or `.tar` into its folder (files and folders only; up to 50 GB and 200,000 files) |
 | `GET /games/{id}/files/download?path=` | The file, as a download |

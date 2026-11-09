@@ -41,7 +41,7 @@ func (api *API) gameFileRoutes() {
 }
 
 const (
-	maxUpload  = 1 << 30 // 1 GB: a world or a modpack
+	maxUpload  = 50 << 30 // 50 GB, as much as an archive may unpack to; a game's disk limit can make it less
 	filePiece  = 2 << 20
 	maxEditing = 2 << 20
 )
@@ -184,7 +184,18 @@ func (api *API) uploadGameFile(w http.ResponseWriter, r *http.Request, u *auth.U
 		writeError(w, http.StatusBadRequest, over)
 		return
 	}
-	body := http.MaxBytesReader(w, r.Body, maxUpload)
+	// It arrives in pieces, so its size doesn't matter to the panel's memory, only to the disk: an upload
+	// can't take a game past its disk limit, if it has one.
+	limit := int64(maxUpload)
+	if g.DiskMB > 0 {
+		v := api.view(g, "", false)
+		limit = min(limit, int64(v.DiskLimit)-int64(v.DiskUsed))
+	}
+	if r.ContentLength > limit {
+		writeError(w, http.StatusRequestEntityTooLarge, "that's bigger than "+tooBig(g, limit))
+		return
+	}
+	body := http.MaxBytesReader(w, r.Body, limit)
 	buf := make([]byte, filePiece)
 	var offset int64
 	for {
@@ -199,13 +210,28 @@ func (api *API) uploadGameFile(w http.ResponseWriter, r *http.Request, u *auth.U
 		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 			break
 		}
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			// Its size wasn't given up front: what arrived is removed rather than left cut short.
+			_, _ = api.files(context.WithoutCancel(r.Context()), g, protocol.GameFileArgs{Op: "delete", Path: p})
+			writeError(w, http.StatusRequestEntityTooLarge, "it's bigger than "+tooBig(g, limit))
+			return
+		}
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "the upload didn't finish (files can be up to 1 GB)")
+			writeError(w, http.StatusBadRequest, "the upload didn't finish")
 			return
 		}
 	}
 	api.log.Info("game file uploaded", "user", u.Username, "game", g.ID, "path", p, "bytes", offset)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// tooBig says what an upload can be at most, for when one is bigger.
+func tooBig(g *game, limit int64) string {
+	if limit < maxUpload {
+		return fmt.Sprintf("the room left under its %d MB disk limit (%d MB)", g.DiskMB, max(limit, 0)>>20)
+	}
+	return "50 GB, the most one upload can be"
 }
 
 // sendPieces streams a file from the agent to the browser as a download, a piece at a time.

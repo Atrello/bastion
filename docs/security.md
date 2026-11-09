@@ -32,7 +32,7 @@ try to break in. This is what it protects, from whom, and how.
 | A game server breaking out | Games run as user 988 (never root), with no new privileges, Pterodactyl's dropped capabilities also dropped, memory, swap, CPU and process limits, and only their own folder mounted. What a game does inside its container is up to the game, as with Pterodactyl |
 | An egg used to attack the server | Eggs are imported by hand, by the owner, and checked: image names, variable names, the installer's shell, and config file paths (which can't leave the game's folder). An egg can't add mounts, privileges or host networking: only the agent decides how containers are made |
 | A file path escaping a game's folder | Every file and backup operation goes through Go's `os.Root`, which refuses `..`, absolute paths and links leading out. Restoring a backup unpacks only files and folders |
-| A request too big, or slow | JSON bodies are capped (64 KB for most, 1 MB for an egg, 2 MB for a file saved from the editor), uploads at 1 GB; headers at 64 KB and must arrive within 10 seconds |
+| A request too big, or slow | JSON bodies are capped (64 KB for most, 1 MB for an egg, 2 MB for a file saved from the editor), uploads at 50 GB (and a game's disk limit); headers at 64 KB and must arrive within 10 seconds |
 | Flooding sign-in | Sign-in steps in progress are capped, so they can't use up the panel's memory |
 
 ## Things to know

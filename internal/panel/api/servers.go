@@ -79,7 +79,6 @@ type serverView struct {
 	Docker       string            `json:"docker"`
 	AgentVersion string            `json:"agentVersion"`
 	Online       bool              `json:"online"`
-	Joined       bool              `json:"joined"`
 	LastSeen     *string           `json:"lastSeen"`
 	Metrics      *protocol.Metrics `json:"metrics"`
 	Stacks       int               `json:"stacks"`
@@ -97,7 +96,7 @@ func (api *API) servers(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 	for _, s := range list {
 		live := api.hub.Live(s.ID)
 		v := serverView{ID: s.ID, Name: s.Name, Hostname: s.Hostname, OS: s.OS, AgentVersion: s.AgentVersion,
-			Docker: s.DockerVersion, Online: live.Online, Joined: s.Joined, Metrics: live.Metrics}
+			Docker: s.DockerVersion, Online: live.Online, Metrics: live.Metrics}
 		if live.Hello != nil {
 			v.Arch, v.CPUs = live.Hello.Arch, live.Hello.CPUs
 			if net.ParseIP(live.Hello.Address) != nil {

@@ -167,7 +167,7 @@ export const api = {
   makeGameFolder: (id: number, path: string) => request<void>('POST', `/games/${id}/files/folder`, { path }),
   renameGameFile: (id: number, from: string, to: string) => request<void>('POST', `/games/${id}/files/rename`, { from, to }),
   deleteGameFile: (id: number, path: string) => request<void>('DELETE', `/games/${id}/files?path=${encodeURIComponent(path)}`),
-  /** Sends a file as it is (not JSON), up to 1 GB, telling onprogress how much has gone (0 to 1). */
+  /** Sends a file as it is (not JSON), up to 50 GB (less if the game's disk limit leaves less room), telling onprogress how much has gone (0 to 1). */
   uploadGameFile: (id: number, path: string, file: File, onprogress?: (done: number) => void) =>
     new Promise<void>((resolve, reject) => {
       if (DEMO) return resolve();

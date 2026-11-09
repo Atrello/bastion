@@ -24,7 +24,6 @@ type Server struct {
 	AgentVersion  string
 	DockerVersion string
 	LastSeen      sql.NullString
-	Joined        bool
 }
 
 func hash(s string) string {
@@ -39,13 +38,20 @@ var ErrServerName = errors.New("a server's name is up to 40 letters, numbers, do
 const joinTokenLife = time.Hour
 
 // AddServer adds a server waiting for its agent, giving the one-time join token for its install command.
+// It stays out of the list (Servers) until its agent has joined. One that never joins is forgotten when
+// its token expires, or when it's added again under the same name, which makes a new command.
 func (h *Hub) AddServer(ctx context.Context, name string) (*Server, string, error) {
 	name = strings.TrimSpace(name)
 	if !serverName.MatchString(name) {
 		return nil, "", ErrServerName
 	}
+	now := time.Now().UTC()
+	if _, err := h.db.ExecContext(ctx, `DELETE FROM servers WHERE agent_id IS NULL AND (name = ? OR join_expires_at <= ?)`,
+		name, now.Format(time.RFC3339)); err != nil {
+		return nil, "", err
+	}
 	token := auth.RandomToken()
-	expires := time.Now().UTC().Add(joinTokenLife).Format(time.RFC3339)
+	expires := now.Add(joinTokenLife).Format(time.RFC3339)
 	res, err := h.db.ExecContext(ctx, `INSERT INTO servers (name, join_token_hash, join_expires_at) VALUES (?, ?, ?)`, name, hash(token), expires)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
@@ -115,9 +121,10 @@ func (h *Hub) authenticate(ctx context.Context, credentials string) (int64, erro
 	return id, nil
 }
 
+// Servers lists the servers whose agents have joined. One added but not yet joined isn't among them.
 func (h *Hub) Servers(ctx context.Context) ([]Server, error) {
-	rows, err := h.db.QueryContext(ctx, `SELECT id, name, hostname, os, agent_version, docker_version, last_seen_at, agent_id IS NOT NULL
-		FROM servers ORDER BY name`)
+	rows, err := h.db.QueryContext(ctx, `SELECT id, name, hostname, os, agent_version, docker_version, last_seen_at
+		FROM servers WHERE agent_id IS NOT NULL ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +132,7 @@ func (h *Hub) Servers(ctx context.Context) ([]Server, error) {
 	var list []Server
 	for rows.Next() {
 		var s Server
-		if err := rows.Scan(&s.ID, &s.Name, &s.Hostname, &s.OS, &s.AgentVersion, &s.DockerVersion, &s.LastSeen, &s.Joined); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Hostname, &s.OS, &s.AgentVersion, &s.DockerVersion, &s.LastSeen); err != nil {
 			return nil, err
 		}
 		list = append(list, s)
