@@ -197,17 +197,6 @@
     color: var(--green);
     margin: -8px 0 12px;
   }
-  .form {
-    display: grid;
-    gap: 12px;
-  }
-  .form label {
-    display: grid;
-    gap: 6px;
-  }
-  .form p {
-    margin: 0;
-  }
   .qr {
     justify-self: center;
     border-radius: 8px;

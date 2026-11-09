@@ -74,30 +74,3 @@
     <button type="submit" form="new-stack" class="primary" disabled={busy}>{busy ? 'Starting…' : 'Create and start'}</button>
   {/snippet}
 </Modal>
-
-<style>
-  .form {
-    display: grid;
-    gap: 12px;
-  }
-  label {
-    display: grid;
-    gap: 6px;
-  }
-  .form p {
-    margin: 0;
-  }
-  .pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .segmented {
-    display: flex;
-    gap: 4px;
-  }
-  .segmented button.on {
-    border-color: var(--accent);
-    color: #fff;
-  }
-</style>

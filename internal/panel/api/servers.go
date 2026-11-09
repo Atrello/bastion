@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -70,6 +71,7 @@ type serverView struct {
 	ID           int64             `json:"id"`
 	Name         string            `json:"name"`
 	Hostname     string            `json:"hostname"`
+	Address      string            `json:"address"`
 	OS           string            `json:"os"`
 	AgentVersion string            `json:"agentVersion"`
 	Online       bool              `json:"online"`
@@ -91,6 +93,9 @@ func (api *API) servers(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 		live := api.hub.Live(s.ID)
 		v := serverView{ID: s.ID, Name: s.Name, Hostname: s.Hostname, OS: s.OS, AgentVersion: s.AgentVersion,
 			Online: live.Online, Joined: s.Joined, Metrics: live.Metrics}
+		if live.Hello != nil && net.ParseIP(live.Hello.Address) != nil {
+			v.Address = live.Hello.Address
+		}
 		if s.LastSeen.Valid {
 			v.LastSeen = &s.LastSeen.String
 		}

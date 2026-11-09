@@ -8,6 +8,7 @@
 
   const servers = load(api.servers);
   const stacks = load(api.stacks);
+  const proxy = load(api.npmSummary);
 
   const online = $derived(servers.data?.filter((s) => s.online).length ?? 0);
   // Stacks with something not running, and servers whose agent has gone quiet.
@@ -31,6 +32,12 @@
         title: s.name,
         detail: `${s.updates === 1 ? 'An image update is' : `${s.updates} image updates are`} available on ${s.serverName}`,
       })),
+    ...(proxy.data?.problems ?? []).map((p, i) => ({
+      key: `proxy-${i}`,
+      href: p.kind === 'certificate' ? '/proxy/certificates' : '/proxy',
+      title: p.title,
+      detail: p.detail,
+    })),
   ]);
 </script>
 
@@ -38,6 +45,9 @@
   <h1>Overview</h1>
   {#if servers.data}
     <span class="badge {online === servers.data.length ? 'green' : 'amber'}">{online} of {servers.data.length} servers online</span>
+  {/if}
+  {#if proxy.data?.hosts}
+    <a class="badge {proxy.data.up === proxy.data.hosts ? 'green' : 'amber'}" href="/proxy">{proxy.data.up} of {proxy.data.hosts} proxy hosts answering</a>
   {/if}
 </div>
 

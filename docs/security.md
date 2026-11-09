@@ -41,6 +41,12 @@ try to break in. This is what it protects, from whom, and how.
 - **Build tools.** `npm audit` reports a low-severity issue in `deepmerge`, used by Svelte's Vite plugin
   while building the web app. It isn't part of the panel that runs, and there's no fixed version yet.
 
+- **NPM's password is kept.** Bastion signs in to NPM again when its token expires, so the NPM user's
+  password is in Bastion's database (with deploy keys and alert settings: keep the data folder private).
+  Give Bastion its own NPM user rather than yours, so it can be removed on its own.
+- **Proxy host checks don't check certificates.** They ask whether a site answers, not whether to trust
+  it, so a self-signed certificate doesn't count as down. Expiry is watched separately.
+
 ## What's out of scope
 
 - Someone with root on the panel's host: they have the database and can do what the panel can.

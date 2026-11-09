@@ -1,5 +1,6 @@
 <!-- One stack: what it's running, its compose file and .env to edit, its logs, and earlier versions. -->
 <script lang="ts">
+  import Expose from '../components/Expose.svelte';
   import GitStack from '../components/GitStack.svelte';
   import LiveLogs from '../components/LiveLogs.svelte';
   import StatusDot from '../components/StatusDot.svelte';
@@ -8,6 +9,7 @@
   import { ago } from '../lib/format';
   import { load } from '../lib/load.svelte';
   import { containerTone, stackStatus } from '../lib/status';
+  import type { Container } from '../lib/types';
 
   let { serverId, name }: { serverId: number; name: string } = $props();
 
@@ -16,6 +18,7 @@
   // The terminal is loaded only when the Console tab is opened.
   const consoleView = () => import('../components/Console.svelte');
   let consoleContainer = $state('');
+  let exposing = $state<Container>();
 
   const stacks = load(api.stacks);
   const files = load(() => api.stackFiles(serverId, name));
@@ -128,7 +131,7 @@
 {:else if tab === 'containers'}
   <div class="card table-card">
     <table>
-      <thead><tr><th>Container</th><th>Service</th><th>Image</th><th>Status</th><th>Ports</th></tr></thead>
+      <thead><tr><th>Container</th><th>Service</th><th>Image</th><th>Status</th><th>Ports</th><th></th></tr></thead>
       <tbody>
         {#each mine as c (c.id)}
           <tr>
@@ -137,13 +140,15 @@
             <td class="mono muted">{c.image}</td>
             <td>{c.status}</td>
             <td class="mono muted">{c.ports}</td>
+            <td>{#if c.ports.includes('->')}<button class="small-button" onclick={() => (exposing = c)}>Expose</button>{/if}</td>
           </tr>
         {:else}
-          <tr><td colspan="5" class="empty">No containers. Start the stack to create them.</td></tr>
+          <tr><td colspan="6" class="empty">No containers. Start the stack to create them.</td></tr>
         {/each}
       </tbody>
     </table>
   </div>
+{#if exposing}<Expose container={exposing} onclose={() => (exposing = undefined)} />{/if}
 {:else if tab === 'logs'}
   <LiveLogs {serverId} {name} />
 {:else if tab === 'console'}
@@ -210,5 +215,8 @@
   }
   .top {
     margin-bottom: 10px;
+  }
+  .small-button {
+    padding: 3px 10px;
   }
 </style>

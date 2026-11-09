@@ -72,13 +72,37 @@ it's 400 with Docker's own message.
 | Method and path | What it does |
 |---|---|
 | `GET /alerts` | The channels (without their secrets), which kinds are on, and the last 100 alerts |
-| `PUT /alerts/kinds` | `{"kinds": [...]}`: any of `offline`, `crash`, `unhealthy`, `disk`, `update` |
+| `PUT /alerts/kinds` | `{"kinds": [...]}`: any of `offline`, `crash`, `unhealthy`, `disk`, `update`, `host`, `certificate` |
 | `POST /alerts/channels` | `{"kind": "ntfy" \| "discord" \| "email", "name", "config"}`: ntfy `url`, `topic`, `token`; Discord `url`; email `host`, `port`, `username`, `password`, `from`, `to` |
 | `DELETE /alerts/channels/{id}` | Removes a channel |
 | `POST /alerts/channels/{id}/test` | Sends a test message |
 
 The panel checks every 30 seconds. An alert is sent once when it's raised and once when it clears
 (update alerts just close).
+
+### Nginx Proxy Manager
+
+Bastion signs in to NPM as one of its users and passes items through to NPM's API as NPM has them, so
+every field NPM has comes through. `{kind}` is one of `proxy-hosts`, `redirection-hosts`, `streams`,
+`dead-hosts`, `access-lists` or `certificates`. Private keys, DNS provider credentials and access list
+passwords that NPM sends back are taken out before they reach the browser.
+
+| Method and path | What it does |
+|---|---|
+| `GET /npm` | Linked NPMs: `id`, `name`, `url`, `email` (never the password) |
+| `POST /npm` | `{"name", "url", "email", "password"}`: links one, signing in to check the details first |
+| `DELETE /npm/{id}` | Unlinks one. Nothing in NPM changes |
+| `GET /npm/summary` | `{"hosts", "up", "problems"}`: proxy hosts checked and answering, and anything wrong (a host not answering, a certificate expiring within 14 days) |
+| `GET /npm/{id}/{kind}` | Everything of that kind. Proxy hosts carry `bastion_health`: `{"status", "ms", "error", "checkedAt"}` from the panel's last check |
+| `POST /npm/{id}/{kind}` | Makes one, from a JSON object in NPM's own shape (`certificate_id: "new"` asks Let's Encrypt for one) |
+| `PUT /npm/{id}/{kind}/{item}` | Replaces one |
+| `DELETE /npm/{id}/{kind}/{item}` | Deletes one |
+| `POST /npm/{id}/{kind}/{item}/enable` (or `/disable`) | For hosts and streams |
+| `POST /npm/{id}/certificates/{item}/renew` | Renews a Let's Encrypt certificate |
+| `POST /npm/{id}/certificates/{item}/upload` | `{"certificate", "certificateKey", "intermediate"}` as PEM text, for a certificate made with `provider: "other"` |
+
+The panel checks each enabled proxy host every 5 minutes, and straight after one is changed: a GET to
+its first domain, not following redirects. Anything under 500 counts as answering.
 
 ### Live streams (websockets)
 

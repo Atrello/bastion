@@ -122,6 +122,9 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.1 step 10: alerts | Done: a Go test sends a crash-looping container's alert to a stand-in ntfy once, then its "Resolved". Real ntfy, Discord and email are on the testing list |
 | 0.1 step 11: install | Done: install.sh tested against a running panel (downloaded the agent, installed it, joined; only systemctl couldn't run in the sandbox). The Docker image build is on the testing list (this sandbox's proxy blocks Go downloads inside builds) |
 | 0.1 step 12: done when a fresh panel and two servers can be set up from the docs alone | On the testing list: needs real servers |
+| 0.2 steps 1 and 2: linking NPM, and everything in it | Done: tested against a real NPM 2.16 (linking, a wrong password refused, proxy hosts with custom locations and an access list, redirects, streams, 404 hosts, access lists, enabling and disabling, a custom certificate uploaded, a Let's Encrypt request passed through). A Let's Encrypt certificate actually issued is on the testing list (it needs a public domain) |
+| 0.2 step 3: Expose this | Done; on the testing list, as it needs a domain pointing at NPM |
+| 0.2 step 4: health checks and expiry | Done: checks every 5 minutes and after changes, on the overview and as alerts (`host`, `certificate`) |
 
 ## Changes to the plan
 
@@ -132,4 +135,5 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | One Go module at the top of the repo (`cmd/`, `internal/`, `web/`) instead of `panel/` and `agent/` | The panel and agent share the protocol's types |
 | 9 Nov 2026 | New stacks can be made from the web app (writing a compose file, or from Git) | It wasn't in the plan's screens, but stacks couldn't be created without it |
 | 9 Nov 2026 | Passkeys are off when the panel is reached by an IP address, rather than refusing to start | WebAuthn needs a name; authenticator apps still work |
+| 9 Nov 2026 | NPM's own users, audit log and default site settings stay in NPM | They're about running NPM itself, not your sites; Bastion's NPM user shouldn't be able to change them |
 | 9 Nov 2026 | Two-factor and passkeys with `go-webauthn` and `pquerna/otp`, not Better Auth | Better Auth is a JavaScript library and the panel is Go; these are its established Go equivalents |

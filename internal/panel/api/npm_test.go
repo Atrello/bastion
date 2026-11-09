@@ -31,7 +31,8 @@ func fakeNPM(t *testing.T) (*httptest.Server, *[]string) {
 			return
 		}
 		if r.Method == http.MethodGet && r.URL.Path == "/api/nginx/proxy-hosts" {
-			_, _ = w.Write([]byte(`[{"id":1,"domain_names":["jellyfin.home.lab"],"forward_host":"10.0.0.5","forward_port":8096,"enabled":1}]`))
+			_, _ = w.Write([]byte(`[{"id":1,"domain_names":["jellyfin.home.lab"],"forward_host":"10.0.0.5","forward_port":8096,"enabled":1,
+				"certificate":{"id":3,"meta":{"certificate_key":"-----BEGIN PRIVATE KEY-----","dns_provider_credentials":"dns_cloudflare_api_token = secret"}}}]`))
 			return
 		}
 		body, _ := io.ReadAll(r.Body)
@@ -72,7 +73,8 @@ func TestNPM(t *testing.T) {
 	if _, list := get("/api/npm"); strings.Contains(list, "npm-password") || !strings.Contains(list, `"name":"Proxy"`) {
 		t.Fatalf("instances: %s", list)
 	}
-	if status, hosts := get("/api/npm/1/proxy-hosts"); status != 200 || !strings.Contains(hosts, "jellyfin.home.lab") {
+	if status, hosts := get("/api/npm/1/proxy-hosts"); status != 200 || !strings.Contains(hosts, "jellyfin.home.lab") ||
+		strings.Contains(hosts, "PRIVATE KEY") || strings.Contains(hosts, "dns_cloudflare") {
 		t.Fatalf("hosts: %d %s", status, hosts)
 	}
 	if status, _ := get("/api/npm/1/settings"); status != 404 {

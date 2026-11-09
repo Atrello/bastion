@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,12 +42,14 @@ func (api *API) npmRoutes() {
 	m := api.mux
 	m.Handle("GET /api/npm", api.signedIn(api.npmInstances))
 	m.Handle("POST /api/npm", api.signedIn(api.addNPM))
+	m.Handle("GET /api/npm/summary", api.signedIn(api.npmSummary))
 	m.Handle("DELETE /api/npm/{id}", api.signedIn(api.deleteNPM))
 	m.Handle("GET /api/npm/{id}/{kind}", api.signedIn(api.npmList))
 	m.Handle("POST /api/npm/{id}/{kind}", api.signedIn(api.npmChange))
 	m.Handle("PUT /api/npm/{id}/{kind}/{item}", api.signedIn(api.npmChange))
 	m.Handle("DELETE /api/npm/{id}/{kind}/{item}", api.signedIn(api.npmChange))
 	m.Handle("POST /api/npm/{id}/{kind}/{item}/{action}", api.signedIn(api.npmAction))
+	m.Handle("POST /api/npm/{id}/certificates/{item}/upload", api.signedIn(api.npmUpload))
 }
 
 func (api *API) npmClient(ctx context.Context, id int64) (*npm.Client, error) {
@@ -114,6 +117,7 @@ func (api *API) addNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
 		return
 	}
 	api.log.Info("NPM linked", "user", u.Username, "url", address)
+	go api.checkNPM(context.WithoutCancel(r.Context()))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -181,6 +185,9 @@ func (api *API) npmList(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 		api.npmFail(w, err)
 		return
 	}
+	for _, item := range items {
+		scrub(item)
+	}
 	if r.PathValue("kind") == "proxy-hosts" {
 		api.npm.mu.Lock()
 		for _, item := range items {
@@ -216,7 +223,11 @@ func (api *API) npmChange(w http.ResponseWriter, r *http.Request, u *auth.User) 
 		api.npmFail(w, err)
 		return
 	}
+	scrub(result)
 	api.log.Info("NPM change", "user", u.Username, "method", r.Method, "path", path)
+	if r.PathValue("kind") == "proxy-hosts" {
+		go api.checkNPM(context.WithoutCancel(r.Context()))
+	}
 	writeJSON(w, result)
 }
 
@@ -238,8 +249,90 @@ func (api *API) npmAction(w http.ResponseWriter, r *http.Request, u *auth.User) 
 		api.npmFail(w, err)
 		return
 	}
+	scrub(result)
 	api.log.Info("NPM action", "user", u.Username, "path", path, "action", action)
+	if kind == "proxy-hosts" {
+		go api.checkNPM(context.WithoutCancel(r.Context()))
+	}
 	writeJSON(w, result)
+}
+
+// secretFields are what NPM sends back that the browser never needs: a custom certificate's private key,
+// a DNS provider's credentials, and access list passwords.
+var secretFields = []string{"certificate_key", "dns_provider_credentials", "password"}
+
+// scrub removes secretFields from an answer from NPM, wherever they are in it.
+func scrub(v any) {
+	switch v := v.(type) {
+	case map[string]any:
+		for _, field := range secretFields {
+			delete(v, field)
+		}
+		for _, child := range v {
+			scrub(child)
+		}
+	case []any:
+		for _, child := range v {
+			scrub(child)
+		}
+	}
+}
+
+// npmSummary is the overview's line on the proxy: how many hosts answer, and anything wrong.
+func (api *API) npmSummary(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+	type issue struct {
+		Kind   string `json:"kind"`
+		Title  string `json:"title"`
+		Detail string `json:"detail"`
+	}
+	summary := struct {
+		Hosts    int     `json:"hosts"`
+		Up       int     `json:"up"`
+		Problems []issue `json:"problems"`
+	}{Problems: []issue{}}
+	api.npm.mu.Lock()
+	for _, hosts := range api.npm.health {
+		for _, h := range hosts {
+			summary.Hosts++
+			if h.Status != 0 && h.Status < 500 {
+				summary.Up++
+			}
+		}
+	}
+	api.npm.mu.Unlock()
+	for _, p := range api.npmProblems(r.Context()) {
+		summary.Problems = append(summary.Problems, issue{p.kind, p.title, p.detail})
+	}
+	writeJSON(w, summary)
+}
+
+// npmUpload gives a custom certificate (made with provider "other") its certificate, key and any
+// intermediate certificate, as PEM text.
+func (api *API) npmUpload(w http.ResponseWriter, r *http.Request, u *auth.User) {
+	r.SetPathValue("kind", "certificates")
+	c, _, path, ok := api.npmTarget(w, r)
+	if !ok {
+		return
+	}
+	var body struct{ Certificate, CertificateKey, Intermediate string }
+	if !readJSON(w, r, &body) {
+		return
+	}
+	if !strings.Contains(body.Certificate, "-----BEGIN CERTIFICATE-----") || !strings.Contains(body.CertificateKey, "PRIVATE KEY-----") {
+		writeError(w, http.StatusBadRequest, "paste the certificate and its private key, each starting -----BEGIN")
+		return
+	}
+	files := map[string]string{"certificate": body.Certificate, "certificate_key": body.CertificateKey}
+	if strings.TrimSpace(body.Intermediate) != "" {
+		files["intermediate_certificate"] = body.Intermediate
+	}
+	// NPM answers with the files, key included: that isn't sent back.
+	if err := c.Upload(r.Context(), path+"/upload", files, nil); err != nil {
+		api.npmFail(w, err)
+		return
+	}
+	api.log.Info("NPM certificate uploaded", "user", u.Username, "path", path)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // The health check's client: it doesn't follow redirects (an HTTP→HTTPS redirect is a healthy answer)
@@ -309,7 +402,7 @@ func (api *API) checkNPM(ctx context.Context) {
 			hh := hostHealth{CheckedAt: start.UTC().Format(time.RFC3339), domain: h.DomainNames[0]}
 			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, scheme+"://"+h.DomainNames[0]+"/", nil)
 			if res, err := healthClient.Do(req); err != nil {
-				hh.Error = err.Error()
+				hh.Error = unreachable(err)
 			} else {
 				res.Body.Close()
 				hh.Status = res.StatusCode
@@ -320,6 +413,20 @@ func (api *API) checkNPM(ctx context.Context) {
 		api.npm.mu.Lock()
 		api.npm.health[id] = results
 		api.npm.mu.Unlock()
+	}
+}
+
+// unreachable says why a host didn't answer, in words.
+func unreachable(err error) string {
+	var dnsErr *net.DNSError
+	var netErr net.Error
+	switch {
+	case errors.As(err, &dnsErr):
+		return "Bastion can't look up its name, so it can't check it."
+	case errors.As(err, &netErr) && netErr.Timeout():
+		return "It didn't answer within 10 seconds."
+	default:
+		return "It didn't answer: " + err.Error()
 	}
 }
 
@@ -354,6 +461,7 @@ func (api *API) npmProblems(ctx context.Context) []problem {
 			NiceName    string   `json:"nice_name"`
 			DomainNames []string `json:"domain_names"`
 			ExpiresOn   string   `json:"expires_on"`
+			CreatedOn   string   `json:"created_on"`
 		}
 		if c.Call(ctx, http.MethodGet, npm.Kinds["certificates"], nil, &certs) != nil {
 			continue
@@ -363,7 +471,8 @@ func (api *API) npmProblems(ctx context.Context) []problem {
 			if err != nil {
 				expires, err = time.Parse(time.RFC3339, cert.ExpiresOn)
 			}
-			if err == nil && time.Until(expires) < 14*24*time.Hour {
+			// A custom certificate waiting for its files has its creation time as its expiry.
+			if err == nil && cert.ExpiresOn != cert.CreatedOn && time.Until(expires) < 14*24*time.Hour {
 				name := cert.NiceName
 				if name == "" && len(cert.DomainNames) > 0 {
 					name = cert.DomainNames[0]

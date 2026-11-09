@@ -59,19 +59,3 @@
     <button type="submit" form="new-game" class="primary" disabled={busy}>{busy ? 'Creating…' : 'Create'}</button>
   {/snippet}
 </Modal>
-
-<style>
-  .form {
-    display: grid;
-    gap: 12px;
-  }
-  label {
-    display: grid;
-    gap: 6px;
-  }
-  .pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-</style>

@@ -15,6 +15,8 @@
   import Game from './pages/Game.svelte';
   import Games from './pages/Games.svelte';
   import Overview from './pages/Overview.svelte';
+  import Proxy from './pages/Proxy.svelte';
+  import type { NpmKind } from './lib/types';
   import Servers from './pages/Servers.svelte';
   import Stack from './pages/Stack.svelte';
   import Stacks from './pages/Stacks.svelte';
@@ -42,6 +44,8 @@
 
   const stack = $derived(match('/stacks/:server/:name'));
   const game = $derived(match('/games/:id'));
+  const proxy = $derived(route.path === '/proxy' ? { kind: 'proxy-hosts' } : match('/proxy/:kind'));
+  const NPM_KINDS = ['proxy-hosts', 'redirection-hosts', 'streams', 'dead-hosts', 'access-lists', 'certificates'];
 </script>
 
 <svelte:document onclick={followLink} />
@@ -72,6 +76,8 @@
       <Volumes />
     {:else if route.path === '/images'}
       <Images />
+    {:else if proxy && NPM_KINDS.includes(proxy.kind)}
+      <Proxy kind={proxy.kind as NpmKind} />
     {:else if route.path === '/games'}
       <Games />
     {:else if game}

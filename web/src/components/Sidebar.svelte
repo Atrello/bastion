@@ -23,6 +23,12 @@
       ],
     },
     {
+      title: 'Network',
+      links: [
+        { href: '/proxy', label: 'Proxy', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9s1.3-6.3 3.8-9z' },
+      ],
+    },
+    {
       title: 'Games',
       links: [
         { href: '/games', label: 'Game servers', icon: 'M6 9h4M8 7v4M15 8h.01M17 10h.01M7 4h10a5 5 0 0 1 5 5v3a5 5 0 0 1-9 3h-2a5 5 0 0 1-9-3V9a5 5 0 0 1 5-5z' },

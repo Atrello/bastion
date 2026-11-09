@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -66,7 +67,7 @@ func (c *Client) signIn(ctx context.Context) (string, error) {
 		Token   string `json:"token"`
 		Expires string `json:"expires"`
 	}
-	if err := c.do(ctx, "", http.MethodPost, "/api/tokens", body, &reply); err != nil {
+	if err := c.do(ctx, "", http.MethodPost, "/api/tokens", body, "application/json", &reply); err != nil {
 		return "", fmt.Errorf("signing in to NPM: %w", err)
 	}
 	c.token = reply.Token
@@ -79,11 +80,33 @@ func (c *Client) signIn(ctx context.Context) (string, error) {
 
 // Call makes a signed-in request to NPM's API, decoding the answer into result (if it's not nil).
 func (c *Client) Call(ctx context.Context, method, path string, body []byte, result any) error {
+	return c.call(ctx, method, path, body, "application/json", result)
+}
+
+// Upload sends files to NPM as a form, the way it takes a custom certificate and its key: each file's
+// form field name and its contents.
+func (c *Client) Upload(ctx context.Context, path string, files map[string]string, result any) error {
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	for field, contents := range files {
+		w, err := form.CreateFormFile(field, field+".pem")
+		if err != nil {
+			return err
+		}
+		_, _ = io.WriteString(w, contents)
+	}
+	if err := form.Close(); err != nil {
+		return err
+	}
+	return c.call(ctx, http.MethodPost, path, body.Bytes(), form.FormDataContentType(), result)
+}
+
+func (c *Client) call(ctx context.Context, method, path string, body []byte, contentType string, result any) error {
 	token, err := c.signIn(ctx)
 	if err != nil {
 		return err
 	}
-	err = c.do(ctx, token, method, path, body, result)
+	err = c.do(ctx, token, method, path, body, contentType, result)
 	var npmErr *Error
 	if errors.As(err, &npmErr) && npmErr.Status == http.StatusUnauthorized {
 		// The token's gone stale (NPM restarted, say): sign in again once.
@@ -91,19 +114,19 @@ func (c *Client) Call(ctx context.Context, method, path string, body []byte, res
 		c.token = ""
 		c.mu.Unlock()
 		if token, err = c.signIn(ctx); err == nil {
-			err = c.do(ctx, token, method, path, body, result)
+			err = c.do(ctx, token, method, path, body, contentType, result)
 		}
 	}
 	return err
 }
 
-func (c *Client) do(ctx context.Context, token, method, path string, body []byte, result any) error {
+func (c *Client) do(ctx context.Context, token, method, path string, body []byte, contentType string, result any) error {
 	req, err := http.NewRequestWithContext(ctx, method, c.URL+path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", contentType)
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)

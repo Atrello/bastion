@@ -7,6 +7,10 @@ import type {
   Egg,
   GitStack,
   Image,
+  NpmInstance,
+  NpmItem,
+  NpmKind,
+  NpmSummary,
   Volume,
   GameBackup,
   GameFile,
@@ -141,6 +145,21 @@ export const api = {
   addChannel: (kind: string, name: string, config: Record<string, string | number>) => request<void>('POST', '/alerts/channels', { kind, name, config }),
   deleteChannel: (id: number) => request<void>('DELETE', `/alerts/channels/${id}`),
   testChannel: (id: number) => request<void>('POST', `/alerts/channels/${id}/test`),
+  npmInstances: () => request<NpmInstance[]>('GET', '/npm'),
+  /** Links an NPM, signing in to it first to check the details. */
+  linkNpm: (npm: { name: string; url: string; email: string; password: string }) => request<void>('POST', '/npm', npm),
+  unlinkNpm: (id: number) => request<void>('DELETE', `/npm/${id}`),
+  npmSummary: () => request<NpmSummary>('GET', '/npm/summary'),
+  npmList: (id: number, kind: NpmKind) => request<NpmItem[]>('GET', `/npm/${id}/${kind}`),
+  /** Creates an item (no itemId) or replaces one, sending it as NPM's API takes it. */
+  npmSave: (id: number, kind: NpmKind, item: Record<string, unknown>, itemId?: number) =>
+    itemId ? request<NpmItem>('PUT', `/npm/${id}/${kind}/${itemId}`, item) : request<NpmItem>('POST', `/npm/${id}/${kind}`, item),
+  npmDelete: (id: number, kind: NpmKind, itemId: number) => request<void>('DELETE', `/npm/${id}/${kind}/${itemId}`),
+  npmAction: (id: number, kind: NpmKind, itemId: number, action: 'enable' | 'disable' | 'renew') =>
+    request<unknown>('POST', `/npm/${id}/${kind}/${itemId}/${action}`),
+  /** Gives a custom certificate its files, as PEM text. */
+  npmUpload: (id: number, certId: number, files: { certificate: string; certificateKey: string; intermediate: string }) =>
+    request<void>('POST', `/npm/${id}/certificates/${certId}/upload`, files),
   eggs: () => request<Egg[]>('GET', '/eggs'),
   /** Imports a Pterodactyl egg: the egg's JSON file, as it's exported from Pterodactyl or a community repo. */
   importEgg: (json: string) => request<Egg>('POST', '/eggs', JSON.parse(json)),

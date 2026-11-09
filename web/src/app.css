@@ -195,3 +195,38 @@ tbody tr:hover td {
   padding: 4px 6px;
   overflow-x: auto;
 }
+
+[hidden] {
+  display: none !important;
+}
+
+/* Forms: fields one above another, with their labels above them; .pair puts two side by side. */
+.form {
+  display: grid;
+  gap: 12px;
+}
+.form label {
+  display: grid;
+  gap: 6px;
+}
+.form label.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form p {
+  margin: 0;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.segmented {
+  display: flex;
+  gap: 4px;
+}
+.segmented button.on {
+  border-color: var(--accent);
+  color: #fff;
+}

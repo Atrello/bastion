@@ -17,25 +17,27 @@ import type {
 const GB = 1024 ** 3;
 const now = Date.now();
 const minutesAgo = (m: number) => new Date(now - m * 60_000).toISOString();
+/** NPM's way of writing a date: "2026-12-01 10:00:00". */
+const daysAhead = (d: number) => new Date(now + d * 86_400_000).toISOString().slice(0, 19).replace('T', ' ');
 
 const servers: Server[] = [
   {
-    id: 1, name: 'atlas', hostname: 'atlas', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.1.0', online: true,
+    id: 1, name: 'atlas', hostname: 'atlas', address: '192.168.1.10', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.1.0', online: true,
     lastSeen: minutesAgo(0), stacks: 4, containers: 11,
     metrics: { cpuPercent: 18, memUsed: 9.1 * GB, memTotal: 16 * GB, diskUsed: 312 * GB, diskTotal: 500 * GB, uptimeSecs: 1_209_600 },
   },
   {
-    id: 2, name: 'forge', hostname: 'forge', os: 'Ubuntu 24.04.1 LTS', agentVersion: '0.1.0', online: true,
+    id: 2, name: 'forge', hostname: 'forge', address: '192.168.1.11', os: 'Ubuntu 24.04.1 LTS', agentVersion: '0.1.0', online: true,
     lastSeen: minutesAgo(0), stacks: 2, containers: 3,
     metrics: { cpuPercent: 46, memUsed: 27.4 * GB, memTotal: 32 * GB, diskUsed: 640 * GB, diskTotal: 1863 * GB, uptimeSecs: 273_600 },
   },
   {
-    id: 3, name: 'vault', hostname: 'vault', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.1.0', online: true,
+    id: 3, name: 'vault', hostname: 'vault', address: '192.168.1.12', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.1.0', online: true,
     lastSeen: minutesAgo(0), stacks: 3, containers: 7,
     metrics: { cpuPercent: 7, memUsed: 3.2 * GB, memTotal: 8 * GB, diskUsed: 14_100 * GB, diskTotal: 24_000 * GB, uptimeSecs: 4_060_800 },
   },
   {
-    id: 4, name: 'edge-vps', hostname: 'edge-vps', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.1.0', online: false,
+    id: 4, name: 'edge-vps', hostname: 'edge-vps', address: '10.8.0.2', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.1.0', online: false,
     lastSeen: minutesAgo(26), stacks: 2, containers: 2, metrics: null,
   },
 ];
@@ -235,6 +237,38 @@ const backups: GameBackup[] = [
   { id: 39, name: 'Nightly', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false },
 ];
 
+const health = (status: number, ms: number) => ({ status, ms, checkedAt: minutesAgo(2) });
+const letsEncrypt = { letsencrypt_agree: true, dns_challenge: false, letsencrypt_email: 'robin@example.com' };
+const certificates = [
+  { id: 1, provider: 'letsencrypt', nice_name: 'jellyfin.home.lab', domain_names: ['jellyfin.home.lab'], expires_on: daysAhead(61), meta: letsEncrypt },
+  { id: 2, provider: 'letsencrypt', nice_name: '*.home.lab', domain_names: ['*.home.lab', 'home.lab'], expires_on: daysAhead(9), meta: { ...letsEncrypt, dns_challenge: true, dns_provider: 'cloudflare' } },
+  { id: 3, provider: 'other', nice_name: 'Old router', domain_names: ['router.home.lab'], expires_on: daysAhead(-3), meta: {} },
+];
+const accessLists = [
+  { id: 1, name: 'Home network only', satisfy_any: false, pass_auth: false, items: [], clients: [{ address: '192.168.1.0/24', directive: 'allow' }, { address: 'all', directive: 'deny' }] },
+  { id: 2, name: 'Family', satisfy_any: true, pass_auth: false, items: [{ username: 'jane' }, { username: 'alex' }], clients: [{ address: '192.168.1.0/24', directive: 'allow' }] },
+];
+const host = { caching_enabled: false, block_exploits: true, allow_websocket_upgrade: true, ssl_forced: true, http2_support: true, hsts_enabled: false, hsts_subdomains: false, advanced_config: '', locations: [], meta: letsEncrypt };
+const npm: Record<string, unknown[]> = {
+  'proxy-hosts': [
+    { ...host, id: 1, domain_names: ['jellyfin.home.lab'], forward_scheme: 'http', forward_host: '192.168.1.11', forward_port: 8096, certificate_id: 1, certificate: certificates[0], access_list_id: 0, enabled: 1, bastion_health: health(302, 12) },
+    { ...host, id: 2, domain_names: ['photos.home.lab'], forward_scheme: 'http', forward_host: '192.168.1.10', forward_port: 2283, certificate_id: 2, certificate: certificates[1], access_list_id: 2, access_list: accessLists[1], enabled: 1, bastion_health: health(200, 48),
+      locations: [{ path: '/api', forward_scheme: 'http', forward_host: '192.168.1.10', forward_port: 2283, advanced_config: 'client_max_body_size 50000M;' }] },
+    { ...host, id: 3, domain_names: ['paperless.home.lab'], forward_scheme: 'http', forward_host: '192.168.1.10', forward_port: 8000, certificate_id: 2, certificate: certificates[1], access_list_id: 1, access_list: accessLists[0], enabled: 1, bastion_health: health(502, 9) },
+    { ...host, id: 4, domain_names: ['vault.home.lab'], forward_scheme: 'https', forward_host: '192.168.1.12', forward_port: 5001, certificate_id: 0, access_list_id: 1, access_list: accessLists[0], enabled: 0, ssl_forced: false },
+  ],
+  'redirection-hosts': [
+    { ...host, id: 1, domain_names: ['media.home.lab'], forward_scheme: 'auto', forward_domain_name: 'jellyfin.home.lab', forward_http_code: 301, preserve_path: true, certificate_id: 2, enabled: 1 },
+  ],
+  streams: [
+    { id: 1, incoming_port: 25565, forwarding_host: '192.168.1.11', forwarding_port: 25565, tcp_forwarding: 1, udp_forwarding: 0, enabled: 1, meta: {} },
+    { id: 2, incoming_port: 2456, forwarding_host: '192.168.1.11', forwarding_port: 2456, tcp_forwarding: 0, udp_forwarding: 1, enabled: 1, meta: {} },
+  ],
+  'dead-hosts': [{ ...host, id: 1, domain_names: ['old.home.lab'], certificate_id: 2, enabled: 1 }],
+  'access-lists': accessLists,
+  certificates,
+};
+
 export function demo(method: string, path: string, body?: unknown): unknown {
   if (path === '/auth/state') return { setupNeeded: false, signedIn: true, username: 'robin', passkeys: true };
   if (path === '/account')
@@ -291,6 +325,18 @@ export function demo(method: string, path: string, body?: unknown): unknown {
         { id: 1, kind: 'disk', title: 'vault’s disk is 91% full', detail: 'Clean up unused images and volumes.', raisedAt: minutesAgo(60 * 30), clearedAt: minutesAgo(60 * 29) },
       ],
     };
+  if (method === 'GET' && path === '/npm') return [{ id: 1, name: 'Home proxy', url: 'http://192.168.1.10:81', email: 'robin@example.com' }];
+  if (method === 'GET' && path === '/npm/summary')
+    return {
+      hosts: 3,
+      up: 2,
+      problems: [
+        { kind: 'host', title: "paperless.home.lab isn't answering", detail: 'It answered 502.' },
+        { kind: 'certificate', title: 'Certificate for *.home.lab expires soon', detail: `It expires on ${new Date(now + 9 * 86_400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.` },
+      ],
+    };
+  const npmList = /^\/npm\/\d+\/([a-z-]+)$/.exec(path);
+  if (method === 'GET' && npmList) return npm[npmList[1]] ?? [];
   if (method === 'GET' && path === '/games') return games;
   if (method === 'GET' && path === '/eggs') return eggs;
   const game = /^\/games\/(\d+)(\/[a-z]+)?/.exec(path);

@@ -122,8 +122,19 @@ func hello() protocol.Hello {
 	hostname, _ := os.Hostname()
 	return protocol.Hello{
 		Protocol: protocol.Version, Version: Version, Hostname: hostname, OS: osName(),
-		Arch: runtime.GOARCH, CPUs: runtime.NumCPU(), Docker: dockerVersion(),
+		Arch: runtime.GOARCH, CPUs: runtime.NumCPU(), Docker: dockerVersion(), Address: localAddress(),
 	}
+}
+
+// localAddress is the address this server's outgoing traffic leaves from. Dialling UDP sends nothing: it
+// only asks the kernel which route it would use.
+func localAddress() string {
+	conn, err := net.Dial("udp", "192.0.2.1:9")
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.String()
 }
 
 // Version is set when building: -ldflags "-X github.com/Atrello/bastion/internal/agent.Version=0.1.0".

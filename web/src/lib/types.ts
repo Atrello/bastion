@@ -13,6 +13,8 @@ export type Server = {
   id: number;
   name: string;
   hostname: string;
+  /** Its address on its network, as the agent sees it; empty if it couldn't tell. */
+  address: string;
   os: string;
   agentVersion: string;
   online: boolean;
@@ -126,3 +128,17 @@ export type Cleanup = {
   volumesSize: number;
   buildCacheSize: number;
 };
+
+/** A linked Nginx Proxy Manager. */
+export type NpmInstance = { id: number; name: string; url: string; email: string };
+
+/** The kinds of thing NPM manages, as its API names them. */
+export type NpmKind = 'proxy-hosts' | 'redirection-hosts' | 'streams' | 'dead-hosts' | 'access-lists' | 'certificates';
+
+/** An NPM item exactly as NPM's API has it (docs/api.md links its fields). */
+export type NpmItem = Record<string, any> & { id: number };
+
+/** The panel's last check of a proxy host: the HTTP status it answered with, or 0 if it didn't. */
+export type HostHealth = { status: number; ms: number; error?: string; checkedAt: string };
+
+export type NpmSummary = { hosts: number; up: number; problems: { kind: string; title: string; detail: string }[] };

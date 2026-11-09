@@ -66,6 +66,8 @@ type Hello struct {
 	Arch     string `json:"arch"`
 	CPUs     int    `json:"cpus"`
 	Docker   string `json:"docker"`
+	// Address is the server's address on its network, for proxy hosts pointing at it.
+	Address string `json:"address,omitempty"`
 }
 
 type Metrics struct {

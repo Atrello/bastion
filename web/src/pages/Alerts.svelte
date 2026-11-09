@@ -12,6 +12,8 @@
     ['unhealthy', 'A container fails its health check'],
     ['disk', "A server's disk is over 90% full"],
     ['update', 'An image update is available'],
+    ['host', "A proxy host stops answering"],
+    ['certificate', 'A certificate expires within 14 days'],
   ];
   let adding = $state(false);
   let kind = $state<'ntfy' | 'discord' | 'email'>('ntfy');
@@ -172,21 +174,5 @@
   }
   .note.error {
     color: var(--red);
-  }
-  .form {
-    display: grid;
-    gap: 12px;
-  }
-  .form label {
-    display: grid;
-    gap: 6px;
-  }
-  .form p {
-    margin: 0;
-  }
-  .pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
   }
 </style>
