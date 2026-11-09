@@ -256,10 +256,19 @@ type GameSpec struct {
 	CPUPercent int               `json:"cpuPercent"` // 100 is one core; 0 means no limit
 	DiskMB     int               `json:"diskMb"`
 	Ports      []int             `json:"ports"` // the first is the game's own; each is published for TCP and UDP
+	// Config files to fill in before it starts, values already worked out.
+	ConfigFiles []ConfigFile `json:"configFiles,omitempty"`
 	// The egg's installer.
 	InstallImage      string `json:"installImage"`
 	InstallEntrypoint string `json:"installEntrypoint"`
 	InstallScript     string `json:"installScript"`
+}
+
+// ConfigFile is one of a game's config files with settings to fill in: each key in Find set to its value.
+type ConfigFile struct {
+	File   string            `json:"file"`
+	Parser string            `json:"parser"` // properties, ini, json, yaml or file
+	Find   map[string]string `json:"find"`
 }
 
 // GameStatus is a game server as its agent sees it, sent with the metrics every 10 seconds.

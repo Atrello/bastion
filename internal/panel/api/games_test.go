@@ -1,0 +1,152 @@
+package api
+
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/pquerna/otp/totp"
+
+	"github.com/Atrello/bastion/internal/protocol"
+)
+
+// fakeAgent answers every request with OK, keeping what it was asked.
+func fakeAgent(t *testing.T, b *browser) *[]protocol.Message {
+	id, secret := b.joinAgent()
+	ws, _ := b.dialAgent(id+"."+secret, nil)
+	t.Cleanup(func() { ws.Close() })
+	var mu sync.Mutex
+	var got []protocol.Message
+	go func() {
+		for {
+			var m protocol.Message
+			if ws.ReadJSON(&m) != nil {
+				return
+			}
+			mu.Lock()
+			got = append(got, m)
+			mu.Unlock()
+			ok := true
+			data := json.RawMessage(`{}`)
+			if m.Op == protocol.OpStackLogs {
+				data = json.RawMessage(`{"lines":["Done (3.2s)! For help, type \"help\""]}`)
+			}
+			_ = ws.WriteJSON(protocol.Message{ID: m.ID, OK: &ok, Data: data})
+		}
+	}()
+	time.Sleep(100 * time.Millisecond)
+	return &got
+}
+
+func TestGamesAndSharing(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	asked := fakeAgent(t, b)
+
+	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
+	if status, r := b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper), "category": "Minecraft"}); status != 204 {
+		t.Fatalf("importing: %d %v", status, r)
+	}
+	// The same egg again is only replaced when asked.
+	if status, r := b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)}); status != 409 || r["existing"] != float64(1) {
+		t.Fatalf("a second import: %d %v", status, r)
+	}
+	if status, _ := b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper), "replace": true}); status != 204 {
+		t.Fatalf("replacing: %d", status)
+	}
+	if status, _ := b.call(b.client, "POST", "/api/eggs", map[string]any{"url": "http://example.com/egg.json"}); status != 400 {
+		t.Fatalf("a plain http link was fetched: %d", status)
+	}
+
+	newGame := map[string]any{"name": "Survival", "eggId": 1, "serverId": 1, "memoryMb": 4096, "ports": []int{25565}}
+	if status, r := b.call(b.client, "POST", "/api/games", newGame); status != 200 || r["state"] == nil {
+		t.Fatalf("making a game: %d %v", status, r)
+	}
+	if status, r := b.call(b.client, "POST", "/api/games", map[string]any{"name": "Creative", "eggId": 1, "serverId": 1, "memoryMb": 2048, "ports": []int{25565}}); status != 400 || !strings.Contains(r["error"].(string), "Survival") {
+		t.Fatalf("a port used twice: %d %v", status, r)
+	}
+	if status, _ := b.call(b.client, "POST", "/api/games", map[string]any{"name": "Creative", "eggId": 1, "serverId": 1, "memoryMb": 2048, "ports": []int{25566}}); status != 200 {
+		t.Fatal("making a second game")
+	}
+	var install protocol.GameSpec
+	for _, m := range *asked {
+		if m.Op == protocol.OpGameInstall {
+			_ = json.Unmarshal(m.Args, &install)
+			break
+		}
+	}
+	if install.Image != "ghcr.io/pterodactyl/yolks:java_25" || !strings.Contains(install.Startup, "-jar server.jar") ||
+		len(install.ConfigFiles) != 1 || install.ConfigFiles[0].Find["server-port"] != "25565" || install.InstallScript == "" {
+		t.Fatalf("install spec: %+v", install)
+	}
+
+	// Settings are checked against the egg's rules.
+	if status, _ := b.call(b.client, "PUT", "/api/games/1/startup", map[string]string{"SERVER_JARFILE": "server.sh"}); status != 400 {
+		t.Fatalf("a jar file that isn't a .jar was accepted: %d", status)
+	}
+
+	// A friend, invited to Survival, sees only it.
+	status, invite := b.call(b.client, "POST", "/api/games/1/shares", nil)
+	if status != 200 {
+		t.Fatalf("invite: %d", status)
+	}
+	token := invite["link"].(string)[strings.Index(invite["link"].(string), "#")+1:]
+	friend := b.newClient()
+	if status, r := b.call(friend, "POST", "/api/setup", map[string]string{"token": token, "username": "jane", "password": "correct horse battery"}); status != 204 {
+		t.Fatalf("friend setup: %d %v", status, r)
+	}
+	_, begun := b.call(friend, "POST", "/api/auth/authenticator/begin", map[string]string{"password": ""})
+	code, _ := totp.GenerateCode(begun["secret"].(string), time.Now())
+	if status, _ := b.call(friend, "POST", "/api/auth/authenticator/finish", map[string]string{"code": code}); status != 200 {
+		t.Fatalf("friend authenticator: %d", status)
+	}
+	if status, _ := b.call(b.newClient(), "POST", "/api/setup", map[string]string{"token": token, "username": "mallory", "password": "correct horse battery"}); status != 400 {
+		t.Fatal("an invite link worked twice")
+	}
+
+	for path, want := range map[string]int{
+		"/api/games/1":              200,
+		"/api/games/1/files?path=/": 200,
+		"/api/games/1/backups":      200,
+		"/api/games/2":              404, // not shared with her
+		"/api/games/2/files?path=/": 404,
+		"/api/servers":              403,
+		"/api/stacks":               403,
+		"/api/eggs":                 403,
+		"/api/npm":                  403,
+		"/api/alerts":               403,
+		"/api/games/1/shares":       403,
+		"/api/account":              200,
+	} {
+		if status, _ := b.call(friend, "GET", path, nil); status != want {
+			t.Errorf("friend GET %s: %d, want %d", path, status, want)
+		}
+	}
+	if status, _ := b.call(friend, "DELETE", "/api/games/1", nil); status != 403 {
+		t.Errorf("a friend deleted the game: %d", status)
+	}
+	if status, _ := b.call(friend, "PUT", "/api/games/1", map[string]any{"name": "Mine", "memoryMb": 65536, "ports": []int{25565}}); status != 403 {
+		t.Errorf("a friend changed the game's limits: %d", status)
+	}
+	if status, _ := b.call(friend, "POST", "/api/games/1/power/start", nil); status != 204 {
+		t.Errorf("a friend couldn't start the game: %d", status)
+	}
+	// Paper's version is one players may change; its download address isn't.
+	if status, _ := b.call(friend, "PUT", "/api/games/1/startup", map[string]string{"DL_PATH": "https://example.com/evil.jar"}); status != 403 {
+		t.Errorf("a friend changed an owner-only setting: %d", status)
+	}
+	if status, _ := b.call(friend, "PUT", "/api/games/1/startup", map[string]string{"MINECRAFT_VERSION": "1.21.4"}); status != 204 {
+		t.Errorf("a friend couldn't change the version: %d", status)
+	}
+
+	// Unshared, she sees nothing.
+	if status, _ := b.call(b.client, "DELETE", "/api/games/1/shares/2", nil); status != 204 {
+		t.Fatal("unsharing")
+	}
+	if status, _ := b.call(friend, "GET", "/api/games/1", nil); status != 404 {
+		t.Errorf("unshared, the friend still sees it: %d", status)
+	}
+}

@@ -120,7 +120,8 @@ func (api *API) currentUser(r *http.Request) (*auth.User, error) {
 
 type userKey struct{}
 
-// signedIn only lets signed-in people through, handing the handler who they are.
+// signedIn lets anyone signed in through, handing the handler who they are. Only their own account's
+// routes use it: everything else is for the owner, or for the games shared with a friend.
 func (api *API) signedIn(next func(http.ResponseWriter, *http.Request, *auth.User)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, err := api.currentUser(r)
@@ -129,6 +130,17 @@ func (api *API) signedIn(next func(http.ResponseWriter, *http.Request, *auth.Use
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), userKey{}, u)), u)
+	})
+}
+
+// owner only lets the panel's owner through. It's what every route uses unless it says otherwise.
+func (api *API) owner(next func(http.ResponseWriter, *http.Request, *auth.User)) http.Handler {
+	return api.signedIn(func(w http.ResponseWriter, r *http.Request, u *auth.User) {
+		if u.Role != auth.RoleOwner {
+			writeError(w, http.StatusForbidden, "that's only for the panel's owner")
+			return
+		}
+		next(w, r, u)
 	})
 }
 
@@ -142,6 +154,7 @@ func (api *API) state(w http.ResponseWriter, r *http.Request) {
 	if u, err := api.currentUser(r); err == nil {
 		reply["signedIn"] = true
 		reply["username"] = u.Username
+		reply["role"] = u.Role
 	}
 	writeJSON(w, reply)
 }

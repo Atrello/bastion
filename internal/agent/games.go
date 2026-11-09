@@ -218,6 +218,9 @@ func startGame(ctx context.Context, s protocol.GameSpec) error {
 	if _, err := os.Stat(gameDir(s.ID)); err != nil {
 		return errors.New("it isn't installed on this server")
 	}
+	if err := applyConfigFiles(s.ID, s.ConfigFiles); err != nil {
+		return fmt.Errorf("filling in its config files: %w", err)
+	}
 	_, _ = docker(ctx, "", "rm", "-f", gameContainer(s.ID))
 	memory := strconv.Itoa(s.MemoryMB) + "m"
 	args := []string{"run", "-d", "-i", "--name", gameContainer(s.ID), "--label", "bastion.game=" + strconv.FormatInt(s.ID, 10),

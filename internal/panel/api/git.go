@@ -22,11 +22,11 @@ import (
 
 func (api *API) gitRoutes() {
 	m := api.mux
-	m.Handle("GET /api/servers/{id}/stacks/{name}/git", api.signedIn(api.gitStatus))
-	m.Handle("PUT /api/servers/{id}/stacks/{name}/git", api.signedIn(api.gitSet))
-	m.Handle("DELETE /api/servers/{id}/stacks/{name}/git", api.signedIn(api.gitUnlink))
-	m.Handle("POST /api/servers/{id}/stacks/{name}/git/deploy", api.signedIn(api.gitDeploy))
-	m.Handle("POST /api/servers/{id}/stacks", api.signedIn(api.createStack))
+	m.Handle("GET /api/servers/{id}/stacks/{name}/git", api.owner(api.gitStatus))
+	m.Handle("PUT /api/servers/{id}/stacks/{name}/git", api.owner(api.gitSet))
+	m.Handle("DELETE /api/servers/{id}/stacks/{name}/git", api.owner(api.gitUnlink))
+	m.Handle("POST /api/servers/{id}/stacks/{name}/git/deploy", api.owner(api.gitDeploy))
+	m.Handle("POST /api/servers/{id}/stacks", api.owner(api.createStack))
 }
 
 type gitStack struct {

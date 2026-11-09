@@ -20,13 +20,14 @@ import (
 )
 
 type API struct {
-	cfg  *config.Config
-	db   *sql.DB
-	auth *auth.Auth
-	hub  *agents.Hub
-	npm  *npmState
-	log  *slog.Logger
-	mux  *http.ServeMux
+	cfg   *config.Config
+	db    *sql.DB
+	auth  *auth.Auth
+	hub   *agents.Hub
+	npm   *npmState
+	games *gameState
+	log   *slog.Logger
+	mux   *http.ServeMux
 }
 
 // New builds the API and, on a panel nobody has set up yet, prints the one-time setup link to the log.
@@ -54,6 +55,7 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 	go api.watchGit(ctx)
 	go api.watchAlerts(ctx)
 	go api.watchNPM(ctx)
+	go api.runSchedules(ctx)
 	return api, nil
 }
 
@@ -66,6 +68,8 @@ func (api *API) routes() {
 	api.gitRoutes()
 	api.alertRoutes()
 	api.npmRoutes()
+	api.eggRoutes()
+	api.gameRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {

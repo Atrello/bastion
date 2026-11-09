@@ -25,11 +25,11 @@ var alertKinds = []string{"offline", "crash", "unhealthy", "disk", "update", "ho
 
 func (api *API) alertRoutes() {
 	m := api.mux
-	m.Handle("GET /api/alerts", api.signedIn(api.alertsPage))
-	m.Handle("PUT /api/alerts/kinds", api.signedIn(api.setAlertKinds))
-	m.Handle("POST /api/alerts/channels", api.signedIn(api.addChannel))
-	m.Handle("DELETE /api/alerts/channels/{id}", api.signedIn(api.deleteChannel))
-	m.Handle("POST /api/alerts/channels/{id}/test", api.signedIn(api.testChannel))
+	m.Handle("GET /api/alerts", api.owner(api.alertsPage))
+	m.Handle("PUT /api/alerts/kinds", api.owner(api.setAlertKinds))
+	m.Handle("POST /api/alerts/channels", api.owner(api.addChannel))
+	m.Handle("DELETE /api/alerts/channels/{id}", api.owner(api.deleteChannel))
+	m.Handle("POST /api/alerts/channels/{id}/test", api.owner(api.testChannel))
 }
 
 type channelConfig struct {

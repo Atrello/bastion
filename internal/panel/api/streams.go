@@ -17,8 +17,8 @@ import (
 // {"type": "input", "data"} (base64) and {"type": "resize", "cols", "rows"}.
 
 func (api *API) streamRoutes() {
-	api.mux.Handle("GET /api/streams/logs", api.signedIn(api.logsStream))
-	api.mux.Handle("GET /api/streams/console", api.signedIn(api.consoleStream))
+	api.mux.Handle("GET /api/streams/logs", api.owner(api.logsStream))
+	api.mux.Handle("GET /api/streams/console", api.owner(api.consoleStream))
 }
 
 // browserUpgrader only lets the panel's own pages open a stream: a websocket isn't covered by the

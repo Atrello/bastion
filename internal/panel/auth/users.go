@@ -13,18 +13,25 @@ type User struct {
 	totpSecret sql.NullString
 	totpStep   int64
 	WebAuthnID []byte
+	// RoleOwner sees the whole panel; RoleFriend only the game servers shared with them.
+	Role string
 }
+
+const (
+	RoleOwner  = "owner"
+	RoleFriend = "friend"
+)
 
 // HasAuthenticator says whether the user has set up an authenticator app.
 func (u *User) HasAuthenticator() bool { return u.totpSecret.Valid }
 
 var ErrNoUser = errors.New("no such user")
 
-const userColumns = `id, username, password_hash, totp_secret, totp_last_step, webauthn_id`
+const userColumns = `id, username, password_hash, totp_secret, totp_last_step, webauthn_id, role`
 
 func scanUser(row *sql.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Username, &u.hash, &u.totpSecret, &u.totpStep, &u.WebAuthnID)
+	err := row.Scan(&u.ID, &u.Username, &u.hash, &u.totpSecret, &u.totpStep, &u.WebAuthnID, &u.Role)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNoUser
 	}

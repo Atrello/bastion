@@ -92,3 +92,31 @@ func TestCheckSpec(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigFiles(t *testing.T) {
+	t.Setenv("BASTION_AGENT_GAMES_DIR", t.TempDir())
+	_ = os.MkdirAll(gameDir(2), 0o755)
+	put := func(name, data string) { _ = os.WriteFile(filepath.Join(gameDir(2), name), []byte(data), 0o644) }
+	put("server.properties", "#Minecraft\nserver-port=25565\nmotd=Hi\n")
+	put("config.yml", "listeners:\n- host: 0.0.0.0:25577\nsettings:\n  port: 1\n  name: x\nport: 9\n")
+	put("config.json", `{"server":{"port":1,"names":["a","b"]}}`)
+	err := applyConfigFiles(2, []protocol.ConfigFile{
+		{File: "server.properties", Parser: "properties", Find: map[string]string{"server-port": "25570", "query.port": "25570"}},
+		{File: "config.yml", Parser: "yaml", Find: map[string]string{"settings.port": "25571"}},
+		{File: "config.json", Parser: "json", Find: map[string]string{"server.port": "25572", "server.names[1]": "c"}},
+		{File: "../escape", Parser: "file", Find: map[string]string{"x": "y"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(name string) string { raw, _ := os.ReadFile(filepath.Join(gameDir(2), name)); return string(raw) }
+	if got := read("server.properties"); got != "#Minecraft\nserver-port=25570\nmotd=Hi\nquery.port=25570\n" {
+		t.Errorf("properties: %q", got)
+	}
+	if got := read("config.yml"); got != "listeners:\n- host: 0.0.0.0:25577\nsettings:\n  port: 25571\n  name: x\nport: 9\n" {
+		t.Errorf("yaml: %q", got)
+	}
+	if got := read("config.json"); !strings.Contains(got, `"port": 25572`) || !strings.Contains(got, `"c"`) {
+		t.Errorf("json: %q", got)
+	}
+}

@@ -40,16 +40,16 @@ type hostHealth struct {
 func (api *API) npmRoutes() {
 	api.npm = &npmState{clients: map[int64]*npm.Client{}, health: map[int64]map[int64]hostHealth{}}
 	m := api.mux
-	m.Handle("GET /api/npm", api.signedIn(api.npmInstances))
-	m.Handle("POST /api/npm", api.signedIn(api.addNPM))
-	m.Handle("GET /api/npm/summary", api.signedIn(api.npmSummary))
-	m.Handle("DELETE /api/npm/{id}", api.signedIn(api.deleteNPM))
-	m.Handle("GET /api/npm/{id}/{kind}", api.signedIn(api.npmList))
-	m.Handle("POST /api/npm/{id}/{kind}", api.signedIn(api.npmChange))
-	m.Handle("PUT /api/npm/{id}/{kind}/{item}", api.signedIn(api.npmChange))
-	m.Handle("DELETE /api/npm/{id}/{kind}/{item}", api.signedIn(api.npmChange))
-	m.Handle("POST /api/npm/{id}/{kind}/{item}/{action}", api.signedIn(api.npmAction))
-	m.Handle("POST /api/npm/{id}/certificates/{item}/upload", api.signedIn(api.npmUpload))
+	m.Handle("GET /api/npm", api.owner(api.npmInstances))
+	m.Handle("POST /api/npm", api.owner(api.addNPM))
+	m.Handle("GET /api/npm/summary", api.owner(api.npmSummary))
+	m.Handle("DELETE /api/npm/{id}", api.owner(api.deleteNPM))
+	m.Handle("GET /api/npm/{id}/{kind}", api.owner(api.npmList))
+	m.Handle("POST /api/npm/{id}/{kind}", api.owner(api.npmChange))
+	m.Handle("PUT /api/npm/{id}/{kind}/{item}", api.owner(api.npmChange))
+	m.Handle("DELETE /api/npm/{id}/{kind}/{item}", api.owner(api.npmChange))
+	m.Handle("POST /api/npm/{id}/{kind}/{item}/{action}", api.owner(api.npmAction))
+	m.Handle("POST /api/npm/{id}/certificates/{item}/upload", api.owner(api.npmUpload))
 }
 
 func (api *API) npmClient(ctx context.Context, id int64) (*npm.Client, error) {
