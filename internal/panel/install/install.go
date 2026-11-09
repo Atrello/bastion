@@ -3,14 +3,49 @@
 package install
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 //go:embed install.sh
 var script []byte
+
+var (
+	latestMu sync.Mutex
+	latest   = map[string]string{}
+)
+
+// Latest is the SHA-256 of the agent this panel hands out for arch ("amd64" or "arm64"), or "" if it
+// hasn't one. An agent whose own differs needs updating. The programs come with the panel's image and
+// don't change while it runs, so each is read once.
+func Latest(binaries, arch string) string {
+	if arch != "amd64" && arch != "arm64" {
+		return ""
+	}
+	latestMu.Lock()
+	defer latestMu.Unlock()
+	path := filepath.Join(binaries, "bastion-agent-linux-"+arch)
+	if sum, ok := latest[path]; ok {
+		return sum
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "" // not cached: it may appear (a panel run from source, with the agents built later)
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	latest[path] = hex.EncodeToString(h.Sum(nil))
+	return latest[path]
+}
 
 // Handler serves /install.sh and /downloads/bastion-agent-linux-<arch>.
 func Handler(binaries string) http.Handler {

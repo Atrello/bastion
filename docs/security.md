@@ -24,7 +24,7 @@ try to break in. This is what it protects, from whom, and how.
 | Clickjacking | The panel can't be put in a frame |
 | A fake agent | Each agent signs in with its own secret, issued when it joins; the panel keeps only a hash. Join tokens work once and expire in an hour |
 | A fake panel | Agents only connect to the address they joined, over HTTPS (plain HTTP is refused unless the address is a private network and you explicitly allow it) |
-| A compromised panel reaching beyond Docker | The agent has a fixed list of operations. It finds stacks by name and only reads or writes their compose file and `.env`; it never runs a shell command the panel sends, apart from consoles into containers |
+| A compromised panel reaching beyond Docker | The agent has a fixed list of operations. It finds stacks by name and only reads or writes their compose file and `.env`; it never runs a shell command the panel sends, apart from consoles into containers. But see "The panel can update its agents" below |
 | A repository address used to run something | Only `https://` and `ssh` addresses are accepted (`GIT_ALLOW_PROTOCOL`), never `file://` or `ext::`; options can't be slipped in; the compose file's path can't leave the checkout or follow a link |
 | Deploy keys | One per stack, made by the panel and kept in its database (keep the data folder private); sent to that stack's agent only while it fetches, written to a file only root can read and deleted after |
 | Vulnerable dependencies | Few dependencies, each listed in `docs/plan.md`; `make check` runs `govulncheck` and `npm audit` and must pass. The Go toolchain is pinned to a patched release in `go.mod` |
@@ -55,6 +55,13 @@ try to break in. This is what it protects, from whom, and how.
 - **A self-signed NPM is trusted by its certificate.** When NPM's admin page has a certificate Bastion can't
   check, linking it shows the certificate's fingerprint and asks. Trusted, that exact certificate is pinned:
   any other is refused, so nobody can stand in for NPM unnoticed. Checks are never simply switched off.
+- **The panel can update its agents.** An agent fetches the new program only from the panel it joined, over
+  the same connection rules, and puts it in place only if it's exactly the program the panel named (its
+  SHA-256). So whoever controls the panel can put a program of their choosing on every server, as root.
+  That's no more than they could already do through Docker (a compose file can give a container the whole
+  host), which is why the panel's own security matters most. To refuse updates from the panel on a
+  server, add `"noRemoteUpdates": true` to `/etc/bastion/agent.json` there and restart the agent; it's then
+  updated only by running a join command on it.
 - **Proxy host checks don't check certificates.** They ask whether a site answers, not whether to trust
   it, so a self-signed certificate doesn't count as down. Expiry is watched separately.
 

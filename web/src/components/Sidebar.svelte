@@ -3,7 +3,7 @@
 <script lang="ts">
   import { route } from '../lib/router.svelte';
 
-  let { username, friend = false, onsignout }: { username: string; friend?: boolean; onsignout: () => void } = $props();
+  let { username, version = '', friend = false, onsignout }: { username: string; version?: string; friend?: boolean; onsignout: () => void } = $props();
 
   type Link = { href: string; label: string; icon: string };
   const groups: { title?: string; links: Link[] }[] = [
@@ -77,6 +77,7 @@
       {username}
     </a>
     <button class="signout" onclick={onsignout}>Sign out</button>
+    {#if version}<span class="version">Bastion {version}</span>{/if}
   </div>
 </nav>
 
@@ -150,6 +151,11 @@
     border-top: 1px solid var(--line);
     display: grid;
     gap: 4px;
+  }
+  .version {
+    color: var(--muted);
+    font-size: 12px;
+    padding: 2px 10px;
   }
   .signout {
     border: 0;

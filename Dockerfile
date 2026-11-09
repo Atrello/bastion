@@ -15,10 +15,12 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
-ARG VERSION=dev
-RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/bastion ./cmd/bastion \
- && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X github.com/Atrello/bastion/internal/agent.Version=${VERSION}" -o /out/agents/bastion-agent-linux-amd64 ./cmd/bastion-agent \
- && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/Atrello/bastion/internal/agent.Version=${VERSION}" -o /out/agents/bastion-agent-linux-arm64 ./cmd/bastion-agent \
+# The version is the VERSION file's, unless given with --build-arg VERSION=...
+ARG VERSION
+RUN V="${VERSION:-$(cat VERSION)}" \
+ && go build -trimpath -ldflags "-s -w -X main.version=$V" -o /out/bastion ./cmd/bastion \
+ && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X github.com/Atrello/bastion/internal/agent.Version=$V" -o /out/agents/bastion-agent-linux-amd64 ./cmd/bastion-agent \
+ && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/Atrello/bastion/internal/agent.Version=$V" -o /out/agents/bastion-agent-linux-arm64 ./cmd/bastion-agent \
  && mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot

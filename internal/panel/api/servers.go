@@ -12,6 +12,7 @@ import (
 
 	"github.com/Atrello/bastion/internal/panel/agents"
 	"github.com/Atrello/bastion/internal/panel/auth"
+	"github.com/Atrello/bastion/internal/panel/install"
 	"github.com/Atrello/bastion/internal/protocol"
 )
 
@@ -27,6 +28,7 @@ func (api *API) serverRoutes() {
 	m.Handle("POST /api/servers", api.owner(api.addServer))
 	m.Handle("POST /api/servers/{id}/join-command", api.owner(api.newJoinCommand))
 	m.Handle("DELETE /api/servers/{id}", api.owner(api.deleteServer))
+	m.Handle("POST /api/servers/{id}/agent/update", api.owner(api.updateAgent))
 	m.Handle("POST /api/updates/check", api.owner(api.checkUpdates))
 	m.Handle("GET /api/servers/{id}/volumes", api.owner(api.passThrough(protocol.OpVolumes)))
 	m.Handle("GET /api/servers/{id}/images", api.owner(api.passThrough(protocol.OpImages)))
@@ -69,21 +71,23 @@ func (api *API) enrol(w http.ResponseWriter, r *http.Request) {
 
 // serverView is a server as the web app shows it (web/src/lib/types.ts, Server).
 type serverView struct {
-	ID           int64             `json:"id"`
-	Name         string            `json:"name"`
-	Hostname     string            `json:"hostname"`
-	Address      string            `json:"address"`
-	OS           string            `json:"os"`
-	Arch         string            `json:"arch"`
-	CPUs         int               `json:"cpus"`
-	Docker       string            `json:"docker"`
-	AgentVersion string            `json:"agentVersion"`
-	Online       bool              `json:"online"`
-	LastSeen     *string           `json:"lastSeen"`
-	Metrics      *protocol.Metrics `json:"metrics"`
-	Stacks       int               `json:"stacks"`
-	Containers   int               `json:"containers"`
-	Games        int               `json:"games"`
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Hostname     string `json:"hostname"`
+	Address      string `json:"address"`
+	OS           string `json:"os"`
+	Arch         string `json:"arch"`
+	CPUs         int    `json:"cpus"`
+	Docker       string `json:"docker"`
+	AgentVersion string `json:"agentVersion"`
+	// AgentUpdate: the panel hands out a different agent from the one this server runs.
+	AgentUpdate bool              `json:"agentUpdate"`
+	Online      bool              `json:"online"`
+	LastSeen    *string           `json:"lastSeen"`
+	Metrics     *protocol.Metrics `json:"metrics"`
+	Stacks      int               `json:"stacks"`
+	Containers  int               `json:"containers"`
+	Games       int               `json:"games"`
 }
 
 func (api *API) servers(w http.ResponseWriter, r *http.Request, _ *auth.User) {
@@ -99,6 +103,9 @@ func (api *API) servers(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 			Docker: s.DockerVersion, Online: live.Online, Metrics: live.Metrics}
 		if live.Hello != nil {
 			v.Arch, v.CPUs = live.Hello.Arch, live.Hello.CPUs
+			if want := install.Latest(api.cfg.AgentBinaries, live.Hello.Arch); want != "" {
+				v.AgentUpdate = live.Hello.Build != want
+			}
 			if net.ParseIP(live.Hello.Address) != nil {
 				v.Address = live.Hello.Address
 			}
@@ -149,6 +156,37 @@ func (api *API) newJoinCommand(w http.ResponseWriter, r *http.Request, _ *auth.U
 		return
 	}
 	writeJSON(w, map[string]string{"joinCommand": api.joinCommand(token)})
+}
+
+// updateAgent has a server's agent replace itself with the one this panel hands out, then restart. It's
+// back a few seconds after answering.
+func (api *API) updateAgent(w http.ResponseWriter, r *http.Request, u *auth.User) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	live := api.hub.Live(id)
+	if !live.Online || live.Hello == nil {
+		writeError(w, http.StatusServiceUnavailable, "its agent isn't connected")
+		return
+	}
+	want := install.Latest(api.cfg.AgentBinaries, live.Hello.Arch)
+	if want == "" {
+		writeError(w, http.StatusBadRequest, "this panel doesn't have the agent for "+live.Hello.Arch+" servers (see docs/install.md)")
+		return
+	}
+	err := api.hub.Request(r.Context(), id, protocol.OpAgentUpdate, protocol.AgentUpdateArgs{Build: want}, nil)
+	api.log.Info("agent update", "user", u.Username, "server", id, "from", live.Hello.Version, "ok", err == nil)
+	var agentErr *agents.AgentError
+	if errors.As(err, &agentErr) && strings.HasPrefix(agentErr.Message, "unknown request") {
+		writeError(w, http.StatusBadRequest, "this agent is from before agents could be updated from here: update it once by hand, with New join command, and from then on it can be")
+		return
+	}
+	if err != nil {
+		api.agentFail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // passThrough answers with what a server's agent says to op, which takes no arguments.
@@ -322,6 +360,9 @@ func (api *API) agentFail(w http.ResponseWriter, r *http.Request, err error) {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 	case errors.Is(err, agents.ErrNoServer):
 		writeError(w, http.StatusNotFound, err.Error())
+	case errors.As(err, &agentErr) && (strings.HasPrefix(agentErr.Message, "unknown request") || strings.HasPrefix(agentErr.Message, "unknown file operation")):
+		// The panel asked for something newer than this agent.
+		writeError(w, http.StatusBadRequest, "this server's agent is older than the panel and can't do that yet: update it from the server's page")
 	case errors.As(err, &agentErr):
 		writeError(w, http.StatusBadRequest, agentErr.Message)
 	case errors.Is(err, context.DeadlineExceeded):

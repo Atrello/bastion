@@ -1,7 +1,7 @@
 # Building and checking Bastion. `make` builds the panel into bin/; `make check` runs everything a change
 # has to pass: tests, vet, formatting, the vulnerability scans and the web app's type check.
 
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+VERSION ?= $(shell cat VERSION)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: all build web panel agent agents test check image

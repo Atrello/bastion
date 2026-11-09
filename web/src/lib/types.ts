@@ -20,6 +20,8 @@ export type Server = {
   cpus: number;
   docker: string;
   agentVersion: string;
+  /** The panel hands out a newer agent than the one this server runs. */
+  agentUpdate: boolean;
   online: boolean;
   /** When the agent last said anything, as an ISO time. */
   lastSeen: string;

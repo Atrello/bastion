@@ -26,6 +26,9 @@ type Config struct {
 	AgentID   string `json:"agentId"`
 	Secret    string `json:"secret"`
 	StacksDir string `json:"stacksDir"`
+	// NoRemoteUpdates refuses updates sent from the panel (docs/security.md): set it by hand in this file
+	// to update only by running a join command on the server.
+	NoRemoteUpdates bool `json:"noRemoteUpdates,omitempty"`
 }
 
 func ConfigPath() string {
@@ -121,7 +124,7 @@ func Join(panel, token string, insecure bool) error {
 func hello() protocol.Hello {
 	hostname, _ := os.Hostname()
 	return protocol.Hello{
-		Protocol: protocol.Version, Version: Version, Hostname: hostname, OS: osName(),
+		Protocol: protocol.Version, Version: Version, Build: Build(), Hostname: hostname, OS: osName(),
 		Arch: runtime.GOARCH, CPUs: runtime.NumCPU(), Docker: dockerVersion(), Address: localAddress(),
 	}
 }

@@ -76,7 +76,7 @@
   <SignIn passkeys={auth.passkeys} ondone={checkAuth} />
 {:else}
 <div class="frame">
-  <Sidebar username={auth.username ?? ''} friend={auth.role === 'friend'} onsignout={signOut} />
+  <Sidebar username={auth.username ?? ''} version={auth.version} friend={auth.role === 'friend'} onsignout={signOut} />
   <main>
     {#if auth.role === 'friend'}
       <!-- A friend sees only the game servers shared with them, and their own account. -->

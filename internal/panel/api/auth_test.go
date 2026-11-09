@@ -40,7 +40,7 @@ func newPanel(t *testing.T) *browser {
 	// Passkeys need a name, not an IP address: the panel is "localhost" to its browsers here.
 	b.server.URL = strings.Replace(b.server.URL, "127.0.0.1", "localhost", 1)
 	public, _ := url.Parse(b.server.URL)
-	cfg := &config.Config{PublicURL: public, SessionIdle: time.Hour}
+	cfg := &config.Config{PublicURL: public, SessionIdle: time.Hour, AgentBinaries: t.TempDir(), Version: "0.4.0"}
 	b.api, err = New(context.Background(), cfg, db, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)

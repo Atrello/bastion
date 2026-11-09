@@ -49,6 +49,7 @@ const (
 	OpStreamInput     = "stream.input"     // StreamInput: keys typed into a terminal
 	OpStreamResize    = "stream.resize"    // StreamResize: the terminal's new size
 	OpStreamStop      = "stream.stop"      // ends a stream
+	OpAgentUpdate     = "agent.update"     // AgentUpdateArgs: replace this agent with the panel's, then restart
 )
 
 // Stream parts.
@@ -67,6 +68,9 @@ const (
 type Hello struct {
 	Protocol int    `json:"protocol"`
 	Version  string `json:"version"`
+	// Build is the SHA-256 of the agent's own program: the panel compares it with the one it hands out to
+	// tell an agent that needs updating, whatever its version says. Agents before 0.4.0 don't send it.
+	Build    string `json:"build,omitempty"`
 	Hostname string `json:"hostname"`
 	OS       string `json:"os"`
 	Arch     string `json:"arch"`
@@ -74,6 +78,12 @@ type Hello struct {
 	Docker   string `json:"docker"`
 	// Address is the server's address on its network, for proxy hosts pointing at it.
 	Address string `json:"address,omitempty"`
+}
+
+// AgentUpdateArgs: the SHA-256 of the program the panel offers at /downloads. The agent downloads it,
+// and only puts it in place if it's exactly that.
+type AgentUpdateArgs struct {
+	Build string `json:"build"`
 }
 
 type Metrics struct {

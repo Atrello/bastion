@@ -1,6 +1,6 @@
 <!-- One server: how it's doing, what it is, and what runs on it, each linking to the page that manages it
      (stacks, game servers, containers, volumes and images live on their own pages, not here). Also a new
-     join command, for reinstalling its agent, and removing it from Bastion. -->
+     join command, for reinstalling its agent, updating its agent from here, and removing it from Bastion. -->
 <script lang="ts">
   import Meter from '../components/Meter.svelte';
   import Modal from '../components/Modal.svelte';
@@ -32,6 +32,26 @@
 
   let error = $state<string>();
   let joinCommand = $state<string>();
+  let updating = $state(false);
+
+  // The agent replaces itself and restarts: watch until it's back running the new one (a minute at most).
+  async function updateAgent() {
+    error = undefined;
+    updating = true;
+    try {
+      await api.updateAgent(id);
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        await servers.reload();
+        if (server?.online && !server.agentUpdate) break;
+      }
+      if (server?.agentUpdate) error = "The agent hasn't come back updated yet: it may still be restarting.";
+    } catch (err) {
+      error = (err as Error).message;
+    } finally {
+      updating = false;
+    }
+  }
 
   async function newCommand() {
     error = undefined;
@@ -101,7 +121,14 @@
         <dt>Docker</dt>
         <dd>{s.docker || '–'}</dd>
         <dt>Agent</dt>
-        <dd class="mono">{s.agentVersion || '–'}</dd>
+        <dd>
+          <span class="mono">{s.agentVersion || '–'}</span>
+          {#if updating}
+            <span class="badge amber">Updating…</span>
+          {:else if s.agentUpdate && s.online}
+            <button class="small" title="The panel has a newer agent" onclick={updateAgent}>Update agent</button>
+          {/if}
+        </dd>
       </dl>
     </section>
     <section class="card">
@@ -209,6 +236,10 @@
   dd {
     margin: 0;
     overflow-wrap: anywhere;
+  }
+  dd .small {
+    padding: 2px 10px;
+    margin-left: 4px;
   }
   .links {
     list-style: none;

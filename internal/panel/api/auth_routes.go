@@ -155,6 +155,7 @@ func (api *API) state(w http.ResponseWriter, r *http.Request) {
 		reply["signedIn"] = true
 		reply["username"] = u.Username
 		reply["role"] = u.Role
+		reply["version"] = api.cfg.Version // only to those signed in: no help to anyone probing for old versions
 	}
 	writeJSON(w, reply)
 }

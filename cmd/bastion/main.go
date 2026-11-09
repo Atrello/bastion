@@ -39,6 +39,7 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	cfg.Version = version
 	db, err := store.Open(ctx, cfg.DataDir)
 	if err != nil {
 		return err

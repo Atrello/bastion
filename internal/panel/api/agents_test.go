@@ -1,8 +1,12 @@
 package api
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -164,5 +168,77 @@ func TestServerListedOnceJoined(t *testing.T) {
 	// Once joined, the name is taken.
 	if status, _ := b.call(b.client, "POST", "/api/servers", map[string]string{"name": "vega"}); status != 400 {
 		t.Fatalf("a joined server's name was reused: %d", status)
+	}
+}
+
+// An agent that isn't the one the panel hands out shows as needing an update, and is told which to fetch.
+// One too old to know how is told to update by hand; one asked for something it doesn't know says so.
+func TestAgentUpdate(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	program := []byte("the panel's agent for amd64")
+	_ = os.WriteFile(filepath.Join(b.api.cfg.AgentBinaries, "bastion-agent-linux-amd64"), program, 0o755)
+	sum := sha256.Sum256(program)
+	want := hex.EncodeToString(sum[:])
+
+	id, secret := b.joinAgent()
+	ws, _ := b.dialAgent(id+"."+secret, nil)
+	defer ws.Close()
+	hello, _ := json.Marshal(protocol.Hello{Version: "0.3.0", Arch: "amd64", Build: "an-older-one"})
+	_ = ws.WriteJSON(protocol.Message{Event: protocol.EventHello, Data: hello})
+
+	update := func() []map[string]any {
+		var servers []map[string]any
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			res, _ := b.client.Get(b.server.URL + "/api/servers")
+			_ = json.NewDecoder(res.Body).Decode(&servers)
+			res.Body.Close()
+			if len(servers) == 1 && servers[0]["agentUpdate"] == true {
+				break
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		return servers
+	}
+	if servers := update(); len(servers) != 1 || servers[0]["agentUpdate"] != true {
+		t.Fatalf("an old agent isn't shown as needing an update: %v", servers)
+	}
+
+	// The fake agent: first answers like an agent from before updates, then like a current one.
+	asked := make(chan protocol.AgentUpdateArgs, 2)
+	go func() {
+		for i := 0; ; i++ {
+			var m protocol.Message
+			if ws.ReadJSON(&m) != nil {
+				return
+			}
+			if m.Op != protocol.OpAgentUpdate {
+				continue
+			}
+			var a protocol.AgentUpdateArgs
+			_ = json.Unmarshal(m.Args, &a)
+			asked <- a
+			ok := i > 0
+			reply := protocol.Message{ID: m.ID, OK: &ok}
+			if !ok {
+				reply.Error = "unknown request agent.update"
+			}
+			_ = ws.WriteJSON(reply)
+		}
+	}()
+	if status, r := b.call(b.client, "POST", "/api/servers/1/agent/update", nil); status != 400 || !strings.Contains(r["error"].(string), "by hand") {
+		t.Fatalf("an agent too old to update itself: %d %v", status, r)
+	}
+	<-asked
+	if status, r := b.call(b.client, "POST", "/api/servers/1/agent/update", nil); status != 204 {
+		t.Fatalf("updating: %d %v", status, r)
+	}
+	if a := <-asked; a.Build != want {
+		t.Fatalf("the agent was told to fetch %q, not the panel's %q", a.Build, want)
+	}
+	// Friends can't.
+	if status, _ := b.call(b.newClient(), "POST", "/api/servers/1/agent/update", nil); status != 401 {
+		t.Fatalf("updating signed out: %d", status)
 	}
 }

@@ -26,6 +26,8 @@ type Config struct {
 	TrustProxy bool
 	// Where the agent's programs are, for new servers to download (the container image puts them in /agents).
 	AgentBinaries string
+	// The panel's version (the VERSION file, set when building), shown to those signed in.
+	Version string
 }
 
 func Load() (*Config, error) {

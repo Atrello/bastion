@@ -58,8 +58,14 @@ through.
 ## Updating
 
 - **The panel:** `git pull && docker compose up -d --build` in `deploy`.
-- **An agent:** run the join steps again with a new join command; it replaces the program and keeps the
-  server's place in the panel.
+- **An agent:** after the panel is updated, a server whose agent is older shows **Update agent** on its
+  page (and the Servers page offers to update them all). The agent downloads the panel's copy of itself,
+  checks it's exactly that program (its SHA-256), swaps it in and restarts; it's back in a few seconds and
+  everything it runs keeps running. Agents from before 0.4.0 can't do this: update one of those once by
+  running a new join command on it (from its page), which replaces the program and keeps the server's place.
+
+The version is in the `VERSION` file, shown at the foot of the menu and for each agent. Bastion tells an
+agent that needs updating by its program's fingerprint, not its version, so it notices any change.
 
 ## Removing an agent
 

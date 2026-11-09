@@ -47,6 +47,7 @@ it's 400 with Docker's own message.
 | `GET /servers` | Every server whose agent has joined, with its health and counts. One added but not yet joined isn't listed |
 | `POST /servers` | Adds a server: `{"name"}`. Returns it and the one-time command that installs and joins its agent (it works once, for an hour). It's listed once its agent has joined; if it never joins it's forgotten when the command expires, or when a server is added again under the same name |
 | `POST /servers/{id}/join-command` | A new join command for the server (a reinstalled server, say). Its agent keeps working until the command is used |
+| `POST /servers/{id}/agent/update` | Has the server's agent replace itself with the panel's (by SHA-256) and restart. `agentUpdate` in `GET /servers` says when one is due |
 | `DELETE /servers/{id}` | Removes a server. Its agent is disconnected; its stacks keep running |
 | `GET /stacks` | Every stack on every server, with `updates`: how many of its containers have a newer image |
 | `POST /updates/check` | Asks every server to check its images' registries now (they also check every 6 hours) |

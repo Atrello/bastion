@@ -150,3 +150,5 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | A friend can do everything with a shared game except change its limits, image or ports, delete or share it, or change settings the egg keeps from players. No finer permissions | Simple, and what sharing with a friend needs; Pterodactyl's per-permission subusers can come later |
 | 9 Nov 2026 | NPM's own users, audit log and default site settings stay in NPM | They're about running NPM itself, not your sites; Bastion's NPM user shouldn't be able to change them |
 | 9 Nov 2026 | Two-factor and passkeys with `go-webauthn` and `pquerna/otp`, not Better Auth | Better Auth is a JavaScript library and the panel is Go; these are its established Go equivalents |
+| 9 Nov 2026 | Version 0.4.0, from a `VERSION` file. Agents update from the panel (Update agent, or all from Servers); one that needs it is told by its program's SHA-256, not its version | Asked for; agents fell behind the panel and failed new requests ("unknown file operation unarchive") |
+| 9 Nov 2026 | A server added but never joined isn't shown, and is forgotten when its join command expires | Asked for |

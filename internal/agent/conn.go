@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -246,6 +247,15 @@ func (c *conn) handle(m protocol.Message) {
 		c.event(protocol.EventMetrics, c.metrics(context.Background()))
 	}
 	c.answer(m.ID, data, err)
+	if m.Op == protocol.OpAgentUpdate && err == nil {
+		// The new program is in place: stop, and systemd (Restart=always) starts it a few seconds later.
+		// A moment first, so the answer gets to the panel.
+		c.log.Info("updated: restarting")
+		go func() {
+			time.Sleep(time.Second)
+			os.Exit(0)
+		}()
+	}
 }
 
 // do runs one request. A pull or an update can take a while, so each has up to 15 minutes.
@@ -332,6 +342,19 @@ func (c *conn) do(m protocol.Message) (any, error) {
 			return nil, err
 		}
 		return nil, deleteGame(ctx, a.ID)
+	case protocol.OpAgentUpdate:
+		if c.cfg.NoRemoteUpdates {
+			return nil, errors.New("this agent is set not to be updated from the panel (noRemoteUpdates in " + ConfigPath() + "): update it with a new join command instead")
+		}
+		var a protocol.AgentUpdateArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		exe, err := os.Executable()
+		if err != nil {
+			return nil, err
+		}
+		return nil, selfUpdate(ctx, c.cfg.Panel, exe, a.Build)
 	case protocol.OpGameFiles:
 		var a protocol.GameFileArgs
 		if err := decode(m.Args, &a); err != nil {

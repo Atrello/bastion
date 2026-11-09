@@ -85,7 +85,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-export type AuthState = { setupNeeded: boolean; signedIn: boolean; username?: string; role?: 'owner' | 'friend'; passkeys: boolean };
+export type AuthState = { setupNeeded: boolean; signedIn: boolean; username?: string; role?: 'owner' | 'friend'; passkeys: boolean; version?: string };
 export type Account = {
   username: string;
   hasAuthenticator: boolean;
@@ -129,6 +129,8 @@ export const api = {
   /** A fresh one-time command to join (or re-join) a server, for an hour. */
   newJoinCommand: (id: number) => request<{ joinCommand: string }>('POST', `/servers/${id}/join-command`),
   /** Forgets a server and disconnects its agent; what it runs keeps running. */
+  /** Has the server's agent update itself to the panel's, then restart: back in a few seconds. */
+  updateAgent: (id: number) => request<void>('POST', `/servers/${id}/agent/update`),
   deleteServer: (id: number) => request<void>('DELETE', `/servers/${id}`),
   addServer: (name: string) => request<{ server: Server; joinCommand: string }>('POST', '/servers', { name }),
   stacks: () => request<Stack[]>('GET', '/stacks'),
