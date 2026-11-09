@@ -32,3 +32,6 @@ export function ago(iso: string): string {
 }
 
 export const percent = (used: number, total: number) => (total ? Math.round((used / total) * 100) : 0);
+
+/** 1 → "1 stack", 3 → "3 stacks". */
+export const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;

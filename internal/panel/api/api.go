@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"database/sql"
+
+	"github.com/Atrello/bastion/internal/panel/agents"
 	"github.com/Atrello/bastion/internal/panel/auth"
 	"github.com/Atrello/bastion/internal/panel/config"
 	"github.com/Atrello/bastion/internal/panel/store"
@@ -18,7 +21,9 @@ import (
 
 type API struct {
 	cfg  *config.Config
+	db   *sql.DB
 	auth *auth.Auth
+	hub  *agents.Hub
 	log  *slog.Logger
 	mux  *http.ServeMux
 }
@@ -29,7 +34,7 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 	if err != nil {
 		return nil, err
 	}
-	api := &API{cfg: cfg, auth: a, log: log, mux: http.NewServeMux()}
+	api := &API{cfg: cfg, db: db.DB, auth: a, hub: agents.NewHub(db.DB, log), log: log, mux: http.NewServeMux()}
 	api.routes()
 
 	if has, err := a.HasUsers(ctx); err != nil {
@@ -52,10 +57,13 @@ func (api *API) routes() {
 	m := api.mux
 	m.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, map[string]bool{"ok": true}) })
 	api.authRoutes()
+	api.serverRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead && !api.sameOrigin(r) {
+	// Agents aren't browsers: they have no cookies and send no Origin, and sign in with their own secret.
+	isAgent := strings.HasPrefix(r.URL.Path, "/api/agent/")
+	if !isAgent && r.Method != http.MethodGet && r.Method != http.MethodHead && !api.sameOrigin(r) {
 		writeError(w, http.StatusForbidden, "requests that change things must come from the panel itself")
 		return
 	}
@@ -102,11 +110,16 @@ func (api *API) clientAddress(r *http.Request) string {
 
 // readJSON reads a request's JSON body into v: at most 64 KB, and only the fields v has.
 func readJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	return readJSONLimit(w, r, v, 64<<10)
+}
+
+// readJSONLimit is readJSON with a different size limit, for the few requests that carry files.
+func readJSONLimit(w http.ResponseWriter, r *http.Request, v any, limit int64) bool {
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 		writeError(w, http.StatusUnsupportedMediaType, "send JSON")
 		return false
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		writeError(w, http.StatusBadRequest, "that request couldn't be read")

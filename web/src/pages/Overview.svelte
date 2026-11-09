@@ -3,7 +3,7 @@
   import Meter from '../components/Meter.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import { api } from '../lib/api';
-  import { ago, bytes, duration, percent } from '../lib/format';
+  import { ago, bytes, count, duration, percent } from '../lib/format';
   import { load } from '../lib/load.svelte';
 
   const servers = load(api.servers);
@@ -54,7 +54,7 @@
       {:else}
         <p class="offline">Agent offline since {ago(server.lastSeen)}</p>
       {/if}
-      <p class="small counts"><b>{server.stacks}</b> stacks <b>{server.containers}</b> containers</p>
+      <p class="small counts">{count(server.stacks, 'stack')} · {count(server.containers, 'container')}</p>
     </a>
   {/each}
 </div>
@@ -100,14 +100,6 @@
   .counts {
     margin: 4px 0 0;
     color: var(--muted);
-  }
-  .counts b {
-    color: var(--text);
-    font-weight: 600;
-    margin-left: 6px;
-  }
-  .counts b:first-child {
-    margin-left: 0;
   }
   ul {
     list-style: none;

@@ -112,8 +112,9 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.1 step 1: panel server skeleton | Done |
 | 0.1 step 2: sign-in with two-factor and passkeys | Done |
 | 0.1 step 3: agent protocol | Done (`docs/protocol.md`, `internal/protocol`) |
-| 0.1 step 4: agent | Done (`cmd/bastion-agent`, `internal/agent`); tested against real Docker in step 5 |
-| 0.1 step 5: the API, wired up | Next |
+| 0.1 step 4: agent | Done (`cmd/bastion-agent`, `internal/agent`) |
+| 0.1 step 5: the API, wired up | Done: tested end to end with a real agent and Docker (a stack found, its files read and saved, a broken file refused by Docker, deployed, logs, history) |
+| 0.1 step 6: live logs and container consoles | Next |
 
 ## Changes to the plan
 

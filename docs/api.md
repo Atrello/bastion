@@ -37,12 +37,17 @@ minutes, then longer.
 
 ### Servers, stacks and containers
 
-Coming in step 5 of the plan.
+Lists come from what each agent last reported, so they answer at once whether or not a server is
+online. Anything that reads files or changes something is passed to the server's agent; if the agent
+isn't connected the answer is 503, and if the server refused (a compose file Docker says is wrong, say)
+it's 400 with Docker's own message.
 
 | Method and path | What it does |
 |---|---|
 | `GET /servers` | Every server, with its health and counts |
-| `POST /servers` | Adds a server: `{"name"}`. Returns it and the one-time command that installs and joins its agent |
+| `POST /servers` | Adds a server: `{"name"}`. Returns it and the one-time command that installs and joins its agent (it works once, for an hour) |
+| `POST /servers/{id}/join-command` | A new join command for the server (a reinstalled server, say). Its agent's old secret stops working |
+| `DELETE /servers/{id}` | Removes a server. Its agent is disconnected; its stacks keep running |
 | `GET /stacks` | Every stack on every server |
 | `GET /containers` | Every container on every server |
 | `GET /servers/{id}/stacks/{name}/files` | The stack's compose file and `.env`, as they are on the server (`env` is null when there's no `.env`) |
@@ -50,6 +55,16 @@ Coming in step 5 of the plan.
 | `GET /servers/{id}/stacks/{name}/logs?tail=200` | The last lines of every container's logs |
 | `GET /servers/{id}/stacks/{name}/history` | Earlier versions of the compose file |
 | `POST /servers/{id}/stacks/{name}/actions/{action}` | `up`, `down`, `start`, `stop`, `restart`, `pull`, or `update` (pull and recreate what changed). Returns Docker's output |
+| `POST /servers/{id}/containers/{id}/actions/{action}` | `start`, `stop` or `restart` one container |
+
+### For agents
+
+Not for browsers: these refuse requests with an `Origin` header. See `docs/protocol.md`.
+
+| Method and path | What it does |
+|---|---|
+| `POST /agent/enrol` | `{"token", "hostname"}`: swaps a join token for the agent's `{"agentId", "secret"}` |
+| `GET /agent/connect` | The agent's websocket, with `Authorization: Bearer <agentId>.<secret>` |
 
 ### Game servers
 
