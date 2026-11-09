@@ -226,6 +226,12 @@ var alertClient = &http.Client{Timeout: 15 * time.Second}
 
 // send delivers one message to one channel.
 func (api *API) send(ctx context.Context, c channel, title, body string) error {
+	return api.sendLinked(ctx, c, title, body, "")
+}
+
+// sendLinked is send with a link the message is about (a backup's download, say): ntfy opens it when the
+// notification is tapped; elsewhere it's in the message already.
+func (api *API) sendLinked(ctx context.Context, c channel, title, body, link string) error {
 	post := func(address string, payload []byte, headers map[string]string) error {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, address, bytes.NewReader(payload))
 		if err != nil {
@@ -247,6 +253,9 @@ func (api *API) send(ctx context.Context, c channel, title, body string) error {
 	switch c.Kind {
 	case "ntfy":
 		headers := map[string]string{"Title": title, "Tags": "bastion"}
+		if link != "" {
+			headers["Click"] = link
+		}
 		if c.config.Token != "" {
 			headers["Authorization"] = "Bearer " + c.config.Token
 		}
@@ -370,6 +379,7 @@ func (api *API) watchAlerts(ctx context.Context) {
 			return
 		case <-tick.C:
 			api.checkAlerts(ctx)
+			api.checkGameEvents(ctx)
 		}
 	}
 }

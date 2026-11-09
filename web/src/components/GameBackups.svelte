@@ -61,13 +61,16 @@
             {#if b.store}<span class="badge">{b.store}</span>{/if}
             {#if b.state === 'making'}<span class="badge amber">Making…</span>{:else if b.state === 'failed'}<span class="badge red">Failed</span>{/if}
           </td>
-          <td>{b.state === 'done' ? bytes(b.size) : ''}</td>
-          <td class="muted">{ago(b.createdAt)}</td>
+          <td class="nowrap">{b.state === 'done' ? bytes(b.size) : ''}</td>
+          <td class="muted nowrap">{ago(b.createdAt)}</td>
           <td class="buttons">
             {#if b.state === 'done'}
               <button onclick={() => restore(b)}>Restore</button>
               <a class="button" href={api.gameBackupDownload(game.id, b.id)}>Download</a>
               <button onclick={() => attempt(() => api.lockGameBackup(game.id, b.id, !b.locked))}>{b.locked ? 'Unlock' : 'Lock'}</button>
+              {#if b.links && game.owner}
+                <button title="Download links to it were sent in a notification" onclick={async () => (await sure('Stop its download links?', `The ${b.links === 1 ? 'link' : `${b.links} links`} sent in notifications stop working now.`, 'Stop links')) && attempt(() => api.stopBackupLinks(game.id, b.id), 'Its links have stopped.')}>Stop links</button>
+              {/if}
             {/if}
             {#if !b.locked && b.state !== 'making'}
               <button class="danger" onclick={async () => (await sure(`Delete "${b.name}"?`, b.store ? `The backup's file is deleted from ${b.store}.` : "The backup's file is deleted from the server.")) && attempt(() => api.deleteGameBackup(game.id, b.id))}>Delete</button>
@@ -87,6 +90,9 @@
   }
   .buttons {
     text-align: right;
+  }
+  .nowrap {
+    white-space: nowrap;
   }
   .buttons > * {
     margin-left: 6px;

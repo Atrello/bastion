@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"mime"
 	"net/http"
 	"path"
@@ -273,6 +274,41 @@ func tooBig(g *game, limit int64) string {
 	return "50 GB, the most one upload can be"
 }
 
+// fileName is s in letters any file system takes: lower case letters, digits and dashes, at most max.
+func fileName(s string, max int) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r >= 'a' && r <= 'z' || r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case b.Len() > 0 && !strings.HasSuffix(b.String(), "-"):
+			b.WriteByte('-')
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if len(out) > max {
+		out = strings.TrimRight(out[:max], "-")
+	}
+	if out == "" {
+		return "backup"
+	}
+	return out
+}
+
+// sizeText is a size as people read it: "4.2 GB".
+func sizeText(n int64) string {
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	f, i := float64(n), 0
+	for f >= 1024 && i < len(units)-1 {
+		f /= 1024
+		i++
+	}
+	if i == 0 {
+		return fmt.Sprintf("%d B", n)
+	}
+	return fmt.Sprintf("%.1f %s", f, units[i])
+}
+
 // sendPieces streams a file from the agent to the browser as a download, a piece at a time.
 func sendPieces(w http.ResponseWriter, name string, piece func(offset int64) ([]byte, int64, error)) error {
 	data, size, err := piece(0)
@@ -320,13 +356,15 @@ type backupView struct {
 	State     string `json:"state"`
 	CreatedAt string `json:"createdAt"`
 	Store     string `json:"store"` // the backup storage it's in, "" for the game's own server
+	Links     int    `json:"links"` // download links to it still working (sent in notifications)
 	file      string
 	storeID   sql.NullInt64
 }
 
 func (api *API) listBackups(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
-	rows, err := api.db.QueryContext(r.Context(), `SELECT b.id, b.name, b.size, b.locked, b.state, b.created_at, coalesce(s.name, '')
-		FROM game_backups b LEFT JOIN backup_stores s ON s.id = b.store_id WHERE b.game_id = ? ORDER BY b.id DESC`, g.ID)
+	rows, err := api.db.QueryContext(r.Context(), `SELECT b.id, b.name, b.size, b.locked, b.state, b.created_at, coalesce(s.name, ''),
+		(SELECT COUNT(*) FROM backup_links l WHERE l.backup_id = b.id AND l.expires_at > ?)
+		FROM game_backups b LEFT JOIN backup_stores s ON s.id = b.store_id WHERE b.game_id = ? ORDER BY b.id DESC`, time.Now().UTC().Format(time.RFC3339), g.ID)
 	if err != nil {
 		api.fail(w, r, err)
 		return
@@ -335,7 +373,7 @@ func (api *API) listBackups(w http.ResponseWriter, r *http.Request, _ *auth.User
 	list := []backupView{}
 	for rows.Next() {
 		var b backupView
-		if rows.Scan(&b.ID, &b.Name, &b.Size, &b.Locked, &b.State, &b.CreatedAt, &b.Store) == nil {
+		if rows.Scan(&b.ID, &b.Name, &b.Size, &b.Locked, &b.State, &b.CreatedAt, &b.Store, &b.Links) == nil {
 			list = append(list, b)
 		}
 	}
@@ -354,17 +392,22 @@ func (api *API) backup(ctx context.Context, g *game, id int64) (*backupView, err
 }
 
 // startBackup makes a backup in the background: a big world takes a while.
+// Its name is the one given (or "Backup") with the date and time: "Nightly-2026-11-09-1915". Its file, on
+// the server or in backup storage, is called the same, in letters any file system takes, with a few
+// random ones so two made in the same minute don't clash.
 func (api *API) startBackup(ctx context.Context, g *game, name string) (int64, error) {
 	if name == "" {
-		name = "Backup " + time.Now().Format("2 Jan 2006 15:04")
+		name = "Backup"
 	}
-	file := fmt.Sprintf("b-%d.tar.gz", time.Now().UnixNano())
+	stamp := time.Now().Format("2006-01-02-1504")
+	name = clipText(name, 60) + "-" + stamp
+	file := fmt.Sprintf("%s-%04x.tar.gz", fileName(name, 50), rand.IntN(1<<16)) // the name has the date already
 	store := sql.NullInt64{Int64: g.BackupStore, Valid: g.BackupStore != 0}
 	target, err := api.s3Target(ctx, store, g.ID, file)
 	if err != nil {
 		return 0, err
 	}
-	res, err := api.db.ExecContext(ctx, `INSERT INTO game_backups (game_id, file, name, store_id) VALUES (?, ?, ?, ?)`, g.ID, file, clipText(name, 80), store)
+	res, err := api.db.ExecContext(ctx, `INSERT INTO game_backups (game_id, file, name, store_id) VALUES (?, ?, ?, ?)`, g.ID, file, name, store)
 	if err != nil {
 		return 0, err
 	}
@@ -380,6 +423,13 @@ func (api *API) startBackup(ctx context.Context, g *game, name string) (int64, e
 			api.log.Warn("backup failed", "game", g.ID, "err", err)
 		}
 		_, _ = api.db.Exec(`UPDATE game_backups SET state = ?, size = ? WHERE id = ?`, state, result.Size, id)
+		values := map[string]string{"backup": name, "size": sizeText(result.Size)}
+		if err != nil {
+			_, values["error"] = api.agentProblem("backup", err)
+			api.notify("backup_failed", g, id, values)
+		} else {
+			api.notify("backup_done", g, id, values)
+		}
 	}()
 	return id, nil
 }
@@ -466,7 +516,12 @@ func (api *API) downloadBackup(w http.ResponseWriter, r *http.Request, _ *auth.U
 		writeError(w, http.StatusNotFound, "no such backup")
 		return
 	}
-	name := strings.NewReplacer(" ", "-", ":", "").Replace(g.Name+"-"+b.CreatedAt[:10]) + ".tar.gz"
+	api.sendBackup(w, r, g, b)
+}
+
+// sendBackup streams a backup to the browser, from the game's server or its backup storage.
+func (api *API) sendBackup(w http.ResponseWriter, r *http.Request, g *game, b *backupView) {
+	name := fileName(g.Name+"-"+b.Name, 120) + ".tar.gz" // survival-smp-nightly-2026-11-09-1915.tar.gz
 	target, err := api.s3Target(r.Context(), b.storeID, g.ID, b.file)
 	if err != nil {
 		api.fail(w, r, err)

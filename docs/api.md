@@ -182,6 +182,20 @@ Up to 5 jobs each at once (`429` past that); a job runs for 6 hours at most.
 | `GET /games/{id}/backups/{backup}/download` | The backup as a `.tar.gz` |
 | `PUT /games/{id}/backup-store` | `{"storeId"}`: where its new backups go (0 for its own server). Owner only. Each backup's `store` says where it is |
 
+### Custom notifications (owner only)
+
+| Route | What it does |
+|---|---|
+| `GET /notifications` | The notifications made |
+| `POST /notifications`, `PUT /notifications/{id}` | `{"name", "event", "gameId", "channelId", "title", "message", "linkDays", "enabled"}`. `event` is `backup_done`, `backup_failed`, `game_started`, `game_stopped` or `game_crashed`; `gameId` 0 for any game; `channelId` one of the alert channels. The title and message take `{game}`, `{server}`, `{backup}`, `{size}`, `{error}`, `{time}` and `{link}`. `linkDays` (1 to 30, for `backup_done` only) adds a link that downloads the backup without signing in for that many days |
+| `DELETE /notifications/{id}` | Deletes it |
+| `POST /notifications/{id}/test` | Sends it now with made-up details (its link doesn't work) |
+| `DELETE /games/{id}/backups/{backup}/links` | Stops every download link to that backup |
+| `GET /backup-links/{token}` | Signed out: downloads the backup a link is for, while it works. Wrong links count towards the sign-in limits |
+
+A game's state changes are noticed within 30 seconds. A backup's name is the one given (or "Backup")
+with the date and time, like `Nightly-2026-11-09-1915`, and its file is named the same.
+
 ### Backup storage (owner only)
 
 | Route | What it does |

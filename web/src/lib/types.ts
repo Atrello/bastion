@@ -176,6 +176,23 @@ export type GameBackup = {
   state: 'making' | 'done' | 'failed';
   /** The backup storage it's in; empty when it's on the game's own server. */
   store: string;
+  /** Download links to it, sent in notifications, still working. */
+  links: number;
+};
+
+/** A custom notification (internal/panel/api/notifications.go): when something happens to a game, a message in your own words to a channel. */
+export type NotificationRule = {
+  id: number;
+  name: string;
+  event: 'backup_done' | 'backup_failed' | 'game_started' | 'game_stopped' | 'game_crashed';
+  /** 0 for any game. */
+  gameId: number;
+  channelId: number;
+  title: string;
+  message: string;
+  /** For a backup made: 0, or how many days a download link in the message works. */
+  linkDays: number;
+  enabled: boolean;
 };
 
 /** An S3 bucket (or a service that speaks S3) to keep game backups in. secretKey is only ever sent, never given back. */

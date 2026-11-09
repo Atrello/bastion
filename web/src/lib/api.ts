@@ -19,6 +19,7 @@ import type {
   GameFile,
   GameServer,
   BackupStore,
+  NotificationRule,
   Job,
   Schedule,
   Server,
@@ -212,6 +213,13 @@ export const api = {
     }),
   /** Packs files and folders from one folder into a .tar.gz there. */
   archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<Job>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  notifications: () => request<NotificationRule[]>('GET', '/notifications'),
+  saveNotification: (n: Omit<NotificationRule, 'id'>, id?: number) =>
+    id ? request<void>('PUT', `/notifications/${id}`, n) : request<void>('POST', '/notifications', n),
+  deleteNotification: (id: number) => request<void>('DELETE', `/notifications/${id}`),
+  testNotification: (id: number) => request<void>('POST', `/notifications/${id}/test`),
+  /** Stops every download link to a backup that's been sent in a notification. */
+  stopBackupLinks: (gameId: number, backupId: number) => request<void>('DELETE', `/games/${gameId}/backups/${backupId}/links`),
   backupStores: () => request<BackupStore[]>('GET', '/backup-stores'),
   /** Saves backup storage, after checking it can be written to. An empty secretKey keeps the one it has. */
   saveBackupStore: (s: Omit<BackupStore, 'id' | 'backups'>, id?: number) =>

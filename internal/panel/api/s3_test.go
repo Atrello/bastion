@@ -143,7 +143,7 @@ func TestBackupsInS3(t *testing.T) {
 		key = k
 	}
 	s3.mu.Unlock()
-	if state != "done" || !strings.HasPrefix(key, "/game-backups/bastion/game-1/b-") {
+	if state != "done" || !strings.HasPrefix(key, "/game-backups/bastion/game-1/before-the-update-") {
 		t.Fatalf("making it: %s, in S3 as %q", state, key)
 	}
 	if left, _ := filepath.Glob(filepath.Join(dir, "backups", "1", "*")); len(left) != 0 {

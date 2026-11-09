@@ -1,6 +1,8 @@
-<!-- Alerts: where they go (ntfy, Discord, email), which kinds are on, and what's been raised. -->
+<!-- Alerts: where they go (ntfy, Discord, email), which kinds are on, custom notifications about game
+     servers, and what's been raised. -->
 <script lang="ts">
   import Modal from '../components/Modal.svelte';
+  import Notifications from '../components/Notifications.svelte';
   import { api } from '../lib/api';
   import { ago } from '../lib/format';
   import { load } from '../lib/load.svelte';
@@ -85,6 +87,8 @@
       {/each}
     </section>
   </div>
+
+  <Notifications channels={p.channels} onnote={(ok, text) => (note = { ok, text })} />
 
   <h2 class="recent">Recent</h2>
   <div class="card table-card">

@@ -27,8 +27,10 @@ type API struct {
 	npm   *npmState
 	games *gameState
 	jobs  *jobList
-	log   *slog.Logger
-	mux   *http.ServeMux
+	// Games' states as last seen, for notifications of changes.
+	gameEvents *gameStates
+	log        *slog.Logger
+	mux        *http.ServeMux
 }
 
 // New builds the API and, on a panel nobody has set up yet, prints the one-time setup link to the log.
@@ -73,6 +75,7 @@ func (api *API) routes() {
 	api.gameRoutes()
 	api.jobRoutes()
 	api.backupStoreRoutes()
+	api.notificationRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {

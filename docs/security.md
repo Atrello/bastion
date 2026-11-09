@@ -45,6 +45,10 @@ try to break in. This is what it protects, from whom, and how.
 - **Build tools.** `npm audit` reports a low-severity issue in `deepmerge`, used by Svelte's Vite plugin
   while building the web app. It isn't part of the panel that runs, and there's no fixed version yet.
 
+- **Backup download links work signed out.** A custom notification can carry a link that downloads a
+  backup without signing in, for 1 to 30 days: whoever has it has the world. Only a hash of each is kept;
+  it stops when it expires, when its backup is deleted, or with Stop links. Wrong links count towards the
+  sign-in limits, though 256 random bits can't be guessed anyway.
 - **Backup storage keys are kept.** An S3 bucket's secret key is in Bastion's database, sent to an agent
   only with each backup request (agents don't keep it), and never sent to the web app. Give Bastion keys of
   its own that reach only that bucket. Plain http is refused except for a private address.

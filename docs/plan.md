@@ -157,3 +157,5 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | A list from NPM is asked again with less included when NPM can't include something (NPMplus versions differ on access lists) | NPMplus answered "Internal Error" to the proxy hosts list |
 | 9 Nov 2026 | Game containers are named bastion-<server>-<game> and found by their bastion.game label | Asked for; a renamed game's container takes its new name when it next starts |
 | 9 Nov 2026 | Game backups can be kept in S3 (any service that speaks it), chosen per game; made on the server, uploaded, then removed there | Asked for |
+| 9 Nov 2026 | Custom notifications: per event (backup made or failed, game started, stopped or crashed), any game or one, in your own words, to an alert channel, optionally with a signed-out download link for a few days | Asked for ("a Minecraft server backup should post a download link") |
+| 9 Nov 2026 | Backups are named "<name>-<date>-<time>", and their files the same | Asked for |

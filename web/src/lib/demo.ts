@@ -238,9 +238,9 @@ const schedules: Schedule[] = [
 ];
 
 const backups: GameBackup[] = [
-  { id: 41, name: 'Nightly', size: 4.1 * GB, createdAt: minutesAgo(60 * 16), locked: false, state: 'done', store: '' },
-  { id: 40, name: 'Before 1.21.4 update', size: 3.9 * GB, createdAt: minutesAgo(60 * 76), locked: true, state: 'done', store: 'Backblaze' },
-  { id: 39, name: 'Nightly', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false, state: 'done', store: '' },
+  { id: 41, name: 'Nightly-2026-11-09-0400', size: 4.1 * GB, createdAt: minutesAgo(60 * 16), locked: false, state: 'done', store: '', links: 1 },
+  { id: 40, name: 'Before 1.21.4 update-2026-11-06-1932', size: 3.9 * GB, createdAt: minutesAgo(60 * 76), locked: true, state: 'done', store: 'Backblaze', links: 0 },
+  { id: 39, name: 'Nightly-2026-11-08-0400', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false, state: 'done', store: '', links: 0 },
 ];
 
 const health = (status: number, ms: number) => ({ status, ms, checkedAt: minutesAgo(2) });
@@ -293,6 +293,11 @@ function demoJob(path: string, body: unknown): Job {
 }
 
 export function demo(method: string, path: string, body?: unknown): unknown {
+  if (path === '/notifications')
+    return [
+      { id: 1, name: 'Survival backups to Discord', event: 'backup_done', gameId: 1, channelId: 2, title: '{game} backed up', message: 'Backup "{backup}" is done ({size}). Download it for 7 days: {link}', linkDays: 7, enabled: true },
+      { id: 2, name: 'Crashes', event: 'game_crashed', gameId: 0, channelId: 1, title: '{game} crashed', message: '{game} on {server} stopped by itself at {time}.', linkDays: 0, enabled: true },
+    ];
   if (path === '/backup-stores')
     return [
       { id: 1, name: 'Backblaze', endpoint: 's3.eu-central-003.backblazeb2.com', region: 'eu-central-003', bucket: 'acme-game-backups', prefix: 'bastion/', accessKey: '003a1b2c3d4e5f60000000001', pathStyle: false, plainHttp: false, backups: 1 },
@@ -358,7 +363,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
     };
   if (method === 'GET' && path === '/alerts')
     return {
-      channels: [{ id: 1, kind: 'ntfy', name: 'Phone', detail: 'https://ntfy.sh/robin-homelab' }],
+      channels: [{ id: 1, kind: 'ntfy', name: 'Phone', detail: 'https://ntfy.sh/robin-homelab' }, { id: 2, kind: 'discord', name: 'Friends server', detail: 'Discord webhook' }],
       kinds: ['offline', 'crash', 'unhealthy', 'disk'],
       recent: [
         { id: 3, kind: 'crash', title: 'paperless-worker-1 keeps restarting', detail: 'On atlas: Restarting (1) 12 seconds ago.', raisedAt: minutesAgo(12), clearedAt: null },
