@@ -281,6 +281,16 @@ export function demo(method: string, path: string, body?: unknown): unknown {
       volumesSize: 18.3 * GB,
       buildCacheSize: 640 * MB,
     };
+  if (method === 'GET' && path === '/alerts')
+    return {
+      channels: [{ id: 1, kind: 'ntfy', name: 'Phone', detail: 'https://ntfy.sh/robin-homelab' }],
+      kinds: ['offline', 'crash', 'unhealthy', 'disk'],
+      recent: [
+        { id: 3, kind: 'crash', title: 'paperless-worker-1 keeps restarting', detail: 'On atlas: Restarting (1) 12 seconds ago.', raisedAt: minutesAgo(12), clearedAt: null },
+        { id: 2, kind: 'offline', title: 'edge-vps is offline', detail: 'Its agent hasn’t been connected since 18:31.', raisedAt: minutesAgo(24), clearedAt: null },
+        { id: 1, kind: 'disk', title: 'vault’s disk is 91% full', detail: 'Clean up unused images and volumes.', raisedAt: minutesAgo(60 * 30), clearedAt: minutesAgo(60 * 29) },
+      ],
+    };
   if (method === 'GET' && path === '/games') return games;
   if (method === 'GET' && path === '/eggs') return eggs;
   const game = /^\/games\/(\d+)(\/[a-z]+)?/.exec(path);

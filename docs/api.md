@@ -67,6 +67,19 @@ it's 400 with Docker's own message.
 | `GET /servers/{id}/cleanup` | What clean-up would remove (images and volumes nothing uses, build cache) and what each frees |
 | `POST /servers/{id}/cleanup` | `{"images", "volumes", "buildCache"}`: removes what's asked. Volumes can hold data: they're never removed unless `volumes` is true |
 
+### Alerts
+
+| Method and path | What it does |
+|---|---|
+| `GET /alerts` | The channels (without their secrets), which kinds are on, and the last 100 alerts |
+| `PUT /alerts/kinds` | `{"kinds": [...]}`: any of `offline`, `crash`, `unhealthy`, `disk`, `update` |
+| `POST /alerts/channels` | `{"kind": "ntfy" \| "discord" \| "email", "name", "config"}`: ntfy `url`, `topic`, `token`; Discord `url`; email `host`, `port`, `username`, `password`, `from`, `to` |
+| `DELETE /alerts/channels/{id}` | Removes a channel |
+| `POST /alerts/channels/{id}/test` | Sends a test message |
+
+The panel checks every 30 seconds. An alert is sent once when it's raised and once when it clears
+(update alerts just close).
+
 ### Live streams (websockets)
 
 Only the panel's own pages can open these (the `Origin` must be the panel's address).

@@ -65,6 +65,12 @@ export type Account = {
 };
 type PasskeyOptions = { publicKey: Record<string, any> };
 
+export type AlertsPage = {
+  channels: { id: number; kind: 'ntfy' | 'discord' | 'email'; name: string; detail: string }[];
+  kinds: string[];
+  recent: { id: number; kind: string; title: string; detail: string; raisedAt: string; clearedAt: string | null }[];
+};
+
 const stackPath = (serverId: number, name: string) => `/servers/${serverId}/stacks/${encodeURIComponent(name)}`;
 
 export type StackAction = 'up' | 'down' | 'stop' | 'start' | 'restart' | 'pull' | 'update';
@@ -130,6 +136,11 @@ export const api = {
   gameSchedules: (id: number) => request<Schedule[]>('GET', `/games/${id}/schedules`),
   gameBackups: (id: number) => request<GameBackup[]>('GET', `/games/${id}/backups`),
   createGameBackup: (id: number) => request<GameBackup>('POST', `/games/${id}/backups`),
+  alerts: () => request<AlertsPage>('GET', '/alerts'),
+  setAlertKinds: (kinds: string[]) => request<void>('PUT', '/alerts/kinds', { kinds }),
+  addChannel: (kind: string, name: string, config: Record<string, string | number>) => request<void>('POST', '/alerts/channels', { kind, name, config }),
+  deleteChannel: (id: number) => request<void>('DELETE', `/alerts/channels/${id}`),
+  testChannel: (id: number) => request<void>('POST', `/alerts/channels/${id}/test`),
   eggs: () => request<Egg[]>('GET', '/eggs'),
   /** Imports a Pterodactyl egg: the egg's JSON file, as it's exported from Pterodactyl or a community repo. */
   importEgg: (json: string) => request<Egg>('POST', '/eggs', JSON.parse(json)),

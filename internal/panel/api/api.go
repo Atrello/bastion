@@ -51,6 +51,7 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 	}
 	go api.pruneSessions(ctx)
 	go api.watchGit(ctx)
+	go api.watchAlerts(ctx)
 	return api, nil
 }
 
@@ -61,6 +62,7 @@ func (api *API) routes() {
 	api.serverRoutes()
 	api.streamRoutes()
 	api.gitRoutes()
+	api.alertRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {

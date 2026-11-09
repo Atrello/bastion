@@ -8,6 +8,7 @@
   import SignIn from './pages/SignIn.svelte';
   import { match, navigate, route } from './lib/router.svelte';
   import Containers from './pages/Containers.svelte';
+  import Alerts from './pages/Alerts.svelte';
   import Eggs from './pages/Eggs.svelte';
   import Images from './pages/Images.svelte';
   import Volumes from './pages/Volumes.svelte';
@@ -59,6 +60,8 @@
       <Overview />
     {:else if route.path === '/servers'}
       <Servers />
+    {:else if route.path === '/alerts'}
+      <Alerts />
     {:else if route.path === '/stacks'}
       <Stacks />
     {:else if stack}
