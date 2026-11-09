@@ -111,7 +111,13 @@ export type GameServer = {
   owner: boolean;
   /** Where its new backups go: a backup storage's ID, or 0 for its own server. */
   backupStore: number;
+  /** Bytes received and sent over the network since it started. */
+  netIn: number;
+  netOut: number;
 };
+
+/** A game's use at one moment, from the last ten minutes (internal/panel/agents/history.go). netIn and netOut are totals since it started. */
+export type UsageSample = { t: number; cpu: number; mem: number; netIn: number; netOut: number };
 
 export type Egg = {
   id: number;

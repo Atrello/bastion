@@ -23,6 +23,8 @@ type Hub struct {
 	log   *slog.Logger
 	mu    sync.RWMutex
 	conns map[int64]*agentConn
+	// Games' recent use, for their charts.
+	history history
 }
 
 func NewHub(db *sql.DB, log *slog.Logger) *Hub {
@@ -221,6 +223,7 @@ func (h *Hub) event(c *agentConn, m protocol.Message) {
 		var metrics protocol.Metrics
 		if json.Unmarshal(m.Data, &metrics) == nil {
 			c.metrics = &metrics
+			h.history.record(&metrics)
 		}
 	}
 }

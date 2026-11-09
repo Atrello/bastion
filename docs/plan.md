@@ -159,3 +159,4 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | Game backups can be kept in S3 (any service that speaks it), chosen per game; made on the server, uploaded, then removed there | Asked for |
 | 9 Nov 2026 | Custom notifications: per event (backup made or failed, game started, stopped or crashed), any game or one, in your own words, to an alert channel, optionally with a signed-out download link for a few days | Asked for ("a Minecraft server backup should post a download link") |
 | 9 Nov 2026 | Backups are named "<name>-<date>-<time>", and their files the same | Asked for |
+| 9 Nov 2026 | A game's console page shows its figures in cards (address, uptime, CPU, memory, disk, network in and out) and charts of the last ten minutes; the console has search and text size | Asked for, from a picture of the layout wanted |

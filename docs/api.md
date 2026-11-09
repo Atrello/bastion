@@ -180,6 +180,7 @@ Up to 5 jobs each at once (`429` past that); a job runs for 6 hours at most.
 | `PUT /games/{id}/backups/{backup}` | `{"locked"}`: a locked backup can't be deleted |
 | `POST /games/{id}/backups/{backup}/restore` | Empties its files and unpacks the backup. It has to be stopped |
 | `GET /games/{id}/backups/{backup}/download` | The backup as a `.tar.gz` |
+| `GET /games/{id}/history` | Its use over the last ten minutes, for its charts: `[{"t", "cpu", "mem", "netIn", "netOut"}]`, about every 10 seconds while it runs. `netIn` and `netOut` are bytes since it started; the rate is the change between samples |
 | `PUT /games/{id}/backup-store` | `{"storeId"}`: where its new backups go (0 for its own server). Owner only. Each backup's `store` says where it is |
 
 ### Custom notifications (owner only)

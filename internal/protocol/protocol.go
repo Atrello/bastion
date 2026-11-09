@@ -311,7 +311,10 @@ type GameStatus struct {
 	CPUPercent float64 `json:"cpuPercent"`
 	MemUsed    uint64  `json:"memUsed"`
 	DiskUsed   uint64  `json:"diskUsed"`
-	StartedAt  string  `json:"startedAt,omitempty"`
+	// Bytes in and out over the network since it started (docker stats' NetIO).
+	NetIn     uint64 `json:"netIn,omitempty"`
+	NetOut    uint64 `json:"netOut,omitempty"`
+	StartedAt string `json:"startedAt,omitempty"`
 }
 
 type GamePowerArgs struct {

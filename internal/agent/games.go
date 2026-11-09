@@ -509,7 +509,7 @@ func gameStatuses(ctx context.Context) []protocol.GameStatus {
 	if len(running) > 0 {
 		stats, _ := docker(ctx, "", append([]string{"stats", "--no-stream", "--format", "{{json .}}"}, running...)...)
 		for _, line := range strings.Split(stats, "\n") {
-			var st struct{ Name, CPUPerc, MemUsage string }
+			var st struct{ Name, CPUPerc, MemUsage, NetIO string }
 			if json.Unmarshal([]byte(line), &st) != nil {
 				continue
 			}
@@ -517,6 +517,8 @@ func gameStatuses(ctx context.Context) []protocol.GameStatus {
 				g.CPUPercent, _ = strconv.ParseFloat(strings.TrimSuffix(st.CPUPerc, "%"), 64)
 				used, _, _ := strings.Cut(st.MemUsage, " / ")
 				g.MemUsed = parseSize(used)
+				in, out, _ := strings.Cut(st.NetIO, " / ")
+				g.NetIn, g.NetOut = parseSize(strings.TrimSpace(in)), parseSize(strings.TrimSpace(out))
 			}
 		}
 	}

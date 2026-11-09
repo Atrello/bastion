@@ -2,6 +2,15 @@
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
 
+/** A network rate, from bytes a second: 1_250_000 → "10 Mbps". */
+export function bitRate(bytesPerSecond: number): string {
+  const bits = bytesPerSecond * 8;
+  if (bits < 1000) return `${Math.round(bits)} bps`;
+  if (bits < 1e6) return `${(bits / 1e3).toFixed(bits < 1e4 ? 1 : 0)} Kbps`;
+  if (bits < 1e9) return `${(bits / 1e6).toFixed(bits < 1e7 ? 2 : 1)} Mbps`;
+  return `${(bits / 1e9).toFixed(2)} Gbps`;
+}
+
 /** 9_771_000_000 → "9.1 GB". */
 export function bytes(n: number): string {
   let i = 0;

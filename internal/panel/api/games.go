@@ -62,6 +62,7 @@ func (api *API) gameRoutes() {
 	m.Handle("POST /api/games/{id}/shares", api.gameOwner(api.inviteFriend))
 	m.Handle("DELETE /api/games/{id}/shares/{user}", api.gameOwner(api.unshareGame))
 	m.Handle("PUT /api/games/{id}/backup-store", api.gameOwner(api.setBackupStore))
+	m.Handle("GET /api/games/{id}/history", api.gameUser(api.gameHistory))
 	api.gameFileRoutes()
 	api.scheduleRoutes()
 }
@@ -197,6 +198,11 @@ func dockerName(s, otherwise string) string {
 	return out
 }
 
+// gameHistory is its use over the last ten minutes, for the charts on its page.
+func (api *API) gameHistory(w http.ResponseWriter, _ *http.Request, _ *auth.User, g *game) {
+	writeJSON(w, api.hub.GameHistory(g.ID))
+}
+
 // gameView is a game server as the web app shows it (web/src/lib/types.ts, GameServer).
 type gameView struct {
 	ID          int64     `json:"id"`
@@ -217,6 +223,8 @@ type gameView struct {
 	DiskUsed    uint64    `json:"diskUsed"`
 	DiskLimit   uint64    `json:"diskLimit"`
 	UptimeSecs  int64     `json:"uptimeSecs"`
+	NetIn       uint64    `json:"netIn"`  // bytes received since it started
+	NetOut      uint64    `json:"netOut"` // and sent
 	WarnCommand string    `json:"warnCommand"`
 	Owner       bool      `json:"owner"`       // the viewer can change its limits, delete and share it
 	BackupStore int64     `json:"backupStore"` // where new backups go: 0 for its own server
@@ -241,7 +249,7 @@ func (api *API) view(g *game, serverName string, owner bool) gameView {
 			if s.ID != g.ID {
 				continue
 			}
-			v.State, v.CPUPercent, v.MemUsed, v.DiskUsed = s.State, s.CPUPercent, s.MemUsed, s.DiskUsed
+			v.State, v.CPUPercent, v.MemUsed, v.DiskUsed, v.NetIn, v.NetOut = s.State, s.CPUPercent, s.MemUsed, s.DiskUsed, s.NetIn, s.NetOut
 			if started, err := time.Parse(time.RFC3339Nano, s.StartedAt); err == nil && (s.State == "running" || s.State == "starting") {
 				v.UptimeSecs = int64(time.Since(started).Seconds())
 			}

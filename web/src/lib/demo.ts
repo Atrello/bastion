@@ -8,6 +8,7 @@ import type {
   GameFile,
   GameServer,
   Job,
+  UsageSample,
   Schedule,
   Server,
   Stack,
@@ -145,9 +146,22 @@ const logs = [
 
 const MB = 1024 ** 2;
 
-const game = (g: Omit<GameServer, 'image' | 'ports' | 'cpuLimit' | 'diskLimit' | 'warnCommand' | 'owner' | 'backupStore'> & Partial<GameServer>): GameServer => ({
-  image: 'ghcr.io/pterodactyl/yolks:java_21', ports: [Number(g.address.split(':')[1])], cpuLimit: 200, diskLimit: 0, warnCommand: '', owner: true, backupStore: 0, ...g,
+const game = (g: Omit<GameServer, 'image' | 'ports' | 'cpuLimit' | 'diskLimit' | 'warnCommand' | 'owner' | 'backupStore' | 'netIn' | 'netOut'> & Partial<GameServer>): GameServer => ({
+  image: 'ghcr.io/pterodactyl/yolks:java_21', ports: [Number(g.address.split(':')[1])], cpuLimit: 200, diskLimit: 0, warnCommand: '', owner: true, backupStore: 0,
+  netIn: g.state === 'running' ? 824 * MB : 0, netOut: g.state === 'running' ? 24.3 * GB : 0, ...g,
 });
+
+// Ten minutes of a busy game: CPU and memory wandering, and players' traffic.
+function demoHistory(): UsageSample[] {
+  const now = Math.floor(Date.now() / 1000);
+  let netIn = 800 * MB;
+  let netOut = 24 * GB;
+  return Array.from({ length: 60 }, (_, i) => {
+    netIn += (10 + 8 * Math.sin(i / 3)) * 1024;
+    netOut += (350 + 200 * Math.sin(i / 5) + 120 * Math.cos(i / 2)) * 1024;
+    return { t: now - (59 - i) * 10, cpu: 38 + 14 * Math.sin(i / 4) + 6 * Math.cos(i / 1.7), mem: 6.0 * GB + 0.15 * GB * Math.sin(i / 9), netIn, netOut };
+  });
+}
 
 const games: GameServer[] = [
   game({
@@ -331,7 +345,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
   if (method === 'GET' && path === '/stacks') return stacks;
   if (method === 'GET' && path === '/containers') return containers;
   if (method === 'GET' && path.endsWith('/files')) return files;
-  if (method === 'GET' && path.endsWith('/history')) return history;
+  if (method === 'GET' && path.includes('/stacks/') && path.endsWith('/history')) return history;
   if (method === 'GET' && path.endsWith('/git'))
     return path.includes('/immich/')
       ? {
@@ -390,6 +404,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
   if (method === 'GET' && game) {
     const part = game[2] ?? '';
     if (part === '/console') return { lines: gameConsole };
+    if (part === '/history') return demoHistory();
     if (part === '/files') return gameFiles;
     if (part === '/startup') return startup;
     if (part === '/schedules') return schedules;

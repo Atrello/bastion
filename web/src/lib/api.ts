@@ -20,6 +20,7 @@ import type {
   GameServer,
   BackupStore,
   NotificationRule,
+  UsageSample,
   Job,
   Schedule,
   Server,
@@ -213,6 +214,8 @@ export const api = {
     }),
   /** Packs files and folders from one folder into a .tar.gz there. */
   archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<Job>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  /** A game's use over the last ten minutes, for its charts. */
+  gameHistory: (id: number) => request<UsageSample[]>('GET', `/games/${id}/history`),
   notifications: () => request<NotificationRule[]>('GET', '/notifications'),
   saveNotification: (n: Omit<NotificationRule, 'id'>, id?: number) =>
     id ? request<void>('PUT', `/notifications/${id}`, n) : request<void>('POST', '/notifications', n),

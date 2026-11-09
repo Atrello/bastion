@@ -27,6 +27,8 @@
   --amber: #e8c547;
   --red: #ef5b5b;
   --grey: #5f646b;
+  /* A cool second colour for charts and figures beside the ember: network, a second line. */
+  --blue: #6cb4e8;
   --radius: 10px;
   --mono: ui-monospace, 'JetBrains Mono', 'Cascadia Code', Menlo, monospace;
   color-scheme: dark;
