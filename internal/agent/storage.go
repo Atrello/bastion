@@ -34,12 +34,12 @@ func readDiskUsage(ctx context.Context) (*diskUsage, error) {
 	return &du, json.Unmarshal([]byte(out), &du)
 }
 
-// parseSize reads Docker's sizes ("12.2MB", "0B", "1.5GB"), which are in powers of 1000.
+// parseSize reads Docker's sizes: "12.2MB", "0B", "1.5GB" in powers of 1000, and docker stats's "1.2GiB".
 func parseSize(s string) uint64 {
 	units := []struct {
 		suffix string
 		mult   float64
-	}{{"TB", 1e12}, {"GB", 1e9}, {"MB", 1e6}, {"kB", 1e3}, {"KB", 1e3}, {"B", 1}}
+	}{{"TiB", 1 << 40}, {"GiB", 1 << 30}, {"MiB", 1 << 20}, {"KiB", 1 << 10}, {"TB", 1e12}, {"GB", 1e9}, {"MB", 1e6}, {"kB", 1e3}, {"KB", 1e3}, {"B", 1}}
 	for _, u := range units {
 		if n, ok := strings.CutSuffix(s, u.suffix); ok {
 			f, err := strconv.ParseFloat(strings.TrimSpace(n), 64)

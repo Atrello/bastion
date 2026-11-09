@@ -59,6 +59,7 @@ func (c *conn) answer(id string, data any, err error) {
 
 // Run keeps the agent connected to the panel until ctx ends.
 func Run(ctx context.Context, cfg *Config, log *slog.Logger) {
+	go measureGames(ctx)
 	wait := time.Second
 	for ctx.Err() == nil {
 		started := time.Now()
@@ -152,7 +153,11 @@ func (c *conn) reportMetrics(ctx context.Context) {
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
 	for {
-		c.event(protocol.EventMetrics, readMetrics())
+		m := readMetrics()
+		statusCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+		m.Games = gameStatuses(statusCtx)
+		cancel()
+		c.event(protocol.EventMetrics, m)
 		select {
 		case <-ctx.Done():
 			return
@@ -291,6 +296,39 @@ func (c *conn) do(m protocol.Message) (any, error) {
 			return gitHead(ctx, a)
 		}
 		return gitSync(ctx, dir, a)
+	case protocol.OpGameInstall, protocol.OpGameStart:
+		var a protocol.GameSpec
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		if m.Op == protocol.OpGameInstall {
+			return nil, installGame(a)
+		}
+		return nil, startGame(ctx, a)
+	case protocol.OpGamePower:
+		var a protocol.GamePowerArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		return nil, powerGame(ctx, a)
+	case protocol.OpGameDelete:
+		var a protocol.GameRef
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		return nil, deleteGame(ctx, a.ID)
+	case protocol.OpGameFiles:
+		var a protocol.GameFileArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		return gameFiles(a)
+	case protocol.OpGameBackup:
+		var a protocol.GameBackupArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		return gameBackup(ctx, a)
 	case protocol.OpCheckUpdates:
 		select {
 		case c.updatesNow <- struct{}{}:

@@ -38,6 +38,12 @@ const (
 	OpCleanup         = "cleanup.run"      // CleanupArgs → ActionResult
 	OpGitHead         = "git.head"         // GitArgs → GitResult: the branch's commit in the repository
 	OpGitSync         = "git.sync"         // GitArgs → GitResult: the stack's compose file from the repository
+	OpGameInstall     = "game.install"     // GameSpec → nothing; installs in the background (GameStatus.Installing)
+	OpGameStart       = "game.start"       // GameSpec → nothing; makes the game's container afresh and starts it
+	OpGamePower       = "game.power"       // GamePowerArgs → nothing
+	OpGameDelete      = "game.delete"      // GameRef → nothing; removes its container, files and backups
+	OpGameFiles       = "game.files"       // GameFileArgs → GameFileResult
+	OpGameBackup      = "game.backup"      // GameBackupArgs → GameBackupResult
 	OpLogsFollow      = "logs.follow"      // LogsArgs → a stream of log lines until stopped
 	OpExec            = "exec"             // ExecArgs → a terminal stream until stopped
 	OpStreamInput     = "stream.input"     // StreamInput: keys typed into a terminal
@@ -77,6 +83,8 @@ type Metrics struct {
 	DiskUsed   uint64  `json:"diskUsed"`
 	DiskTotal  uint64  `json:"diskTotal"`
 	UptimeSecs uint64  `json:"uptimeSecs"`
+	// Each game server on this server, by ID.
+	Games []GameStatus `json:"games,omitempty"`
 }
 
 // State is everything Docker is running on the server, sent whole each time (it's small).
@@ -227,4 +235,82 @@ type GitArgs struct {
 
 type GitResult struct {
 	Commit string `json:"commit"`
+}
+
+// Game servers. Each runs in a container named bastion-game-<id>, with its files in the agent's games
+// folder (/var/lib/bastion/games/<id>), seen inside the container as /home/container.
+
+type GameRef struct {
+	ID int64 `json:"id"`
+}
+
+// GameSpec is everything needed to install or run a game server, worked out by the panel from its egg.
+type GameSpec struct {
+	ID       int64  `json:"id"`
+	Image    string `json:"image"`
+	Startup  string `json:"startup"` // the startup command, its {{VARIABLES}} already filled in
+	StopWith string `json:"stopWith"`
+	// Its egg's variables and their values, as environment variables.
+	Env        map[string]string `json:"env"`
+	MemoryMB   int               `json:"memoryMb"`
+	CPUPercent int               `json:"cpuPercent"` // 100 is one core; 0 means no limit
+	DiskMB     int               `json:"diskMb"`
+	Ports      []int             `json:"ports"` // the first is the game's own; each is published for TCP and UDP
+	// The egg's installer.
+	InstallImage      string `json:"installImage"`
+	InstallEntrypoint string `json:"installEntrypoint"`
+	InstallScript     string `json:"installScript"`
+}
+
+// GameStatus is a game server as its agent sees it, sent with the metrics every 10 seconds.
+type GameStatus struct {
+	ID         int64   `json:"id"`
+	State      string  `json:"state"` // running, stopped, crashed, installing, or install-failed
+	CPUPercent float64 `json:"cpuPercent"`
+	MemUsed    uint64  `json:"memUsed"`
+	DiskUsed   uint64  `json:"diskUsed"`
+	StartedAt  string  `json:"startedAt,omitempty"`
+}
+
+type GamePowerArgs struct {
+	ID      int64  `json:"id"`
+	Action  string `json:"action"`            // stop, kill or command
+	Command string `json:"command,omitempty"` // for command: a line typed into the console
+	// For stop: what the egg says stops it (a console command, or ^C for Ctrl+C), then how long to wait.
+	StopWith string `json:"stopWith,omitempty"`
+}
+
+type GameFileArgs struct {
+	ID     int64  `json:"id"`
+	Op     string `json:"op"`   // list, read, write, append, download, mkdir, rename, delete
+	Path   string `json:"path"` // inside the game's folder, like "world/level.dat"
+	To     string `json:"to,omitempty"`
+	Data   []byte `json:"data,omitempty"` // write and append: the contents (base64 in JSON)
+	Offset int64  `json:"offset,omitempty"`
+}
+
+type GameFile struct {
+	Name     string `json:"name"`
+	Dir      bool   `json:"dir"`
+	Size     int64  `json:"size"`
+	Modified string `json:"modified"`
+}
+
+type GameFileResult struct {
+	Files []GameFile `json:"files,omitempty"`
+	// read and download: the contents, and the file's whole size (download sends it in pieces).
+	Data []byte `json:"data,omitempty"`
+	Size int64  `json:"size,omitempty"`
+}
+
+type GameBackupArgs struct {
+	ID     int64  `json:"id"`
+	Op     string `json:"op"`   // make, restore, delete or download
+	Name   string `json:"name"` // the backup's file name, chosen by the panel
+	Offset int64  `json:"offset,omitempty"`
+}
+
+type GameBackupResult struct {
+	Size int64  `json:"size"`
+	Data []byte `json:"data,omitempty"`
 }
