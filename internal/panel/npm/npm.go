@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -53,15 +54,25 @@ type Client struct {
 	pinnedOnce   sync.Once
 	pinnedClient *http.Client
 
-	// Flavour is which NPM this is, found when signing in: FlavourNPM gives its token in its answer,
-	// FlavourNPMplus (a fork with different fields) sets it as a cookie.
-	Flavour string
+	// flavour is which NPM this is, found when signing in: FlavourNPM gives its token in its answer,
+	// FlavourNPMplus (a fork with different fields) sets it as a cookie. A Client is shared by every request
+	// to its NPM, and one may sign in while another reads this, hence atomic.
+	flavour atomic.Value
 
 	mu      sync.Mutex
 	token   string
 	expires time.Time
 	schema  *schemaCache
 }
+
+// Flavour is FlavourNPM or FlavourNPMplus, as last found when signing in ("" before then).
+func (c *Client) Flavour() string {
+	f, _ := c.flavour.Load().(string)
+	return f
+}
+
+// SetFlavour is for a Client made from what's stored about an NPM already linked.
+func (c *Client) SetFlavour(f string) { c.flavour.Store(f) }
 
 const timeout = 60 * time.Second // requesting a certificate can take a while
 
@@ -223,12 +234,14 @@ func (c *Client) signIn(ctx context.Context) (string, error) {
 	case reply.RequiresTotp:
 		return "", errors.New("this NPM user has two-factor sign-in on, which Bastion can't answer: give Bastion its own NPM user without it")
 	case reply.Token != "":
-		c.Flavour, c.token = FlavourNPM, reply.Token
+		c.flavour.Store(FlavourNPM)
+		c.token = reply.Token
 	default:
 		// NPMplus sets the token as a cookie rather than giving it in its answer.
 		for _, ck := range res.Cookies() {
 			if ck.Name == tokenCookie {
-				c.Flavour, c.token = FlavourNPMplus, ck.Value
+				c.flavour.Store(FlavourNPMplus)
+				c.token = ck.Value
 			}
 		}
 		if c.token == "" {
@@ -299,7 +312,7 @@ func (c *Client) send(ctx context.Context, token, method, path string, body []by
 		req.Header.Set("Content-Type", contentType)
 	}
 	if token != "" {
-		if c.Flavour == FlavourNPMplus {
+		if c.Flavour() == FlavourNPMplus {
 			req.AddCookie(&http.Cookie{Name: tokenCookie, Value: token})
 		} else {
 			req.Header.Set("Authorization", "Bearer "+token)

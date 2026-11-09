@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -16,8 +17,8 @@ import (
 	"github.com/Atrello/bastion/internal/protocol"
 )
 
-// fakeAgent answers every request with OK, keeping what it was asked.
-func fakeAgent(t *testing.T, b *browser) *[]protocol.Message {
+// fakeAgent answers every request with OK, keeping what it was asked: asked() gives a copy so far.
+func fakeAgent(t *testing.T, b *browser) (asked func() []protocol.Message) {
 	id, secret := b.joinAgent()
 	ws, _ := b.dialAgent(id+"."+secret, nil)
 	t.Cleanup(func() { ws.Close() })
@@ -41,7 +42,11 @@ func fakeAgent(t *testing.T, b *browser) *[]protocol.Message {
 		}
 	}()
 	time.Sleep(100 * time.Millisecond)
-	return &got
+	return func() []protocol.Message {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]protocol.Message(nil), got...)
+	}
 }
 
 func TestGamesAndSharing(t *testing.T) {
@@ -75,7 +80,7 @@ func TestGamesAndSharing(t *testing.T) {
 		t.Fatal("making a second game")
 	}
 	var install protocol.GameSpec
-	for _, m := range *asked {
+	for _, m := range asked() {
 		if m.Op == protocol.OpGameInstall {
 			_ = json.Unmarshal(m.Args, &install)
 			break
@@ -176,7 +181,7 @@ func TestUploadKeepsToDiskLimit(t *testing.T) {
 		return res.StatusCode
 	}
 	ops := func(op string) (n int) {
-		for _, m := range *asked {
+		for _, m := range asked() {
 			var a protocol.GameFileArgs
 			if m.Op == protocol.OpGameFiles && json.Unmarshal(m.Args, &a) == nil && a.Op == op {
 				n++
@@ -195,4 +200,24 @@ func TestUploadKeepsToDiskLimit(t *testing.T) {
 	if status := upload(bytes.NewReader(make([]byte, 1<<20))); status != 204 {
 		t.Fatalf("an upload within the limit: %d", status)
 	}
+
+	// Cut off partway (the tab closed, or cancelled): what came is removed, not kept as the whole file.
+	req, _ := http.NewRequest("POST", b.server.URL+"/api/games/1/files/upload?path=/world.zip",
+		io.MultiReader(bytes.NewReader(make([]byte, 1<<20)), failingReader{}))
+	req.ContentLength = 2 << 20
+	req.Header.Set("Origin", b.server.URL)
+	if res, err := b.client.Do(req); err == nil {
+		res.Body.Close()
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for ops("delete") < 2 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if ops("delete") != 2 {
+		t.Fatal("a cut-off upload was kept")
+	}
 }
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, errors.New("the tab closed") }

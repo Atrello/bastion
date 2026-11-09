@@ -2,6 +2,7 @@
      current address. -->
 <script lang="ts">
   import Ask from './components/Ask.svelte';
+  import Uploads from './components/Uploads.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import { api, type AuthState } from './lib/api';
   import Account from './pages/Account.svelte';
@@ -56,6 +57,7 @@
 <svelte:document onclick={followLink} />
 
 <Ask />
+<Uploads />
 
 {#if updated}
   <div class="updated" role="status">
@@ -124,7 +126,7 @@
   .updated {
     position: fixed;
     right: 16px;
-    bottom: 16px;
+    top: 16px;
     z-index: 60;
     display: flex;
     align-items: center;

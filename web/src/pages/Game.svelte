@@ -133,7 +133,7 @@
       </aside>
     </div>
   {:else if tab === 'files'}
-    <GameFiles {id} onerror={problem} onnote={note} />
+    <GameFiles {id} name={game.data?.name ?? ''} onerror={problem} onnote={note} />
   {:else if tab === 'schedules'}
     <GameSchedules {id} onerror={problem} onnote={note} />
   {:else if tab === 'backups'}

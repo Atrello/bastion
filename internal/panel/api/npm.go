@@ -59,10 +59,12 @@ func (api *API) npmClient(ctx context.Context, id int64) (*npm.Client, error) {
 		return c, nil
 	}
 	c := &npm.Client{}
-	err := api.db.QueryRowContext(ctx, `SELECT url, email, password, cert_sha256, flavour FROM npm_instances WHERE id = ?`, id).Scan(&c.URL, &c.Email, &c.Password, &c.PinnedCert, &c.Flavour)
+	var flavour string
+	err := api.db.QueryRowContext(ctx, `SELECT url, email, password, cert_sha256, flavour FROM npm_instances WHERE id = ?`, id).Scan(&c.URL, &c.Email, &c.Password, &c.PinnedCert, &flavour)
 	if err != nil {
 		return nil, errors.New("no such NPM")
 	}
+	c.SetFlavour(flavour)
 	api.npm.clients[id] = c
 	return c, nil
 }
@@ -131,11 +133,11 @@ func (api *API) addNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
 		name = "Nginx Proxy Manager"
 	}
 	if _, err := api.db.ExecContext(r.Context(), `INSERT INTO npm_instances (name, url, email, password, cert_sha256, flavour) VALUES (?, ?, ?, ?, ?, ?)`,
-		name, address, c.Email, c.Password, pin, c.Flavour); err != nil {
+		name, address, c.Email, c.Password, pin, c.Flavour()); err != nil {
 		api.fail(w, r, err)
 		return
 	}
-	api.log.Info("NPM linked", "user", u.Username, "url", address, "flavour", c.Flavour)
+	api.log.Info("NPM linked", "user", u.Username, "url", address, "flavour", c.Flavour())
 	go api.checkNPM(context.WithoutCancel(r.Context()))
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -196,7 +198,7 @@ func (api *API) npmList(w http.ResponseWriter, r *http.Request, _ *auth.User) {
 		"proxy-hosts": "certificate,access_list", "redirection-hosts": "certificate", "dead-hosts": "certificate",
 		"access-lists": "items,clients", "certificates": "",
 	}[r.PathValue("kind")]
-	if c.Flavour == npm.FlavourNPMplus && r.PathValue("kind") == "proxy-hosts" {
+	if c.Flavour() == npm.FlavourNPMplus && r.PathValue("kind") == "proxy-hosts" {
 		expand = "certificate,access_lists" // a host can have several access lists in NPMplus
 	}
 	if expand != "" {
@@ -348,7 +350,7 @@ func (api *API) npmUpload(w http.ResponseWriter, r *http.Request, u *auth.User) 
 	}
 	files := map[string]string{"certificate": body.Certificate, "certificate_key": body.CertificateKey}
 	if strings.TrimSpace(body.Intermediate) != "" {
-		if c.Flavour == npm.FlavourNPMplus {
+		if c.Flavour() == npm.FlavourNPMplus {
 			// NPMplus takes the chain in the certificate's own file.
 			files["certificate"] = strings.TrimSpace(body.Certificate) + "\n" + strings.TrimSpace(body.Intermediate) + "\n"
 		} else {

@@ -158,7 +158,7 @@ with them, and gets `404` for the rest. Friends can use everything below except 
 | `POST /games/{id}/files/folder` | `{"path"}` |
 | `POST /games/{id}/files/rename` | `{"from", "to"}`; a path into another folder moves it |
 | `DELETE /games/{id}/files?path=` | A file, or a folder and everything in it |
-| `POST /games/{id}/files/upload?path=` | The file as the body (not JSON), up to 50 GB, and no more than the room left under the game's disk limit |
+| `POST /games/{id}/files/upload?path=` | The file as the body (not JSON), up to 50 GB, and no more than the room left under the game's disk limit. If it doesn't all arrive (cancelled, or the browser closed), the part that did is removed |
 | `POST /games/{id}/files/archive` | `{"path", "paths", "to"}`: packs files and folders in `path` into the `.tar.gz` at `to` |
 | `POST /games/{id}/files/unarchive` | `{"path"}`: unpacks a `.zip`, `.tar.gz`, `.tgz` or `.tar` into its folder (files and folders only; up to 50 GB and 200,000 files) |
 | `GET /games/{id}/files/download?path=` | The file, as a download |

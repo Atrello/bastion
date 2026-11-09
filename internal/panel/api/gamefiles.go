@@ -198,29 +198,46 @@ func (api *API) uploadGameFile(w http.ResponseWriter, r *http.Request, u *auth.U
 	body := http.MaxBytesReader(w, r.Body, limit)
 	buf := make([]byte, filePiece)
 	var offset int64
+	// fill reads a piece. Only io.EOF means the whole file has come: a body cut short (the browser closed,
+	// the upload cancelled) reads as io.ErrUnexpectedEOF, which io.ReadFull would make look the same.
+	fill := func() (n int, err error) {
+		for n < len(buf) && err == nil {
+			var m int
+			m, err = body.Read(buf[n:])
+			n += m
+		}
+		return n, err
+	}
+	removePart := func() {
+		_, _ = api.files(context.WithoutCancel(r.Context()), g, protocol.GameFileArgs{Op: "delete", Path: p})
+	}
 	for {
-		n, err := io.ReadFull(body, buf)
+		n, err := fill()
 		if n > 0 || offset == 0 {
 			if _, ferr := api.files(r.Context(), g, protocol.GameFileArgs{Op: "append", Path: p, Data: buf[:n], Offset: offset}); ferr != nil {
+				// The browser went (which cancels the request) or the agent did: either way it's not all there.
+				removePart()
 				api.agentFail(w, r, ferr)
 				return
 			}
 			offset += int64(n)
 		}
-		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, io.EOF) && (r.ContentLength < 0 || offset == r.ContentLength) {
 			break
 		}
+		// Not all of it came: what did is removed rather than left looking like the whole file.
+		removePart()
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			// Its size wasn't given up front: what arrived is removed rather than left cut short.
-			_, _ = api.files(context.WithoutCancel(r.Context()), g, protocol.GameFileArgs{Op: "delete", Path: p})
 			writeError(w, http.StatusRequestEntityTooLarge, "it's bigger than "+tooBig(g, limit))
-			return
+		} else {
+			writeError(w, http.StatusBadRequest, "the upload didn't finish, so the part that came was removed")
 		}
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "the upload didn't finish")
-			return
-		}
+		api.log.Info("game file upload cut short", "user", u.Username, "game", g.ID, "path", p, "bytes", offset)
+		return
 	}
 	api.log.Info("game file uploaded", "user", u.Username, "game", g.ID, "path", p, "bytes", offset)
 	w.WriteHeader(http.StatusNoContent)

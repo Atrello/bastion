@@ -167,10 +167,26 @@ export const api = {
   makeGameFolder: (id: number, path: string) => request<void>('POST', `/games/${id}/files/folder`, { path }),
   renameGameFile: (id: number, from: string, to: string) => request<void>('POST', `/games/${id}/files/rename`, { from, to }),
   deleteGameFile: (id: number, path: string) => request<void>('DELETE', `/games/${id}/files?path=${encodeURIComponent(path)}`),
-  /** Sends a file as it is (not JSON), up to 50 GB (less if the game's disk limit leaves less room), telling onprogress how much has gone (0 to 1). */
-  uploadGameFile: (id: number, path: string, file: File, onprogress?: (done: number) => void) =>
+  /** Sends a file as it is (not JSON), up to 50 GB (less if the game's disk limit leaves less room), telling onprogress how much has gone (0 to 1). Use lib/uploads.svelte.ts, which keeps uploads going across pages. */
+  uploadGameFile: (id: number, path: string, file: File, onprogress?: (done: number) => void, signal?: AbortSignal) =>
     new Promise<void>((resolve, reject) => {
-      if (DEMO) return resolve();
+      if (DEMO) {
+        // Pretend progress over a few seconds, so the demo shows uploads as they'd look.
+        let done = 0;
+        const timer = setInterval(() => {
+          done = Math.min(1, done + 0.05);
+          onprogress?.(done);
+          if (done === 1) {
+            clearInterval(timer);
+            resolve();
+          }
+        }, 200);
+        signal?.addEventListener('abort', () => {
+          clearInterval(timer);
+          reject(new ApiError('Cancelled', 0));
+        });
+        return;
+      }
       // XMLHttpRequest rather than fetch: it reports an upload's progress.
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `/api/games/${id}/files/upload?path=${encodeURIComponent(path)}`);
@@ -186,6 +202,8 @@ export const api = {
         reject(new ApiError(message, xhr.status));
       };
       xhr.onerror = () => reject(new ApiError('The upload was cut off', 0));
+      xhr.onabort = () => reject(new ApiError('Cancelled', 0));
+      signal?.addEventListener('abort', () => xhr.abort());
       xhr.send(file);
     }),
   /** Packs files and folders from one folder into a .tar.gz there. */

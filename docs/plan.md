@@ -128,7 +128,7 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.3 step 1: eggs | Done: import from a file, pasted JSON or a link; checked (Pterodactyl's own Paper egg is in the tests); replacing asks first |
 | 0.3 step 2: install and run | Done: tested for real with a test egg in Docker (installer, config file filled in, runs as user 988 with limits). A real Paper or Valheim download is on the testing list (this sandbox's proxy breaks TLS inside containers) |
 | 0.3 step 3: console and power | Done: live output, commands, stop with the egg's stop command, warning players before a stop or restart, kill |
-| 0.3 step 4: file manager | Done: browse, edit, upload and download (5 MB in pieces tested), rename, delete, folders; paths can't leave the game's folder (tested, links included) |
+| 0.3 step 4: file manager | Done: browse, edit, upload and download (5 MB in pieces tested; uploads carry on across pages, can be cancelled, and a cut-off one is removed), rename, delete, folders; paths can't leave the game's folder (tested, links included) |
 | 0.3 step 5: startup variables, schedules and backups | Done: variables checked against the egg's rules; schedules (cron) for restart, command and backup; backups made, locked, restored, downloaded, deleted (tested) |
 | 0.3 step 6: sharing | Done: an invite link makes a friend's account (two-factor required) that sees only that game; tested that every other route refuses them |
 | 0.3 step 7: done when Minecraft (Paper) and Valheim run from Bastion alone | Paper: done, tested for real (installed, EULA, started, pinged, backed up and restored). Valheim: optional on the testing list |

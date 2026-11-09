@@ -1,14 +1,17 @@
-<!-- A game's files: browse folders, edit text files, upload (by button or dropping files on the list, with
-     progress), download, rename, delete, make folders, and pack files into an archive or unpack one. Tick
+<!-- A game's files: browse folders, edit text files, upload (by button or dropping files on the list; the
+     uploads carry on if you leave the page, lib/uploads.svelte.ts), download, rename, delete, make folders,
+     and pack files into an archive or unpack one. Tick
      files to archive or delete several at once. -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import Modal from './Modal.svelte';
   import { ask, sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago, bytes } from '../lib/format';
+  import { landed, startUploads } from '../lib/uploads.svelte';
   import type { GameFile } from '../lib/types';
 
-  let { id, onerror, onnote }: { id: number; onerror: (message: string) => void; onnote: (message: string) => void } = $props();
+  let { id, name, onerror, onnote }: { id: number; name: string; onerror: (message: string) => void; onnote: (message: string) => void } = $props();
 
   const editor = () => import('./CodeEditor.svelte');
   // Files that open in the editor rather than downloading.
@@ -20,7 +23,6 @@
   let selected = $state<string[]>([]);
   let editing = $state<{ path: string; content: string; saved: string }>();
   let renaming = $state<{ from: string; to: string }>();
-  let uploads = $state<{ name: string; done: number }[]>([]);
   let working = $state(''); // what's being done right now, like "Unpacking mods.zip…"
   let dropping = $state(false);
   let input: HTMLInputElement;
@@ -73,22 +75,13 @@
     }
   }
 
-  async function upload(chosen: File[]) {
-    if (!chosen.length) return;
-    uploads = chosen.map((f) => ({ name: f.name, done: 0 }));
-    for (const [i, file] of chosen.entries()) {
-      try {
-        await api.uploadGameFile(id, join(file.name), file, (done) => (uploads[i].done = done));
-        uploads[i].done = 1;
-      } catch (err) {
-        onerror(`${file.name}: ${(err as Error).message}`);
-        break;
-      }
-    }
-    uploads = [];
-    onnote(chosen.length === 1 ? `Uploaded ${chosen[0].name}.` : `Uploaded ${chosen.length} files.`);
-    await list();
+  function upload(chosen: File[]) {
+    if (chosen.length) startUploads(id, name, path, chosen);
   }
+  // A file landing from an upload (perhaps one started before you came back to this page) shows in the list.
+  $effect(() => {
+    if (landed[id]) void untrack(list);
+  });
 
   function drop(e: DragEvent) {
     e.preventDefault();
@@ -147,7 +140,7 @@
     <button class="danger" onclick={() => remove(selected)} disabled={!!working}>Delete</button>
   {:else}
     <button onclick={newFolder} disabled={!!working}>New folder</button>
-    <button onclick={() => input.click()} disabled={!!working || !!uploads.length}>Upload</button>
+    <button onclick={() => input.click()} disabled={!!working}>Upload</button>
   {/if}
   <input
     bind:this={input}
@@ -163,13 +156,6 @@
 </div>
 
 {#if working}<p class="working small"><span class="spinner" aria-hidden="true"></span>{working}</p>{/if}
-{#each uploads as u (u.name)}
-  <div class="upload small">
-    <span class="grow mono">{u.name}</span>
-    <span class="bar"><span style:width="{Math.round(u.done * 100)}%"></span></span>
-    <span class="muted">{Math.round(u.done * 100)}%</span>
-  </div>
-{/each}
 
 <div
   class="card table-card drop"
@@ -355,24 +341,5 @@
     to {
       transform: rotate(360deg);
     }
-  }
-  .upload {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 8px;
-  }
-  .bar {
-    width: 160px;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--line);
-    overflow: hidden;
-  }
-  .bar span {
-    display: block;
-    height: 100%;
-    background: var(--accent);
-    transition: width 0.2s;
   }
 </style>
