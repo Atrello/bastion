@@ -45,6 +45,7 @@ All are environment variables; only the first is required.
 | `BASTION_PUBLIC_URL` | | The address the panel is reached at, e.g. `https://bastion.home.lab`. Passkeys need a name, not an IP address |
 | `BASTION_TRUST_PROXY` | `false` | `true` behind a reverse proxy, so sign-in limits see the visitor's address |
 | `BASTION_SESSION_IDLE` | `12h` | Sign-ins end after this long without use |
+| `BASTION_DNS_FALLBACK` | `1.1.1.1,9.9.9.9` | DNS servers asked only when a name can't be looked up the usual way (Docker's DNS fails on some hosts, so alerts couldn't be sent). `off` for none |
 | `BASTION_ADDR` | `:8080` | Where the panel listens |
 | `BASTION_DATA_DIR` | `/data` in the image | Where the database lives. Back this folder up; keep it private (it holds deploy keys and alert settings) |
 | `BASTION_AGENT_BINARIES` | `/agents` in the image | Where the agent's programs are, for new servers to download |

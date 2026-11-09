@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"github.com/Atrello/bastion/internal/panel/netdial"
 	"log/slog"
 	"net/http"
 	"os"
@@ -40,6 +41,7 @@ func run(log *slog.Logger) error {
 	defer stop()
 
 	cfg.Version = version
+	netdial.Use(cfg.DNSFallback)
 	db, err := store.Open(ctx, cfg.DataDir)
 	if err != nil {
 		return err

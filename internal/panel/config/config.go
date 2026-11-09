@@ -26,6 +26,8 @@ type Config struct {
 	TrustProxy bool
 	// Where the agent's programs are, for new servers to download (the container image puts them in /agents).
 	AgentBinaries string
+	// DNS servers asked when a lookup fails ("1.1.1.1,9.9.9.9", or "off"): see internal/panel/netdial.
+	DNSFallback string
 	// The panel's version (the VERSION file, set when building), shown to those signed in.
 	Version string
 }
@@ -37,6 +39,7 @@ func Load() (*Config, error) {
 		SessionIdle:   12 * time.Hour,
 		TrustProxy:    env("BASTION_TRUST_PROXY", "") == "true",
 		AgentBinaries: env("BASTION_AGENT_BINARIES", "bin"),
+		DNSFallback:   env("BASTION_DNS_FALLBACK", ""),
 	}
 	if v := env("BASTION_SESSION_IDLE", ""); v != "" {
 		d, err := time.ParseDuration(v)

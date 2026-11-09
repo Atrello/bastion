@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Atrello/bastion/internal/panel/netdial"
 	"io"
 	"mime/multipart"
 	"net"
@@ -89,7 +90,8 @@ func (c *Client) client() *http.Client {
 
 func pinnedClient(pin string) *http.Client {
 	return &http.Client{Timeout: timeout, Transport: &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+		DialContext: netdial.DialContext,
+		Proxy:       http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			// The usual checks are replaced by this one: the certificate must be exactly the one trusted.
@@ -133,10 +135,17 @@ func ReadCert(ctx context.Context, address string) (*UntrustedCert, error) {
 	if u.Port() == "" {
 		host += ":443"
 	}
-	dialer := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}} //nolint:gosec // only reads the certificate
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	conn, err := dialer.DialContext(ctx, "tcp", host)
+	raw, err := netdial.DialContext(ctx, "tcp", host)
+	var conn net.Conn
+	if err == nil {
+		tc := tls.Client(raw, &tls.Config{InsecureSkipVerify: true, MinVersion: tls.VersionTLS12}) //nolint:gosec // only reads the certificate
+		if err = tc.HandshakeContext(ctx); err != nil {
+			raw.Close()
+		}
+		conn = tc
+	}
 	if err != nil {
 		return nil, err
 	}

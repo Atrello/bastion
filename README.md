@@ -43,6 +43,7 @@ from the panel. In full: [docs/install.md](docs/install.md).
          BASTION_PUBLIC_URL: ${BASTION_PUBLIC_URL:?set BASTION_PUBLIC_URL in .env}
          BASTION_TRUST_PROXY: ${BASTION_TRUST_PROXY:-true}
          BASTION_SESSION_IDLE: ${BASTION_SESSION_IDLE:-12h}
+         BASTION_DNS_FALLBACK: ${BASTION_DNS_FALLBACK:-1.1.1.1,9.9.9.9}
        volumes:
          - bastion-data:/data
        ports:

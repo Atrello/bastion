@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Atrello/bastion/internal/panel/netdial"
 	"mime"
 	"net"
 	"net/http"
@@ -280,7 +281,9 @@ func (api *API) sendLinked(ctx context.Context, c channel, title, body, link str
 func sendMail(host string, port int, username, password, from, to string, message []byte) error {
 	address := net.JoinHostPort(host, strconv.Itoa(port))
 	tlsConfig := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
-	conn, err := net.DialTimeout("tcp", address, 20*time.Second)
+	dialCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	conn, err := netdial.DialContext(dialCtx, "tcp", address)
 	if err != nil {
 		return err
 	}

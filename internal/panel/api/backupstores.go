@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/Atrello/bastion/internal/panel/netdial"
 	"net"
 	"net/http"
 	"strconv"
@@ -129,8 +130,13 @@ func (s *backupStore) client() (*minio.Client, error) {
 	if s.PathStyle {
 		lookup = minio.BucketLookupPath
 	}
+	transport, err := minio.DefaultTransport(!s.PlainHTTP)
+	if err != nil {
+		return nil, err
+	}
+	transport.DialContext = netdial.DialContext
 	return minio.New(s.Endpoint, &minio.Options{
-		Creds: credentials.NewStaticV4(s.AccessKey, s.SecretKey, ""), Secure: !s.PlainHTTP, Region: s.Region, BucketLookup: lookup,
+		Creds: credentials.NewStaticV4(s.AccessKey, s.SecretKey, ""), Secure: !s.PlainHTTP, Region: s.Region, BucketLookup: lookup, Transport: transport,
 	})
 }
 

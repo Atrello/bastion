@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Atrello/bastion/internal/panel/netdial"
 	"io"
 	"net"
 	"net/http"
@@ -416,7 +417,7 @@ func (api *API) npmUpload(w http.ResponseWriter, r *http.Request, u *auth.User) 
 var healthClient = &http.Client{
 	Timeout:       10 * time.Second,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	Transport:     &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, //nolint:gosec // see above
+	Transport:     &http.Transport{DialContext: netdial.DialContext, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, //nolint:gosec // see above
 }
 
 // watchNPM checks every enabled proxy host on every NPM every 5 minutes.
