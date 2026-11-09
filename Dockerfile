@@ -18,11 +18,14 @@ COPY --from=web /src/web/dist ./web/dist
 ARG VERSION=dev
 RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/bastion ./cmd/bastion \
  && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X github.com/Atrello/bastion/internal/agent.Version=${VERSION}" -o /out/agents/bastion-agent-linux-amd64 ./cmd/bastion-agent \
- && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/Atrello/bastion/internal/agent.Version=${VERSION}" -o /out/agents/bastion-agent-linux-arm64 ./cmd/bastion-agent
+ && GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "-s -w -X github.com/Atrello/bastion/internal/agent.Version=${VERSION}" -o /out/agents/bastion-agent-linux-arm64 ./cmd/bastion-agent \
+ && mkdir -p /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=go /out/bastion /bastion
 COPY --from=go /out/agents /agents
+# The data folder belongs to the user the panel runs as, so a new volume mounted there does too.
+COPY --from=go --chown=65532:65532 /out/data /data
 ENV BASTION_ADDR=:8080 BASTION_DATA_DIR=/data BASTION_AGENT_BINARIES=/agents
 VOLUME /data
 EXPOSE 8080

@@ -3,9 +3,12 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
+	"net"
 	"net/http"
 	"net/smtp"
 	"net/url"
@@ -252,16 +255,66 @@ func (api *API) send(ctx context.Context, c channel, title, body string) error {
 		payload, _ := json.Marshal(map[string]any{"content": "**" + title + "**\n" + body, "allowed_mentions": map[string]any{"parse": []string{}}})
 		return post(c.config.URL, payload, map[string]string{"Content-Type": "application/json"})
 	case "email":
-		message := "From: " + c.config.From + "\r\nTo: " + c.config.To + "\r\nSubject: " + strings.ReplaceAll(title, "\n", " ") +
-			"\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" + body + "\r\n"
-		var login smtp.Auth
-		if c.config.Username != "" {
-			login = smtp.PlainAuth("", c.config.Username, c.config.Password, c.config.Host)
-		}
-		// net/smtp upgrades to TLS when the server offers it, and won't send a password without it.
-		return smtp.SendMail(c.config.Host+":"+strconv.Itoa(c.config.Port), login, c.config.From, []string{c.config.To}, []byte(message))
+		oneLine := strings.NewReplacer("\r", " ", "\n", " ")
+		message := "From: " + oneLine.Replace(c.config.From) + "\r\nTo: " + oneLine.Replace(c.config.To) +
+			"\r\nSubject: " + mime.QEncoding.Encode("utf-8", oneLine.Replace(title)) +
+			"\r\nDate: " + time.Now().Format(time.RFC1123Z) +
+			"\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" + body + "\r\n"
+		return sendMail(c.config.Host, c.config.Port, c.config.Username, c.config.Password, c.config.From, c.config.To, []byte(message))
 	}
 	return errors.New("unknown channel")
+}
+
+// sendMail sends an email, all within 30 seconds so a stuck mail server can't hold up other alerts.
+// Port 465 is TLS from the start; on any other port it upgrades with STARTTLS when the server offers it.
+// A password is never sent without TLS, except to the panel's own host.
+func sendMail(host string, port int, username, password, from, to string, message []byte) error {
+	address := net.JoinHostPort(host, strconv.Itoa(port))
+	tlsConfig := &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12}
+	conn, err := net.DialTimeout("tcp", address, 20*time.Second)
+	if err != nil {
+		return err
+	}
+	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	if port == 465 {
+		conn = tls.Client(conn, tlsConfig)
+	}
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		conn.Close()
+		return err
+	}
+	defer client.Close()
+	if port != 465 {
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			if err := client.StartTLS(tlsConfig); err != nil {
+				return err
+			}
+		}
+	}
+	if username != "" {
+		// PlainAuth itself refuses to send the password without TLS (other than to localhost).
+		if err := client.Auth(smtp.PlainAuth("", username, password, host)); err != nil {
+			return err
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return err
+	}
+	if err := client.Rcpt(to); err != nil {
+		return err
+	}
+	w, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := w.Write(message); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	return client.Quit()
 }
 
 // problem is something that should be raised as an alert while it lasts.
