@@ -1,6 +1,18 @@
 // A made-up homelab for `npm run demo`: four servers and their stacks, so the screens can be designed
 // and screenshotted without a real panel. Never used in a build.
-import type { ComposeVersion, Container, Server, Stack, StackFiles } from './types';
+import type {
+  ComposeVersion,
+  Container,
+  Egg,
+  GameBackup,
+  GameFile,
+  GameServer,
+  Schedule,
+  Server,
+  Stack,
+  StackFiles,
+  StartupVariable,
+} from './types';
 
 const GB = 1024 ** 3;
 const now = Date.now();
@@ -125,6 +137,102 @@ const logs = [
   'immich_server   | [Nest] 7  - 11/09/2026, 18:47:05     LOG [Microservices:JobService] Thumbnail generation: done (214)',
 ];
 
+
+const MB = 1024 ** 2;
+
+const games: GameServer[] = [
+  {
+    id: 1, name: 'Survival SMP', egg: 'Paper', serverId: 2, serverName: 'forge', state: 'running',
+    address: 'mc.example.co.uk:25565', players: { online: 7, max: 20 },
+    cpuPercent: 38, memUsed: 6.2 * GB, memLimit: 8 * GB, diskUsed: 4.2 * GB, uptimeSecs: 273_600,
+  },
+  {
+    id: 2, name: 'Valheim', egg: 'Valheim (BepInEx)', serverId: 2, serverName: 'forge', state: 'running',
+    address: 'forge.home.lab:2456', players: { online: 2, max: 10 },
+    cpuPercent: 21, memUsed: 3.1 * GB, memLimit: 6 * GB, diskUsed: 1.9 * GB, uptimeSecs: 86_400,
+  },
+  {
+    id: 3, name: 'Satisfactory', egg: 'Satisfactory', serverId: 2, serverName: 'forge', state: 'running',
+    address: 'forge.home.lab:7777', players: { online: 0, max: 4 },
+    cpuPercent: 12, memUsed: 9.8 * GB, memLimit: 12 * GB, diskUsed: 11 * GB, uptimeSecs: 43_200,
+  },
+  {
+    id: 4, name: 'Creative', egg: 'Fabric', serverId: 2, serverName: 'forge', state: 'crashed',
+    address: 'forge.home.lab:25566', players: null,
+    cpuPercent: 0, memUsed: 0, memLimit: 4 * GB, diskUsed: 1.1 * GB, uptimeSecs: 0,
+  },
+  {
+    id: 5, name: 'CS2 retakes', egg: 'Counter-Strike 2', serverId: 1, serverName: 'atlas', state: 'stopped',
+    address: 'atlas.home.lab:27015', players: null,
+    cpuPercent: 0, memUsed: 0, memLimit: 4 * GB, diskUsed: 38 * GB, uptimeSecs: 0,
+  },
+  {
+    id: 6, name: 'TeamSpeak', egg: 'TeamSpeak 3', serverId: 4, serverName: 'edge-vps', state: 'running',
+    address: 'ts.example.co.uk:9987', players: { online: 3, max: 32 },
+    cpuPercent: 1, memUsed: 48 * MB, memLimit: 256 * MB, diskUsed: 22 * MB, uptimeSecs: 1_728_000,
+  },
+];
+
+const eggs: Egg[] = [
+  { id: 1, name: 'Paper', category: 'Minecraft', author: 'parker@pterodactyl.io', description: 'High performance Spigot fork that aims to fix gameplay and mechanics inconsistencies.', servers: 1 },
+  { id: 2, name: 'Fabric', category: 'Minecraft', author: 'community', description: 'Lightweight, modular mod loader for Minecraft.', servers: 1 },
+  { id: 3, name: 'Vanilla Minecraft', category: 'Minecraft', author: 'support@pterodactyl.io', description: 'The official Minecraft server, as Mojang makes it.', servers: 0 },
+  { id: 4, name: 'Valheim (BepInEx)', category: 'Steam', author: 'community', description: 'Valheim dedicated server with the BepInEx mod loader.', servers: 1 },
+  { id: 5, name: 'Satisfactory', category: 'Steam', author: 'community', description: 'Satisfactory dedicated server, installed through SteamCMD.', servers: 1 },
+  { id: 6, name: 'Counter-Strike 2', category: 'Steam', author: 'community', description: 'CS2 dedicated server, installed through SteamCMD.', servers: 1 },
+  { id: 7, name: 'TeamSpeak 3', category: 'Voice', author: 'support@pterodactyl.io', description: 'VoIP software designed with security in mind.', servers: 1 },
+];
+
+const gameConsole = [
+  '[18:41:02 INFO]: Alex joined the game',
+  '[18:41:15 INFO]: <Alex> anyone up for the nether?',
+  '[18:42:30 INFO]: Saving the game (this may take a moment!)',
+  '[18:42:31 INFO]: Saved the game',
+  '[18:43:07 INFO]: Jane Cooper has made the advancement [Diamonds!]',
+  '[18:43:55 WARN]: Can\'t keep up! Is the server overloaded? Running 2104ms or 42 ticks behind',
+  '[18:44:12 INFO]: [Bastion] Backup in 15 minutes: world (4.2 GB)',
+  '[18:44:40 INFO]: There are 7 of a max of 20 players online: Alex, Jane Cooper, Robin, Casey, Sam, Morgan, Ellis',
+];
+
+const gameFiles: GameFile[] = [
+  { name: 'cache', dir: true, size: 0, modified: minutesAgo(60 * 70) },
+  { name: 'logs', dir: true, size: 0, modified: minutesAgo(3) },
+  { name: 'plugins', dir: true, size: 0, modified: minutesAgo(60 * 50) },
+  { name: 'world', dir: true, size: 0, modified: minutesAgo(1) },
+  { name: 'world_nether', dir: true, size: 0, modified: minutesAgo(1) },
+  { name: 'world_the_end', dir: true, size: 0, modified: minutesAgo(1) },
+  { name: 'banned-players.json', dir: false, size: 2, modified: minutesAgo(60 * 24 * 12) },
+  { name: 'bukkit.yml', dir: false, size: 1_241, modified: minutesAgo(60 * 24 * 12) },
+  { name: 'eula.txt', dir: false, size: 158, modified: minutesAgo(60 * 24 * 40) },
+  { name: 'ops.json', dir: false, size: 214, modified: minutesAgo(60 * 24 * 3) },
+  { name: 'paper.jar', dir: false, size: 51_380_224, modified: minutesAgo(60 * 76) },
+  { name: 'server.properties', dir: false, size: 1_489, modified: minutesAgo(60 * 26) },
+  { name: 'whitelist.json', dir: false, size: 812, modified: minutesAgo(60 * 24 * 3) },
+];
+
+const startup: { command: string; image: string; variables: StartupVariable[] } = {
+  command: 'java -Xms128M -XX:MaxRAMPercentage=95.0 -Dterminal.jline=false -jar {{SERVER_JARFILE}}',
+  image: 'ghcr.io/pterodactyl/yolks:java_21',
+  variables: [
+    { key: 'MINECRAFT_VERSION', name: 'Minecraft version', description: 'The version to run, or "latest".', value: '1.21.4', editable: true },
+    { key: 'BUILD_NUMBER', name: 'Build number', description: 'The Paper build to use, or "latest".', value: 'latest', editable: true },
+    { key: 'SERVER_JARFILE', name: 'Server jar file', description: 'The name of the jar to run.', value: 'paper.jar', editable: true },
+    { key: 'EULA', name: 'Accept the EULA', description: 'Mojang\'s EULA must be accepted to run a server.', value: 'true', editable: false },
+  ],
+};
+
+const schedules: Schedule[] = [
+  { id: 1, name: 'Nightly restart', when: 'Every day at 05:00', action: 'Warn players, then restart', nextRun: new Date(now + 10 * 3600_000).toISOString(), enabled: true },
+  { id: 2, name: 'World backup', when: 'Every day at 03:00', action: 'Back up world, keep 7', nextRun: new Date(now + 8 * 3600_000).toISOString(), enabled: true },
+  { id: 3, name: 'Weekend whitelist off', when: 'Fridays at 18:00', action: 'Run: whitelist off', nextRun: new Date(now + 4 * 86400_000).toISOString(), enabled: false },
+];
+
+const backups: GameBackup[] = [
+  { id: 41, name: 'Nightly', size: 4.1 * GB, createdAt: minutesAgo(60 * 16), locked: false },
+  { id: 40, name: 'Before 1.21.4 update', size: 3.9 * GB, createdAt: minutesAgo(60 * 76), locked: true },
+  { id: 39, name: 'Nightly', size: 3.9 * GB, createdAt: minutesAgo(60 * 40), locked: false },
+];
+
 export function demo(method: string, path: string, body?: unknown): unknown {
   if (method === 'GET' && path === '/servers') return servers;
   if (method === 'GET' && path === '/stacks') return stacks;
@@ -132,6 +240,18 @@ export function demo(method: string, path: string, body?: unknown): unknown {
   if (method === 'GET' && path.endsWith('/files')) return files;
   if (method === 'GET' && path.endsWith('/history')) return history;
   if (method === 'GET' && path.includes('/logs')) return { lines: logs };
+  if (method === 'GET' && path === '/games') return games;
+  if (method === 'GET' && path === '/eggs') return eggs;
+  const game = /^\/games\/(\d+)(\/[a-z]+)?/.exec(path);
+  if (method === 'GET' && game) {
+    const part = game[2] ?? '';
+    if (part === '/console') return { lines: gameConsole };
+    if (part === '/files') return gameFiles;
+    if (part === '/startup') return startup;
+    if (part === '/schedules') return schedules;
+    if (part === '/backups') return backups;
+    return games.find((g) => g.id === Number(game[1]));
+  }
   if (method === 'POST' && path === '/servers') {
     const name = (body as { name: string }).name;
     return {

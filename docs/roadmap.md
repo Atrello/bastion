@@ -23,9 +23,18 @@ from a stack, health checks on each host, and certificate expiry warnings.
 
 ## 0.3: Game servers
 
-Pterodactyl-style game servers, from Pterodactyl's own egg files, run as containers on any server with
-the agent: a live console, startup variables, resource limits, a web file manager, schedules (restarts,
-commands, backups) and sharing one game server with a friend.
+A section of its own in the panel, separate from Docker. Pterodactyl-style game servers, from
+Pterodactyl's own egg files, run as containers on any server with the agent:
+
+- **Game servers**: each one's state, players, address and memory at a glance, and starting a new one
+  from an egg on any server.
+- **A game server's page**: a live console with commands, its CPU, memory, disk and players; a web file
+  manager; startup settings (the egg's variables, like the game version); schedules (restarts with a
+  warning to players, commands, backups); backups to restore or download.
+- **Eggs**: import Pterodactyl's egg files, grouped by game type.
+- **Sharing** one game server with a friend, who sees only that one.
+
+The screens are built (on demo data); the agent's side comes after 0.2.
 
 ## Later
 

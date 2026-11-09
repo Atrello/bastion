@@ -1,6 +1,18 @@
 // The panel's API, one function per endpoint. With VITE_DEMO set (npm run demo) the answers come from
 // demo.ts instead, so the screens can be worked on without a panel or any servers.
-import type { ComposeVersion, Container, Server, Stack, StackFiles } from './types';
+import type {
+  ComposeVersion,
+  Container,
+  Egg,
+  GameBackup,
+  GameFile,
+  GameServer,
+  Schedule,
+  Server,
+  Stack,
+  StackFiles,
+  StartupVariable,
+} from './types';
 
 const DEMO = import.meta.env.VITE_DEMO === '1';
 
@@ -39,6 +51,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 const stackPath = (serverId: number, name: string) => `/servers/${serverId}/stacks/${encodeURIComponent(name)}`;
 
 export type StackAction = 'up' | 'down' | 'stop' | 'start' | 'restart' | 'pull' | 'update';
+export type GamePower = 'start' | 'stop' | 'restart' | 'kill';
 
 export const api = {
   servers: () => request<Server[]>('GET', '/servers'),
@@ -53,4 +66,22 @@ export const api = {
   stackHistory: (serverId: number, name: string) => request<ComposeVersion[]>('GET', `${stackPath(serverId, name)}/history`),
   stackAction: (serverId: number, name: string, action: StackAction) =>
     request<{ output: string }>('POST', `${stackPath(serverId, name)}/actions/${action}`),
+
+  games: () => request<GameServer[]>('GET', '/games'),
+  game: (id: number) => request<GameServer>('GET', `/games/${id}`),
+  createGame: (game: { name: string; eggId: number; serverId: number; memoryMb: number; port: number }) =>
+    request<GameServer>('POST', '/games', game),
+  gamePower: (id: number, action: GamePower) => request<void>('POST', `/games/${id}/power/${action}`),
+  /** The console's recent output; new lines then arrive over the console's websocket. */
+  gameConsole: (id: number) => request<{ lines: string[] }>('GET', `/games/${id}/console`),
+  gameCommand: (id: number, command: string) => request<void>('POST', `/games/${id}/command`, { command }),
+  gameFiles: (id: number, path: string) => request<GameFile[]>('GET', `/games/${id}/files?path=${encodeURIComponent(path)}`),
+  gameStartup: (id: number) => request<{ command: string; image: string; variables: StartupVariable[] }>('GET', `/games/${id}/startup`),
+  saveGameStartup: (id: number, values: Record<string, string>) => request<void>('PUT', `/games/${id}/startup`, values),
+  gameSchedules: (id: number) => request<Schedule[]>('GET', `/games/${id}/schedules`),
+  gameBackups: (id: number) => request<GameBackup[]>('GET', `/games/${id}/backups`),
+  createGameBackup: (id: number) => request<GameBackup>('POST', `/games/${id}/backups`),
+  eggs: () => request<Egg[]>('GET', '/eggs'),
+  /** Imports a Pterodactyl egg: the egg's JSON file, as it's exported from Pterodactyl or a community repo. */
+  importEgg: (json: string) => request<Egg>('POST', '/eggs', JSON.parse(json)),
 };

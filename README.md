@@ -1,7 +1,7 @@
 # Bastion
 
-A panel for a homelab: the Docker compose stacks on all your servers in one place, with game servers and
-Nginx Proxy Manager to follow.
+A panel for a homelab: the Docker compose stacks on all your servers, and game servers run from
+Pterodactyl's eggs, in one place. Nginx Proxy Manager follows.
 
 A small agent runs on each server and connects out to the panel, so servers need no open ports. The panel
 shows each server's health, lists every stack and container, and lets you edit a stack's compose file and
@@ -15,7 +15,7 @@ Early. The panel's screens are built and run on demo data; the panel's server an
 
 | Part | State |
 |---|---|
-| Panel web app (`panel/web`) | Built: overview, servers, stacks, a stack's compose file, `.env`, containers, logs and history, containers |
+| Panel web app (`panel/web`) | Built: overview and servers; Docker (stacks, a stack's compose file, `.env`, containers, logs and history; containers); game servers (each one's console, files, startup settings, schedules and backups; the egg library) |
 | Panel server (`panel`) | Next: Go, SQLite, sign-in, the API in [docs/api.md](docs/api.md) |
 | Agent (`agent`) | After the panel server: Go, one binary per server |
 

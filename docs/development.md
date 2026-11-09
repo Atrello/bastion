@@ -15,6 +15,8 @@ npm run build    # the production build, into dist/
 
 ### How it's put together
 
+- **Sections**: the overview and servers, then Docker (stacks and containers) and Games (game servers and
+  eggs), each with its own heading in the menu (`src/components/Sidebar.svelte`).
 - **Pages** (`src/pages`) are one file each, picked by `App.svelte` from the address. The router
   (`src/lib/router.svelte.ts`) is a few lines: links are ordinary `<a>` elements, and clicks on them are
   turned into page changes without a reload.

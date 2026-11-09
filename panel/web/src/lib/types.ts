@@ -55,3 +55,47 @@ export type StackFiles = {
 };
 
 export type ComposeVersion = { id: number; savedAt: string; savedBy: string; note: string };
+
+/** A game server, run from an egg (Pterodactyl's game definitions) as a container on one of the servers. */
+export type GameServer = {
+  id: number;
+  name: string;
+  egg: string;
+  serverId: number;
+  serverName: string;
+  state: 'running' | 'starting' | 'stopping' | 'stopped' | 'crashed';
+  /** Where players connect, e.g. "mc.example.co.uk:25565". */
+  address: string;
+  players: { online: number; max: number } | null;
+  cpuPercent: number;
+  memUsed: number;
+  memLimit: number;
+  diskUsed: number;
+  uptimeSecs: number;
+};
+
+export type Egg = {
+  id: number;
+  name: string;
+  /** What kind of game, from the egg's nest: Minecraft, Steam, Voice and the like. */
+  category: string;
+  author: string;
+  description: string;
+  servers: number;
+};
+
+/** A setting the egg lets each game server choose, like the version or the world's seed. */
+export type StartupVariable = {
+  key: string;
+  name: string;
+  description: string;
+  value: string;
+  /** Changing it needs a restart, and some can only be changed by an admin. */
+  editable: boolean;
+};
+
+export type GameFile = { name: string; dir: boolean; size: number; modified: string };
+
+export type Schedule = { id: number; name: string; when: string; action: string; nextRun: string; enabled: boolean };
+
+export type GameBackup = { id: number; name: string; size: number; createdAt: string; locked: boolean };
