@@ -1,5 +1,6 @@
 <!-- A stack's logs, following live: the last 200 lines, then each new one as it's written. -->
 <script lang="ts">
+  import LogLine from './LogLine.svelte';
   import { api } from '../lib/api';
   import { openStream } from '../lib/stream';
 
@@ -22,6 +23,7 @@
         lines = lines.length >= MAX_LINES ? [...lines.slice(-MAX_LINES + 1), text] : [...lines, text];
       },
       (reason) => (status = reason ?? 'Stopped'),
+      () => (status = 'Live'),
     );
     return () => stream.close();
   });
@@ -33,7 +35,7 @@
 </script>
 
 <p class="muted small">{status} · the last {MAX_LINES} lines are kept here</p>
-<pre class="logs mono" bind:this={box} onscroll={() => (pinned = box.scrollTop + box.clientHeight >= box.scrollHeight - 8)}>{#each lines as line, i (i)}<span class:warn={/\bWARN|\bERROR|\berror\b/.test(line)}>{line}</span>
+<pre class="logs mono" bind:this={box} onscroll={() => (pinned = box.scrollTop + box.clientHeight >= box.scrollHeight - 8)}>{#each lines as line, i (i)}<span class:warn={/\bWARN|\bERROR|\berror\b/.test(line)}><LogLine {line} /></span>
 {/each}</pre>
 
 <style>

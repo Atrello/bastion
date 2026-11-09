@@ -1,61 +1,36 @@
 # Testing list
 
-What couldn't be tested where Bastion was built (no real servers, no systemd, no ssh client, and a proxy
-that breaks TLS inside containers), to check by hand. Everything else in `docs/plan.md`'s progress table
-has been tested for real. Tick each one off; anything that fails, note what you saw.
+Almost everything has been tested for real in a lab built for it (below). What's left needs your own
+domain, devices or accounts. About 20 minutes, most of which is installing it anyway.
 
-## 1. Install (about 20 minutes)
+## What's left for you
 
-- [ ] `docker compose up -d --build` in `deploy/` builds the image (this couldn't be built here).
-- [ ] The panel's log shows the setup link; opening it makes your account with an authenticator app.
-- [ ] Behind Nginx Proxy Manager with websockets on, over HTTPS: sign in, sign out, sign in again.
-- [ ] Add a passkey on your phone and on your laptop (Account page); sign in with each.
-- [ ] Use a recovery code once; it doesn't work a second time.
-- [ ] Add a server: the join command installs the agent and starts `bastion-agent` with systemd; the server
-      shows as online within seconds, with its existing stacks.
-- [ ] A second server the same way. Reboot one: it comes back online on its own.
+- [ ] **Install it for real** (docs/install.md): `docker compose up -d --build` in `deploy/`, behind your
+      Nginx Proxy Manager with websockets on. Open the setup link from its log and make your account.
+- [ ] **A passkey on your own phone or laptop** (Account page), then sign in with it. Passkeys were tested
+      with Chrome's virtual authenticator over HTTPS; a real device is the last step.
+- [ ] **Join your servers** with the command from Servers, Add a server.
+- [ ] **A Let's Encrypt certificate** for a real domain: Proxy, New certificate (or Expose on a stack). It
+      needs a domain pointing at your NPM, which the lab couldn't have.
+- [ ] **Discord alerts**: Alerts, add Discord with a webhook from your server's settings, Send test.
 
-## 2. Docker (about 15 minutes)
+Optional, if you want to:
 
-- [ ] A stack you already run: edit its compose file and `.env`, save and deploy; check the change took.
-- [ ] Live logs and a console into a container, from a phone too.
-- [ ] Check for updates on a stack with an old image; Update images clears it.
-- [ ] Volumes and images pages; Clean up removes only what it said it would.
-- [ ] Git-backed stack from a **private** repo: add the deploy key to GitHub, link it, deploy from Git.
-      Push a change and see "a newer commit" appear (and deploy itself, with auto-deploy on).
-- [ ] Alerts: add ntfy (your topic), Discord (a webhook) and email; Send test on each. Stop a container
-      that's meant to run and see the alert, then the "Resolved" when it's back.
+- [ ] Join the Paper server from Minecraft itself (the lab answered Minecraft's server-list ping).
+- [ ] A Steam game (Valheim, from the `pelican-eggs/games-steamcmd` collection). Steam eggs use the same
+      installer and console as Paper, but none has been run.
 
-## 3. Nginx Proxy Manager (about 15 minutes)
+## What was tested in the lab
 
-- [ ] Proxy: link your NPM (give Bastion its own NPM user). Your existing hosts and certificates appear.
-- [ ] Make a proxy host with a new Let's Encrypt certificate (HTTP challenge) for a real domain.
-- [ ] One with a DNS challenge (Cloudflare) for a wildcard.
-- [ ] On a stack's Containers tab, Expose a container at a new domain; it loads over HTTPS.
-- [ ] Edit a host: add a custom location and an access list; both work.
-- [ ] Disable and enable a host; the Answering column follows within a few minutes.
-- [ ] The overview shows "proxy hosts answering"; stop a site's container and its host shows red (and
-      alerts, if host alerts are on).
+A panel built from the real Dockerfile, behind Caddy with HTTPS, and a separate Debian server running
+systemd, joined with the panel's own one-line command. Browser tests in Chromium.
 
-## 4. Game servers (about 30 minutes)
-
-- [ ] Eggs: import Paper by link
-      (`https://raw.githubusercontent.com/pterodactyl/panel/1.0-develop/database/Seeders/eggs/minecraft/egg-paper.json`),
-      then import it again: it asks before replacing.
-- [ ] New game server from Paper, 4096 MB, port 25565. The console shows the installer downloading Paper,
-      then it can be started.
-- [ ] Join it from Minecraft. Type `say hi` in the console; it shows in the game.
-- [ ] Restart with a 30-second warning: players see "Server restarting in 30 seconds".
-- [ ] Files: edit `server.properties`, upload a datapack, download the world's `level.dat`.
-- [ ] Backups: back up, break something, stop it, restore, start: it's as it was. Download a backup.
-- [ ] Schedules: a restart at a time a few minutes away; it runs, with the warning.
-- [ ] Valheim from a Steam egg (from the `pelican-eggs/games-steamcmd` collection), join it from the game.
-- [ ] Sharing: make an invite link, open it in a private window, make a friend's account (with two-factor).
-      They see only that game server and the Game servers menu; they can start, stop and use the console
-      and files, but not delete it or change its limits.
-- [ ] Set a game's disk limit below what it uses: it's stopped within a minute and won't start.
-
-## 5. Updating
-
-- [ ] `git pull && docker compose up -d --build` in `deploy/`: you stay signed in, everything's still there.
-- [ ] A new join command on a server updates its agent and keeps its stacks and games.
+| Area | Tested |
+|---|---|
+| Install | The image builds and runs as a non-root user (this found and fixed a bug: the data folder wasn't writable); the setup link; the install script downloads the agent over HTTPS, joins, and starts it with systemd; it starts again after a reboot; a new join command keeps the server's place; replacing the panel's container keeps you signed in and everything in it |
+| Sign-in | Setup with a passkey over HTTPS, then signing in with the passkey alone; the session cookie is Secure, HttpOnly and SameSite=Strict; authenticator codes and one-use recovery codes (automated tests) |
+| Docker | Stacks found and edited, saved and deployed; live logs and a container console over HTTPS websockets through the reverse proxy; image updates; volumes, images and clean-up |
+| Git | A private repository over ssh with the stack's deploy key: refused before the key was added, deployed after; a pushed change noticed and deployed by itself with auto-deploy on |
+| Alerts | ntfy (a real message to ntfy.sh, read back from it); email over STARTTLS with a login, over port 465, and a stuck mail server giving up after 30 seconds (this found and fixed two bugs: 465 didn't work, and a stuck server hung the alerts) |
+| Nginx Proxy Manager | A real NPM 2.16: every kind of item made, changed, enabled, disabled and deleted; a custom certificate uploaded; Expose on a stack made a proxy host, NPM served the stack's page through it, and the health check counted it as answering |
+| Game servers | Pterodactyl's real Paper egg: installed (downloaded Paper 26.3), the EULA accepted from the new prompt (this found and fixed a gap: Paper won't start without it), started, answered Minecraft's server-list ping, a console command shown in game, a restart that warned players first, the real world backed up, deleted, restored and loaded again. Files, schedules, disk limits and sharing with a friend (an invite link, an account with a passkey, and only that game visible) |

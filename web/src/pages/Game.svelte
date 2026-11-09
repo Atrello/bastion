@@ -28,6 +28,18 @@
   let message = $state<{ ok: boolean; text: string }>();
   let stopping = $state<'stop' | 'restart'>();
   let warn = $state(60);
+  let eula = $state(false);
+
+  // Minecraft won't run until its EULA is accepted: this writes eula.txt, as Pterodactyl's prompt does.
+  async function acceptEula() {
+    try {
+      await api.writeGameFile(id, 'eula.txt', 'eula=true\n');
+      eula = false;
+      await power('start', 'EULA accepted. Starting.');
+    } catch (err) {
+      problem((err as Error).message);
+    }
+  }
 
   const running = $derived(game.data?.state === 'running' || game.data?.state === 'stopping');
   const note = (text: string) => (message = { ok: true, text });
@@ -79,7 +91,18 @@
 
   {#if tab === 'console'}
     <div class="console-layout">
-      <div><GameConsole game={g} onerror={problem} /></div>
+      <div>
+        {#if eula}
+          <div class="card eula row">
+            <span class="grow">
+              Minecraft needs its <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noreferrer">end user licence agreement</a>
+              accepted before this server will run.
+            </span>
+            <button class="primary" onclick={acceptEula}>I accept: start it</button>
+          </div>
+        {/if}
+        <GameConsole game={g} onerror={problem} oneula={(needed) => (eula = needed)} />
+      </div>
       <aside class="card stats">
         <p class="label muted small">Address</p>
         <p class="mono">{g.address}</p>
@@ -166,6 +189,10 @@
   }
   .stats .label {
     margin: 0 0 2px;
+  }
+  .eula {
+    margin-bottom: 10px;
+    border-color: var(--accent);
   }
   .warn-row {
     gap: 10px;

@@ -141,6 +141,7 @@ func installGame(s protocol.GameSpec) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 		defer cancel()
 		err := runInstall(ctx, s)
+		measureGame(s.ID) // so its size shows straight away, not at the next measuring
 		games.mu.Lock()
 		delete(games.installing, s.ID)
 		games.failed[s.ID] = err != nil
@@ -472,18 +473,7 @@ func measureGames(ctx context.Context) {
 			if err != nil || !e.IsDir() {
 				continue
 			}
-			var total uint64
-			_ = filepath.WalkDir(filepath.Join(gamesDir(), e.Name()), func(_ string, d fs.DirEntry, err error) error {
-				if err == nil && d.Type().IsRegular() {
-					if info, err := d.Info(); err == nil {
-						total += uint64(info.Size())
-					}
-				}
-				return nil
-			})
-			games.mu.Lock()
-			games.disk[id] = total
-			games.mu.Unlock()
+			measureGame(id)
 		}
 		select {
 		case <-ctx.Done():
@@ -491,6 +481,22 @@ func measureGames(ctx context.Context) {
 		case <-time.After(3 * time.Minute):
 		}
 	}
+}
+
+// measureGame adds up one game's folder.
+func measureGame(id int64) {
+	var total uint64
+	_ = filepath.WalkDir(gameDir(id), func(_ string, d fs.DirEntry, err error) error {
+		if err == nil && d.Type().IsRegular() {
+			if info, err := d.Info(); err == nil {
+				total += uint64(info.Size())
+			}
+		}
+		return nil
+	})
+	games.mu.Lock()
+	games.disk[id] = total
+	games.mu.Unlock()
 }
 
 // installLog is the end of a game's install log, for its console while it installs.

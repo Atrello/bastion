@@ -252,3 +252,40 @@ tbody tr:hover td {
   border-color: var(--accent);
   color: var(--bright);
 }
+
+/* Terminal colours in logs and consoles, in the theme's own shades. */
+.ansi-30,
+.ansi-90 {
+  color: var(--muted);
+}
+.ansi-31,
+.ansi-91 {
+  color: var(--red);
+}
+.ansi-32,
+.ansi-92 {
+  color: var(--green);
+}
+.ansi-33,
+.ansi-93 {
+  color: var(--amber);
+}
+.ansi-34,
+.ansi-94 {
+  color: #7fa7d9;
+}
+.ansi-35,
+.ansi-95 {
+  color: #d4a5e8;
+}
+.ansi-36,
+.ansi-96 {
+  color: #6cc5c0;
+}
+.ansi-37,
+.ansi-97 {
+  color: var(--bright);
+}
+.ansi-bold {
+  font-weight: 700;
+}

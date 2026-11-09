@@ -1,11 +1,13 @@
 <!-- A game's console: its recent output, new lines live while it runs, and a line to type commands into
      (up and down go through the ones sent before). While it installs, the installer's output instead. -->
 <script lang="ts">
+  import LogLine from './LogLine.svelte';
   import { api } from '../lib/api';
   import { openStream } from '../lib/stream';
   import type { GameServer } from '../lib/types';
 
-  let { game, onerror }: { game: GameServer; onerror: (message: string) => void } = $props();
+  // oneula: the game has said it needs Minecraft's EULA accepted before it will run.
+  let { game, onerror, oneula }: { game: GameServer; onerror: (message: string) => void; oneula?: (needed: boolean) => void } = $props();
 
   const KEEP = 1000;
   let lines = $state<string[]>([]);
@@ -48,6 +50,10 @@
   });
 
   $effect(() => {
+    oneula?.(!running && lines.slice(-20).some((l) => /agree to the EULA/i.test(l)));
+  });
+
+  $effect(() => {
     void lines.length;
     if (box && follow) queueMicrotask(() => (box.scrollTop = box.scrollHeight));
   });
@@ -75,7 +81,7 @@
   }
 </script>
 
-<pre class="console mono" bind:this={box} onscroll={() => (follow = box.scrollTop + box.clientHeight >= box.scrollHeight - 8)}>{#each lines as line, i (i)}<span class:warn={/\bWARN\b/.test(line)} class:bad={/\bERROR\b|Exception/.test(line)}>{line}</span>
+<pre class="console mono" bind:this={box} onscroll={() => (follow = box.scrollTop + box.clientHeight >= box.scrollHeight - 8)}>{#each lines as line, i (i)}<span class:warn={/\bWARN\b/.test(line)} class:bad={/\bERROR\b|Exception/.test(line)}><LogLine {line} /></span>
 {:else}<span class="muted">{installing ? 'Installing…' : running ? 'Nothing yet.' : 'Not running. Start it to see its console.'}</span>{/each}</pre>
 <form class="row command" onsubmit={send}>
   <input

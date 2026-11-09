@@ -3,7 +3,7 @@
 
 export type Stream = { send: (message: object) => void; close: () => void };
 
-export function openStream(path: string, ondata: (text: string) => void, onend: (reason?: string) => void): Stream {
+export function openStream(path: string, ondata: (text: string) => void, onend: (reason?: string) => void, onopen?: () => void): Stream {
   const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/streams/${path}`);
   let ended = false;
   const end = (reason?: string) => {
@@ -17,6 +17,7 @@ export function openStream(path: string, ondata: (text: string) => void, onend: 
     if (m.type === 'data') ondata(m.data ?? '');
     else end();
   };
+  ws.onopen = () => onopen?.();
   ws.onclose = () => end('The connection to the server closed.');
   return {
     send: (message) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(message)),
