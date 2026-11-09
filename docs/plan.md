@@ -117,7 +117,8 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 0.1 step 5: the API, wired up | Done: tested end to end with a real agent and Docker (a stack found, its files read and saved, a broken file refused by Docker, deployed, logs, history) |
 | 0.1 step 6: live logs and container consoles | Done: tested live (new lines arriving; a command typed into a container's shell) |
 | 0.1 step 7: image updates | Done: tested against Docker Hub (an out-of-date image found; Update images cleared it) |
-| 0.1 step 8: volumes, images and clean-up | Next |
+| 0.1 step 8: volumes, images and clean-up | Done: tested for real (unused image and volume listed; image clean-up kept the volume; volumes only removed when ticked) |
+| 0.1 step 9: Git-backed stacks | Next |
 
 ## Changes to the plan
 

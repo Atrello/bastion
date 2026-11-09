@@ -57,6 +57,10 @@ it's 400 with Docker's own message.
 | `GET /servers/{id}/stacks/{name}/history` | Earlier versions of the compose file |
 | `POST /servers/{id}/stacks/{name}/actions/{action}` | `up`, `down`, `start`, `stop`, `restart`, `pull`, or `update` (pull and recreate what changed). Returns Docker's output |
 | `POST /servers/{id}/containers/{id}/actions/{action}` | `start`, `stop` or `restart` one container |
+| `GET /servers/{id}/volumes` | The server's volumes: size, the containers using each, its stack |
+| `GET /servers/{id}/images` | The server's images: size, how much is its own, how many containers use it |
+| `GET /servers/{id}/cleanup` | What clean-up would remove (images and volumes nothing uses, build cache) and what each frees |
+| `POST /servers/{id}/cleanup` | `{"images", "volumes", "buildCache"}`: removes what's asked. Volumes can hold data: they're never removed unless `volumes` is true |
 
 ### Live streams (websockets)
 

@@ -270,6 +270,18 @@ func (c *conn) do(m protocol.Message) (any, error) {
 			return nil, err
 		}
 		return containerAction(ctx, a)
+	case protocol.OpVolumes:
+		return listVolumes(ctx)
+	case protocol.OpImages:
+		return listImages(ctx)
+	case protocol.OpCleanupPreview:
+		return cleanupPreview(ctx)
+	case protocol.OpCleanup:
+		var a protocol.CleanupArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		return cleanup(ctx, a)
 	case protocol.OpCheckUpdates:
 		select {
 		case c.updatesNow <- struct{}{}:

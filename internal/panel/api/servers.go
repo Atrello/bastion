@@ -26,6 +26,10 @@ func (api *API) serverRoutes() {
 	m.Handle("POST /api/servers/{id}/join-command", api.signedIn(api.newJoinCommand))
 	m.Handle("DELETE /api/servers/{id}", api.signedIn(api.deleteServer))
 	m.Handle("POST /api/updates/check", api.signedIn(api.checkUpdates))
+	m.Handle("GET /api/servers/{id}/volumes", api.signedIn(api.passThrough(protocol.OpVolumes)))
+	m.Handle("GET /api/servers/{id}/images", api.signedIn(api.passThrough(protocol.OpImages)))
+	m.Handle("GET /api/servers/{id}/cleanup", api.signedIn(api.passThrough(protocol.OpCleanupPreview)))
+	m.Handle("POST /api/servers/{id}/cleanup", api.signedIn(api.cleanup))
 	m.Handle("GET /api/stacks", api.signedIn(api.stacks))
 	m.Handle("GET /api/containers", api.signedIn(api.containers))
 	m.Handle("GET /api/servers/{id}/stacks/{name}/files", api.signedIn(api.stackFiles))
@@ -132,6 +136,42 @@ func (api *API) newJoinCommand(w http.ResponseWriter, r *http.Request, _ *auth.U
 		return
 	}
 	writeJSON(w, map[string]string{"joinCommand": api.joinCommand(token)})
+}
+
+// passThrough answers with what a server's agent says to op, which takes no arguments.
+func (api *API) passThrough(op string) func(http.ResponseWriter, *http.Request, *auth.User) {
+	return func(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+		id, ok := pathID(w, r)
+		if !ok {
+			return
+		}
+		var result any
+		if err := api.hub.Request(r.Context(), id, op, nil, &result); err != nil {
+			api.agentFail(w, r, err)
+			return
+		}
+		writeJSON(w, result)
+	}
+}
+
+// cleanup removes what nothing uses on a server: images, and only if asked, volumes and build cache.
+func (api *API) cleanup(w http.ResponseWriter, r *http.Request, u *auth.User) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var body protocol.CleanupArgs
+	if !readJSON(w, r, &body) {
+		return
+	}
+	var result protocol.ActionResult
+	err := api.hub.Request(r.Context(), id, protocol.OpCleanup, body, &result)
+	api.log.Info("clean-up", "user", u.Username, "server", id, "images", body.Images, "volumes", body.Volumes, "buildCache", body.BuildCache, "ok", err == nil)
+	if err != nil {
+		api.agentFail(w, r, err)
+		return
+	}
+	writeJSON(w, result)
 }
 
 // checkUpdates asks every connected agent to check its images' registries now. The results arrive with

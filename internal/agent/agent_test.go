@@ -90,3 +90,11 @@ func TestParseRef(t *testing.T) {
 		t.Error("a bad reference was accepted")
 	}
 }
+
+func TestParseSize(t *testing.T) {
+	for in, want := range map[string]uint64{"0B": 0, "512B": 512, "12.2MB": 12_200_000, "1.5GB": 1_500_000_000, "3kB": 3000, "?": 0} {
+		if got := parseSize(in); got != want {
+			t.Errorf("%s: got %d, want %d", in, got, want)
+		}
+	}
+}

@@ -9,6 +9,8 @@
   import { match, navigate, route } from './lib/router.svelte';
   import Containers from './pages/Containers.svelte';
   import Eggs from './pages/Eggs.svelte';
+  import Images from './pages/Images.svelte';
+  import Volumes from './pages/Volumes.svelte';
   import Game from './pages/Game.svelte';
   import Games from './pages/Games.svelte';
   import Overview from './pages/Overview.svelte';
@@ -63,6 +65,10 @@
       {#key route.path}<Stack serverId={Number(stack.server)} name={stack.name} />{/key}
     {:else if route.path === '/containers'}
       <Containers />
+    {:else if route.path === '/volumes'}
+      <Volumes />
+    {:else if route.path === '/images'}
+      <Images />
     {:else if route.path === '/games'}
       <Games />
     {:else if game}

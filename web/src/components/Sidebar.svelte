@@ -17,6 +17,8 @@
       links: [
         { href: '/stacks', label: 'Stacks', icon: 'M12 3 3 8l9 5 9-5-9-5zM3 13l9 5 9-5M3 18l9 5 9-5' },
         { href: '/containers', label: 'Containers', icon: 'M4 6h16v12H4zM8 6v12M12 6v12M16 6v12' },
+        { href: '/volumes', label: 'Volumes', icon: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3v12c0 1.7-3.6 3-8 3s-8-1.3-8-3zM4 6c0 1.7 3.6 3 8 3s8-1.3 8-3M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3' },
+        { href: '/images', label: 'Images', icon: 'M21 16V8l-9-5-9 5v8l9 5 9-5zM3.3 7 12 12l8.7-5M12 22V12' },
       ],
     },
     {

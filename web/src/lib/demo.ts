@@ -253,6 +253,26 @@ export function demo(method: string, path: string, body?: unknown): unknown {
   if (method === 'GET' && path.endsWith('/files')) return files;
   if (method === 'GET' && path.endsWith('/history')) return history;
   if (method === 'GET' && path.includes('/logs')) return { lines: logs };
+  if (method === 'GET' && path.endsWith('/volumes'))
+    return [
+      { name: 'immich_pgdata', driver: 'local', size: 2.1 * GB, containers: 1, usedBy: ['immich_postgres'], stack: 'immich' },
+      { name: 'immich_model-cache', driver: 'local', size: 1.4 * GB, containers: 1, usedBy: ['immich_machine_learning'], stack: 'immich' },
+      { name: 'old-nextcloud_data', driver: 'local', size: 18.3 * GB, containers: 0, usedBy: null, stack: 'old-nextcloud' },
+    ];
+  if (method === 'GET' && path.endsWith('/images'))
+    return [
+      { id: 'a1b2c3d4e5f6', repository: 'ghcr.io/immich-app/immich-server', tag: 'v1.133.0', size: 1.3 * GB, uniqueSize: 1.1 * GB, containers: 1, created: '2 weeks ago' },
+      { id: 'b2c3d4e5f6a1', repository: 'ghcr.io/immich-app/immich-server', tag: 'v1.132.3', size: 1.3 * GB, uniqueSize: 0.4 * GB, containers: 0, created: '5 weeks ago' },
+      { id: 'c3d4e5f6a1b2', repository: 'redis', tag: '7.4-alpine', size: 41 * MB, uniqueSize: 41 * MB, containers: 1, created: '2 months ago' },
+    ];
+  if (method === 'GET' && path.endsWith('/cleanup'))
+    return {
+      images: [{ name: 'ghcr.io/immich-app/immich-server:v1.132.3', size: 1.3 * GB }],
+      imagesSize: 0.4 * GB,
+      volumes: [{ name: 'old-nextcloud_data', size: 18.3 * GB }],
+      volumesSize: 18.3 * GB,
+      buildCacheSize: 640 * MB,
+    };
   if (method === 'GET' && path === '/games') return games;
   if (method === 'GET' && path === '/eggs') return eggs;
   const game = /^\/games\/(\d+)(\/[a-z]+)?/.exec(path);

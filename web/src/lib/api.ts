@@ -1,9 +1,12 @@
 // The panel's API, one function per endpoint. With VITE_DEMO set (npm run demo) the answers come from
 // demo.ts instead, so the screens can be worked on without a panel or any servers.
 import type {
+  Cleanup,
   ComposeVersion,
   Container,
   Egg,
+  Image,
+  Volume,
   GameBackup,
   GameFile,
   GameServer,
@@ -91,6 +94,11 @@ export const api = {
   containers: () => request<Container[]>('GET', '/containers'),
   /** Asks every server to check its images' registries now; results arrive a few seconds later. */
   checkUpdates: () => request<void>('POST', '/updates/check'),
+  volumes: (serverId: number) => request<Volume[]>('GET', `/servers/${serverId}/volumes`),
+  images: (serverId: number) => request<Image[]>('GET', `/servers/${serverId}/images`),
+  cleanupPreview: (serverId: number) => request<Cleanup>('GET', `/servers/${serverId}/cleanup`),
+  cleanup: (serverId: number, what: { images: boolean; volumes: boolean; buildCache: boolean }) =>
+    request<{ output: string }>('POST', `/servers/${serverId}/cleanup`, what),
   stackFiles: (serverId: number, name: string) => request<StackFiles>('GET', `${stackPath(serverId, name)}/files`),
   saveStack: (serverId: number, name: string, files: StackFiles) => request<void>('PUT', `${stackPath(serverId, name)}/files`, files),
   /** The last lines of a stack's logs, all its containers together. */

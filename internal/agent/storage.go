@@ -1,0 +1,159 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"strconv"
+	"strings"
+
+	"github.com/Atrello/bastion/internal/protocol"
+)
+
+// Volumes, images and clean-up, from one `docker system df -v`: what each takes up, what uses it, and
+// what nothing uses (so clean-up can show what it would free before deleting anything).
+
+type diskUsage struct {
+	Images []struct {
+		ID, Repository, Tag, Size, UniqueSize, Containers, CreatedSince string
+	}
+	Containers []struct{ Names, Mounts, Labels string }
+	Volumes    []struct{ Name, Driver, Links, Size, Labels string }
+	BuildCache []struct {
+		Size   string
+		InUse  bool
+		Shared bool
+	}
+}
+
+func readDiskUsage(ctx context.Context) (*diskUsage, error) {
+	out, err := docker(ctx, "", "system", "df", "-v", "--format", "{{json .}}")
+	if err != nil {
+		return nil, err
+	}
+	var du diskUsage
+	return &du, json.Unmarshal([]byte(out), &du)
+}
+
+// parseSize reads Docker's sizes ("12.2MB", "0B", "1.5GB"), which are in powers of 1000.
+func parseSize(s string) uint64 {
+	units := []struct {
+		suffix string
+		mult   float64
+	}{{"TB", 1e12}, {"GB", 1e9}, {"MB", 1e6}, {"kB", 1e3}, {"KB", 1e3}, {"B", 1}}
+	for _, u := range units {
+		if n, ok := strings.CutSuffix(s, u.suffix); ok {
+			f, err := strconv.ParseFloat(strings.TrimSpace(n), 64)
+			if err != nil {
+				return 0
+			}
+			return uint64(f * u.mult)
+		}
+	}
+	return 0
+}
+
+func labelOf(labels, key string) string {
+	for _, kv := range strings.Split(labels, ",") {
+		if k, v, ok := strings.Cut(kv, "="); ok && k == key {
+			return v
+		}
+	}
+	return ""
+}
+
+func listVolumes(ctx context.Context) ([]protocol.Volume, error) {
+	du, err := readDiskUsage(ctx)
+	if err != nil {
+		return nil, err
+	}
+	usedBy := map[string][]string{}
+	for _, c := range du.Containers {
+		for _, m := range strings.Split(c.Mounts, ",") {
+			if m = strings.TrimSpace(m); m != "" {
+				usedBy[m] = append(usedBy[m], c.Names)
+			}
+		}
+	}
+	volumes := make([]protocol.Volume, 0, len(du.Volumes))
+	for _, v := range du.Volumes {
+		links, _ := strconv.Atoi(v.Links)
+		volumes = append(volumes, protocol.Volume{
+			Name: v.Name, Driver: v.Driver, Size: parseSize(v.Size), Containers: links,
+			UsedBy: usedBy[v.Name], Stack: labelOf(v.Labels, "com.docker.compose.project"),
+		})
+	}
+	return volumes, nil
+}
+
+func listImages(ctx context.Context) ([]protocol.Image, error) {
+	du, err := readDiskUsage(ctx)
+	if err != nil {
+		return nil, err
+	}
+	images := make([]protocol.Image, 0, len(du.Images))
+	for _, i := range du.Images {
+		containers, _ := strconv.Atoi(i.Containers)
+		images = append(images, protocol.Image{
+			ID: strings.TrimPrefix(i.ID, "sha256:")[:12], Repository: i.Repository, Tag: i.Tag,
+			Size: parseSize(i.Size), UniqueSize: parseSize(i.UniqueSize), Containers: containers, Created: i.CreatedSince,
+		})
+	}
+	return images, nil
+}
+
+// cleanupPreview is what clean-up would remove, and how much each part frees.
+func cleanupPreview(ctx context.Context) (protocol.Cleanup, error) {
+	du, err := readDiskUsage(ctx)
+	if err != nil {
+		return protocol.Cleanup{}, err
+	}
+	var c protocol.Cleanup
+	for _, i := range du.Images {
+		if i.Containers == "0" {
+			name := i.Repository + ":" + i.Tag
+			if i.Repository == "<none>" {
+				name = strings.TrimPrefix(i.ID, "sha256:")[:12] + " (untagged)"
+			}
+			c.Images = append(c.Images, protocol.CleanupItem{Name: name, Size: parseSize(i.Size)})
+			c.ImagesSize += parseSize(i.UniqueSize)
+		}
+	}
+	for _, v := range du.Volumes {
+		if v.Links == "0" {
+			c.Volumes = append(c.Volumes, protocol.CleanupItem{Name: v.Name, Size: parseSize(v.Size)})
+			c.VolumesSize += parseSize(v.Size)
+		}
+	}
+	for _, b := range du.BuildCache {
+		if !b.InUse && !b.Shared {
+			c.BuildCacheSize += parseSize(b.Size)
+		}
+	}
+	return c, nil
+}
+
+// cleanup removes what nothing uses: images, and if asked volumes (which may hold data) and build cache.
+func cleanup(ctx context.Context, args protocol.CleanupArgs) (protocol.ActionResult, error) {
+	var out []string
+	run := func(cmd ...string) error {
+		text, err := docker(ctx, "", cmd...)
+		out = append(out, text)
+		return err
+	}
+	if args.Images {
+		if err := run("image", "prune", "--all", "--force"); err != nil {
+			return protocol.ActionResult{Output: strings.Join(out, "\n")}, err
+		}
+	}
+	if args.Volumes {
+		if err := run("volume", "prune", "--all", "--force"); err != nil {
+			return protocol.ActionResult{Output: strings.Join(out, "\n")}, err
+		}
+	}
+	if args.BuildCache {
+		if err := run("builder", "prune", "--force"); err != nil {
+			return protocol.ActionResult{Output: strings.Join(out, "\n")}, err
+		}
+	}
+	return protocol.ActionResult{Output: strings.TrimSpace(strings.Join(out, "\n"))}, nil
+}

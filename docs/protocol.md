@@ -55,6 +55,9 @@ The agent does these and nothing else.
 | `stack.action` | `name`, `action` | `up`, `down`, `start`, `stop`, `restart`, `pull`, `update`: Docker's output |
 | `stack.logs` | `stack` or `container`, `tail` | The last lines |
 | `container.action` | `id`, `action` | `start`, `stop`, `restart` |
+| `volumes.list`, `images.list` | | From `docker system df -v`: sizes, and what uses each |
+| `cleanup.preview` | | What clean-up would remove, and what it frees |
+| `cleanup.run` | `images`, `volumes`, `buildCache` | `docker image prune --all`, `volume prune --all`, `builder prune`, as asked |
 | `updates.check` | | Checks the images' registries now (otherwise every 6 hours); the results come in the next `state` |
 | `logs.follow` | `stack` or `container`, `tail` | A stream of lines, until `stream.stop` |
 | `exec` | `container`, `cols`, `rows` | A terminal in the container (its shell), as a stream; keys arrive as `stream.input` |

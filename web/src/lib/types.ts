@@ -103,3 +103,14 @@ export type GameFile = { name: string; dir: boolean; size: number; modified: str
 export type Schedule = { id: number; name: string; when: string; action: string; nextRun: string; enabled: boolean };
 
 export type GameBackup = { id: number; name: string; size: number; createdAt: string; locked: boolean };
+
+export type Volume = { name: string; driver: string; size: number; containers: number; usedBy: string[] | null; stack: string };
+export type Image = { id: string; repository: string; tag: string; size: number; uniqueSize: number; containers: number; created: string };
+export type CleanupItem = { name: string; size: number };
+export type Cleanup = {
+  images: CleanupItem[] | null;
+  imagesSize: number;
+  volumes: CleanupItem[] | null;
+  volumesSize: number;
+  buildCacheSize: number;
+};

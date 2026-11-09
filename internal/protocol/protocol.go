@@ -32,6 +32,10 @@ const (
 	OpStackLogs       = "stack.logs"       // LogsArgs → LogLines (the last lines, once)
 	OpContainerAction = "container.action" // ContainerActionArgs → ActionResult
 	OpCheckUpdates    = "updates.check"    // nothing → nothing; checks registries now, then sends state
+	OpVolumes         = "volumes.list"     // nothing → []Volume
+	OpImages          = "images.list"      // nothing → []Image
+	OpCleanupPreview  = "cleanup.preview"  // nothing → Cleanup: what clean-up would remove
+	OpCleanup         = "cleanup.run"      // CleanupArgs → ActionResult
 	OpLogsFollow      = "logs.follow"      // LogsArgs → a stream of log lines until stopped
 	OpExec            = "exec"             // ExecArgs → a terminal stream until stopped
 	OpStreamInput     = "stream.input"     // StreamInput: keys typed into a terminal
@@ -166,4 +170,43 @@ type EnrolRequest struct {
 type EnrolReply struct {
 	AgentID string `json:"agentId"`
 	Secret  string `json:"secret"`
+}
+
+type Volume struct {
+	Name       string   `json:"name"`
+	Driver     string   `json:"driver"`
+	Size       uint64   `json:"size"`
+	Containers int      `json:"containers"`
+	UsedBy     []string `json:"usedBy"`
+	Stack      string   `json:"stack"`
+}
+
+type Image struct {
+	ID         string `json:"id"`
+	Repository string `json:"repository"`
+	Tag        string `json:"tag"`
+	Size       uint64 `json:"size"`
+	UniqueSize uint64 `json:"uniqueSize"`
+	Containers int    `json:"containers"`
+	Created    string `json:"created"`
+}
+
+// Cleanup is what clean-up would remove: images and volumes nothing uses, and unused build cache.
+type Cleanup struct {
+	Images         []CleanupItem `json:"images"`
+	ImagesSize     uint64        `json:"imagesSize"`
+	Volumes        []CleanupItem `json:"volumes"`
+	VolumesSize    uint64        `json:"volumesSize"`
+	BuildCacheSize uint64        `json:"buildCacheSize"`
+}
+
+type CleanupItem struct {
+	Name string `json:"name"`
+	Size uint64 `json:"size"`
+}
+
+type CleanupArgs struct {
+	Images     bool `json:"images"`
+	Volumes    bool `json:"volumes"`
+	BuildCache bool `json:"buildCache"`
 }
