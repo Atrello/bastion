@@ -61,7 +61,7 @@
   pre {
     white-space: pre-wrap;
     word-break: break-all;
-    background: #0b0d11;
+    background: var(--sunken);
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 10px 12px;

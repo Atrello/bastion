@@ -28,6 +28,9 @@
     gap: 10px;
     font-weight: 700;
     font-size: 19px;
+    /* The wordmark: spaced capitals, like a name cut in stone. */
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
   }
   .card {
     width: min(400px, calc(100vw - 48px));

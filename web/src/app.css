@@ -1,17 +1,32 @@
-/* Bastion's look: one dark theme, a single accent colour, and plain system fonts so nothing extra loads. */
+/* Bastion's look, "ember and stone": cool stone greys, warm parchment text, and one ember accent, like
+   a keep's fires at night. One dark theme, and plain system fonts so nothing extra loads. Every colour in
+   the app comes from these. */
 
 :root {
-  --bg: #0f1115;
-  --panel: #161920;
-  --raised: #1c2029;
-  --line: #262b36;
-  --line-soft: #1f232c;
-  --text: #e6e8ec;
-  --muted: #8b93a3;
-  --accent: #5b8cff;
-  --green: #3fbf7f;
-  --amber: #e6a23c;
-  --red: #e5534b;
+  /* Stone, from deepest to nearest. */
+  --sunken: #0b0d0f; /* consoles, logs, editors */
+  --bg: #101214;
+  --panel: #16191c;
+  --raised: #1e2226;
+  --hover: #1b1f23;
+  --line-soft: #20252a;
+  --line: #2a2f34;
+  --line-strong: #3b4147;
+  /* Parchment. */
+  --bright: #fbf7f0;
+  --text: #e9e6e1;
+  --soft: #c3bdb4;
+  --muted: #8d8a84;
+  /* Ember: links, focus, the chosen thing. Buttons use the deeper shade with dark text on it. */
+  --accent: #f08c4f;
+  --accent-strong: #e2733a;
+  --on-accent: #1b0e06;
+  --accent-bg: rgb(240 140 79 / 13%);
+  /* States. Warnings are yellow, so they never look like the accent. */
+  --green: #57c785;
+  --amber: #e8c547;
+  --red: #ef5b5b;
+  --grey: #5f646b;
   --radius: 10px;
   --mono: ui-monospace, 'JetBrains Mono', 'Cascadia Code', Menlo, monospace;
   color-scheme: dark;
@@ -43,7 +58,9 @@ h3 {
   font-weight: 600;
 }
 h1 {
-  font-size: 20px;
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 h2 {
   font-size: 14px;
@@ -61,16 +78,21 @@ button,
   cursor: pointer;
 }
 button:hover:not(:disabled) {
-  border-color: #3a4152;
+  border-color: var(--line-strong);
 }
 button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 button.primary {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
 }
 button.danger {
   color: var(--red);
@@ -141,7 +163,7 @@ tr:last-child td {
   border-bottom: 0;
 }
 tbody tr:hover td {
-  background: #181c24;
+  background: var(--hover);
 }
 
 .badge {
@@ -154,19 +176,19 @@ tbody tr:hover td {
   color: var(--muted);
 }
 .badge.green {
-  background: rgb(63 191 127 / 14%);
+  background: rgb(87 199 133 / 14%);
   color: var(--green);
 }
 .badge.amber {
-  background: rgb(230 162 60 / 14%);
+  background: rgb(232 197 71 / 14%);
   color: var(--amber);
 }
 .badge.red {
-  background: rgb(229 83 75 / 14%);
+  background: rgb(239 91 91 / 14%);
   color: var(--red);
 }
 .badge.blue {
-  background: rgb(91 140 255 / 14%);
+  background: var(--accent-bg);
   color: var(--accent);
 }
 
@@ -228,5 +250,5 @@ tbody tr:hover td {
 }
 .segmented button.on {
   border-color: var(--accent);
-  color: #fff;
+  color: var(--bright);
 }

@@ -114,7 +114,7 @@
   .qr {
     justify-self: center;
     border-radius: 8px;
-    background: #fff;
+    background: #fff; /* QR codes need white to scan */
     padding: 8px;
   }
 </style>

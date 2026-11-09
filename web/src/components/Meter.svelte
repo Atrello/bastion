@@ -14,7 +14,7 @@
   .bar {
     height: 5px;
     margin: 4px 0 8px;
-    background: #252a35;
+    background: var(--line);
     border-radius: 3px;
     overflow: hidden;
   }

@@ -64,7 +64,7 @@
   }
   .game:hover {
     text-decoration: none;
-    border-color: #343b4a;
+    border-color: var(--line-strong);
   }
   .game p {
     margin: 2px 0 0;

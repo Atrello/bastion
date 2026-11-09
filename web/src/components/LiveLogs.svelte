@@ -45,11 +45,11 @@
     height: 520px;
     overflow: auto;
     padding: 12px 14px;
-    background: #0b0d11;
+    background: var(--sunken);
     border: 1px solid var(--line);
     border-radius: 8px;
     line-height: 1.6;
-    color: #b7c0cf;
+    color: var(--soft);
   }
   .warn {
     color: var(--amber);

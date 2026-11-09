@@ -29,7 +29,7 @@
     gap: 6px 24px;
     margin: 0;
     padding: 12px 16px 12px 36px;
-    background: #0b0d11;
+    background: var(--sunken);
     border: 1px solid var(--line);
     border-radius: 8px;
   }

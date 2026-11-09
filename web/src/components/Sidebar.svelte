@@ -86,6 +86,9 @@
     color: var(--text);
     font-weight: 700;
     font-size: 17px;
+    /* The wordmark: spaced capitals, like a name cut in stone. */
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
   }
   .group {
     margin: 16px 0 4px;
@@ -101,15 +104,16 @@
     gap: 10px;
     padding: 8px 10px;
     border-radius: 7px;
-    color: #c4c9d3;
+    color: var(--soft);
   }
   .link:hover {
     background: var(--raised);
     text-decoration: none;
   }
   .link.on {
-    background: #22283a;
-    color: #fff;
+    background: var(--accent-bg);
+    color: var(--bright);
+    box-shadow: inset 2px 0 0 var(--accent);
   }
   svg {
     width: 17px;

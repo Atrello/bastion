@@ -11,22 +11,22 @@
 
   const theme = EditorView.theme(
     {
-      '&': { backgroundColor: '#0b0d11', color: '#c9d1de', fontSize: '12.5px', height: '100%' },
-      '.cm-content': { fontFamily: 'var(--mono)', caretColor: '#fff' },
-      '.cm-gutters': { backgroundColor: '#0b0d11', color: '#4b5263', border: 'none' },
-      '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: '#141821' },
-      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: '#25324f !important' },
+      '&': { backgroundColor: '#0b0d0f', color: '#d8d2c8', fontSize: '12.5px', height: '100%' },
+      '.cm-content': { fontFamily: 'var(--mono)', caretColor: '#f08c4f' },
+      '.cm-gutters': { backgroundColor: '#0b0d0f', color: '#4d5156', border: 'none' },
+      '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: '#15181b' },
+      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: '#3a2a20 !important' },
     },
     { dark: true },
   );
   // Colours for the code itself, readable on the dark background (CodeMirror's own are for light ones).
   const colours = HighlightStyle.define([
-    { tag: [tags.propertyName, tags.definition(tags.propertyName)], color: '#7aa2ff' },
-    { tag: [tags.string, tags.special(tags.string)], color: '#9fd18b' },
-    { tag: [tags.number, tags.bool, tags.null], color: '#e6a23c' },
-    { tag: tags.comment, color: '#5d6678', fontStyle: 'italic' },
-    { tag: [tags.keyword, tags.labelName, tags.typeName], color: '#c792ea' },
-    { tag: [tags.punctuation, tags.separator], color: '#8b93a3' },
+    { tag: [tags.propertyName, tags.definition(tags.propertyName)], color: '#f0a06a' },
+    { tag: [tags.string, tags.special(tags.string)], color: '#a9d18e' },
+    { tag: [tags.number, tags.bool, tags.null], color: '#e8c547' },
+    { tag: tags.comment, color: '#6b6862', fontStyle: 'italic' },
+    { tag: [tags.keyword, tags.labelName, tags.typeName], color: '#d4a5e8' },
+    { tag: [tags.punctuation, tags.separator], color: '#8d8a84' },
   ]);
 
   $effect(() => {

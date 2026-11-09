@@ -23,6 +23,6 @@
     background: var(--red);
   }
   .grey {
-    background: #555d6e;
+    background: var(--grey);
   }
 </style>

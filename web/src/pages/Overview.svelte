@@ -106,7 +106,7 @@
   }
   .server:hover {
     text-decoration: none;
-    border-color: #343b4a;
+    border-color: var(--line-strong);
   }
   .os {
     margin: 2px 0 12px;

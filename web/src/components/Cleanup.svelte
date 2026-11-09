@@ -97,6 +97,6 @@
   button.primary.danger {
     background: var(--red);
     border-color: var(--red);
-    color: #fff;
+    color: var(--bright);
   }
 </style>

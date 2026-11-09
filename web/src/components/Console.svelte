@@ -15,7 +15,7 @@
     const term = new Terminal({
       fontFamily: 'ui-monospace, "JetBrains Mono", Menlo, monospace',
       fontSize: 13,
-      theme: { background: '#0b0d11', foreground: '#c9d1de', cursor: '#5b8cff' },
+      theme: { background: '#0b0d0f', foreground: '#d8d2c8', cursor: '#f08c4f', selectionBackground: '#3a2a20' },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -57,7 +57,7 @@
   .term {
     height: 480px;
     padding: 8px;
-    background: #0b0d11;
+    background: var(--sunken);
     border: 1px solid var(--line);
     border-radius: 8px;
   }
