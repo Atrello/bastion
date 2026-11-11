@@ -12,6 +12,7 @@
   import { match, navigate, route } from './lib/router.svelte';
   import Containers from './pages/Containers.svelte';
   import Alerts from './pages/Alerts.svelte';
+  import Activity from './pages/Activity.svelte';
   import BackupStorage from './pages/BackupStorage.svelte';
   import Eggs from './pages/Eggs.svelte';
   import Images from './pages/Images.svelte';
@@ -98,6 +99,8 @@
       {#key route.path}<Server id={Number(serverPage.id)} />{/key}
     {:else if route.path === '/alerts'}
       <Alerts />
+    {:else if route.path === '/activity'}
+      <Activity />
     {:else if route.path === '/stacks'}
       <Stacks />
     {:else if stack}

@@ -98,11 +98,12 @@ func (api *API) saveSchedule(w http.ResponseWriter, r *http.Request, u *auth.Use
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) deleteSchedule(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
+func (api *API) deleteSchedule(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
 	if _, err := api.db.ExecContext(r.Context(), `DELETE FROM game_schedules WHERE id = ? AND game_id = ?`, r.PathValue("schedule"), g.ID); err != nil {
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("schedule deleted", "user", u.Username, "game", g.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

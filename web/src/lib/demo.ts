@@ -307,6 +307,20 @@ function demoJob(path: string, body: unknown): Job {
 }
 
 export function demo(method: string, path: string, body?: unknown): unknown {
+  if (path.startsWith('/activity'))
+    return {
+      users: ['jane', 'robin'],
+      entries: [
+        { id: 9, at: minutesAgo(2), user: 'robin', action: 'game server power', details: { game: 'Survival SMP', action: 'restart' }, ok: true },
+        { id: 8, at: minutesAgo(14), user: 'jane', action: 'game command', details: { game: 'Survival SMP', command: 'say Back in five' }, ok: true },
+        { id: 7, at: minutesAgo(40), user: 'robin', action: 'stack action', details: { server: 'vault', stack: 'immich', action: 'update' }, ok: true },
+        { id: 6, at: minutesAgo(41), user: 'robin', action: 'stack files saved', details: { server: 'vault', stack: 'immich' }, ok: true },
+        { id: 5, at: minutesAgo(95), user: 'jane', action: 'sign-in failed: wrong code', details: { address: '203.0.113.7' }, ok: false },
+        { id: 4, at: minutesAgo(96), user: 'jane', action: 'signed in', details: { address: '203.0.113.7' }, ok: true },
+        { id: 3, at: minutesAgo(60 * 5), user: 'robin', action: 'backup restored', details: { game: 'Creative', backup: 'Nightly-2026-11-08-0400' }, ok: true },
+        { id: 2, at: minutesAgo(60 * 26), user: 'robin', action: 'agent update', details: { server: 'forge', from: '0.3.0' }, ok: true },
+      ],
+    };
   if (path === '/notifications')
     return [
       { id: 1, name: 'Survival backups to Discord', event: 'backup_done', gameId: 1, channelId: 2, title: '{game} backed up', message: 'Backup "{backup}" is done ({size}). Download it for 7 days: {link}', linkDays: 7, enabled: true },

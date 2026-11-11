@@ -135,7 +135,7 @@ func (api *API) gitSet(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	writeJSON(w, g)
 }
 
-func (api *API) gitUnlink(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) gitUnlink(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	id, name, ok := stackTarget(w, r)
 	if !ok {
 		return
@@ -144,6 +144,7 @@ func (api *API) gitUnlink(w http.ResponseWriter, r *http.Request, _ *auth.User) 
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("stack stopped following its repository", "user", u.Username, "server", id, "stack", name)
 	w.WriteHeader(http.StatusNoContent)
 }
 

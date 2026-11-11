@@ -128,7 +128,7 @@ func (api *API) joinCommand(token string) string {
 	return "curl -fsSL " + panel + "/install.sh | sudo sh -s -- " + panel + " " + token
 }
 
-func (api *API) addServer(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) addServer(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	var body struct{ Name string }
 	if !readJSON(w, r, &body) {
 		return
@@ -142,10 +142,11 @@ func (api *API) addServer(w http.ResponseWriter, r *http.Request, _ *auth.User) 
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("server added", "user", u.Username, "name", s.Name)
 	writeJSON(w, map[string]any{"server": serverView{ID: s.ID, Name: s.Name}, "joinCommand": api.joinCommand(token)})
 }
 
-func (api *API) newJoinCommand(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) newJoinCommand(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	id, ok := pathID(w, r)
 	if !ok {
 		return
@@ -155,6 +156,7 @@ func (api *API) newJoinCommand(w http.ResponseWriter, r *http.Request, _ *auth.U
 		api.agentFail(w, r, err)
 		return
 	}
+	api.log.Info("new join command made", "user", u.Username, "server", id)
 	writeJSON(w, map[string]string{"joinCommand": api.joinCommand(token)})
 }
 
@@ -420,6 +422,7 @@ func (api *API) saveStack(w http.ResponseWriter, r *http.Request, u *auth.User) 
 			return
 		}
 	}
+	api.log.Info("stack files saved", "user", u.Username, "server", id, "stack", name)
 	w.WriteHeader(http.StatusNoContent)
 }
 

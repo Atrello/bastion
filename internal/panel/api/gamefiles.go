@@ -106,7 +106,7 @@ func (api *API) writeGameFile(w http.ResponseWriter, r *http.Request, u *auth.Us
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) makeGameFolder(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
+func (api *API) makeGameFolder(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
 	var body struct{ Path string }
 	if !readJSON(w, r, &body) {
 		return
@@ -115,6 +115,7 @@ func (api *API) makeGameFolder(w http.ResponseWriter, r *http.Request, _ *auth.U
 		api.agentFail(w, r, err)
 		return
 	}
+	api.log.Info("game folder made", "user", u.Username, "game", g.ID, "path", body.Path)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -449,7 +450,7 @@ func (api *API) makeBackupNow(w http.ResponseWriter, r *http.Request, u *auth.Us
 	writeJSON(w, b)
 }
 
-func (api *API) lockBackup(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
+func (api *API) lockBackup(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
 	id, _ := strconv.ParseInt(r.PathValue("backup"), 10, 64)
 	var body struct{ Locked bool }
 	if !readJSON(w, r, &body) {
@@ -459,6 +460,7 @@ func (api *API) lockBackup(w http.ResponseWriter, r *http.Request, _ *auth.User,
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info(map[bool]string{true: "backup locked", false: "backup unlocked"}[body.Locked], "user", u.Username, "game", g.ID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

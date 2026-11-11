@@ -186,6 +186,9 @@ export type GameBackup = {
   links: number;
 };
 
+/** One line of the activity log: who did what, to what, and whether it worked. */
+export type ActivityEntry = { id: number; at: string; user: string; action: string; details: Record<string, string>; ok: boolean };
+
 /** A custom notification (internal/panel/api/notifications.go): when something happens to a game, a message in your own words to a channel. */
 export type NotificationRule = {
   id: number;

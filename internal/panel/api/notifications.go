@@ -123,11 +123,12 @@ func (api *API) saveRule(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	}
 }
 
-func (api *API) deleteRule(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) deleteRule(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	if _, err := api.db.ExecContext(r.Context(), `DELETE FROM notification_rules WHERE id = ?`, r.PathValue("id")); err != nil {
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("notification deleted", "user", u.Username)
 	w.WriteHeader(http.StatusNoContent)
 }
 

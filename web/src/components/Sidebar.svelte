@@ -12,6 +12,7 @@
         { href: '/', label: 'Overview', icon: 'M3 3h7v7H3zM14 3h7v4h-7zM14 11h7v10h-7zM3 14h7v7H3z' },
         { href: '/servers', label: 'Servers', icon: 'M3 4h18v6H3zM3 14h18v6H3zM7 7h.01M7 17h.01' },
         { href: '/alerts', label: 'Alerts', icon: 'M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0' },
+        { href: '/activity', label: 'Activity', icon: 'M4 6h16M4 12h10M4 18h13' },
       ],
     },
     {

@@ -39,7 +39,9 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 	if err != nil {
 		return nil, err
 	}
-	api := &API{cfg: cfg, db: db.DB, auth: a, hub: agents.NewHub(db.DB, log), log: log, mux: http.NewServeMux()}
+	// The API's own log lines that name a user are the activity log too (activity.go).
+	acts := slog.New(&activityHandler{Handler: log.Handler(), db: db.DB})
+	api := &API{cfg: cfg, db: db.DB, auth: a, hub: agents.NewHub(db.DB, log), log: acts, mux: http.NewServeMux()}
 	api.routes()
 
 	if has, err := a.HasUsers(ctx); err != nil {
@@ -76,6 +78,7 @@ func (api *API) routes() {
 	api.jobRoutes()
 	api.backupStoreRoutes()
 	api.notificationRoutes()
+	api.activityRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +112,7 @@ func (api *API) pruneSessions(ctx context.Context) {
 			if err := api.auth.PruneSessions(ctx); err != nil {
 				api.log.Error("pruning sessions", "error", err)
 			}
+			api.pruneActivity(ctx)
 		}
 	}
 }

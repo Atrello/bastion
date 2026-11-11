@@ -98,7 +98,7 @@ func (api *API) startJob(w http.ResponseWriter, u *auth.User, g *game, title, de
 			j.State = "failed"
 			_, j.Error = api.agentProblem("job "+title, err)
 		}
-		api.log.Info("job ended", "user", u.Username, "job", title, "detail", detail, "state", j.State)
+		api.log.Info("job ended", "user", u.Username, "job", title, "detail", detail, "state", j.State, "ok", j.State != "failed")
 	}()
 
 	w.Header().Set("Content-Type", "application/json")

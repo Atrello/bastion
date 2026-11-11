@@ -145,7 +145,7 @@ func (api *API) addNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) deleteNPM(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) deleteNPM(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if _, err := api.db.ExecContext(r.Context(), `DELETE FROM npm_instances WHERE id = ?`, id); err != nil {
 		api.fail(w, r, err)
@@ -155,6 +155,7 @@ func (api *API) deleteNPM(w http.ResponseWriter, r *http.Request, _ *auth.User) 
 	delete(api.npm.clients, id)
 	delete(api.npm.health, id)
 	api.npm.mu.Unlock()
+	api.log.Info("NPM unlinked", "user", u.Username)
 	w.WriteHeader(http.StatusNoContent)
 }
 

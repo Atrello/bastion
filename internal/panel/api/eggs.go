@@ -157,7 +157,7 @@ func fetchEgg(ctx context.Context, link string) ([]byte, error) {
 	return raw, nil
 }
 
-func (api *API) deleteEgg(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) deleteEgg(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var used int
 	_ = api.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM games WHERE egg_id = ?`, id).Scan(&used)
@@ -169,6 +169,7 @@ func (api *API) deleteEgg(w http.ResponseWriter, r *http.Request, _ *auth.User) 
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("egg deleted", "user", u.Username, "egg", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 

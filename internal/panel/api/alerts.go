@@ -125,7 +125,7 @@ func (api *API) alertsPage(w http.ResponseWriter, r *http.Request, _ *auth.User)
 	writeJSON(w, map[string]any{"channels": channels, "kinds": api.enabledKinds(r.Context()), "recent": recent})
 }
 
-func (api *API) setAlertKinds(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) setAlertKinds(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	var body struct{ Kinds []string }
 	if !readJSON(w, r, &body) {
 		return
@@ -141,6 +141,7 @@ func (api *API) setAlertKinds(w http.ResponseWriter, r *http.Request, _ *auth.Us
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("alert kinds changed", "user", u.Username, "kinds", strings.Join(kinds, ", "))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -170,7 +171,7 @@ func checkChannel(kind string, c channelConfig) error {
 	return nil
 }
 
-func (api *API) addChannel(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) addChannel(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	var body struct {
 		Kind, Name string
 		Config     channelConfig
@@ -191,15 +192,17 @@ func (api *API) addChannel(w http.ResponseWriter, r *http.Request, _ *auth.User)
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("alert channel added", "user", u.Username, "channel", name, "kind", body.Kind)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) deleteChannel(w http.ResponseWriter, r *http.Request, _ *auth.User) {
+func (api *API) deleteChannel(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if _, err := api.db.ExecContext(r.Context(), `DELETE FROM alert_channels WHERE id = ?`, id); err != nil {
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("alert channel removed", "user", u.Username, "channel", id)
 	w.WriteHeader(http.StatusNoContent)
 }
 

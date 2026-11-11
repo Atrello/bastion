@@ -110,6 +110,9 @@ func (api *API) startSession(w http.ResponseWriter, r *http.Request, userID int6
 	api.auth.Pending.Delete(cookie(r, stepCookie))
 	api.clearCookie(w, stepCookie)
 	api.setCookie(w, sessionCookie, token, api.cfg.SessionIdle)
+	if u, err := api.auth.UserByID(r.Context(), userID); err == nil {
+		api.log.Info("signed in", "user", u.Username, "address", api.clientAddress(r))
+	}
 	return nil
 }
 
@@ -200,6 +203,8 @@ func (api *API) signIn(w http.ResponseWriter, r *http.Request) {
 	u, err := api.auth.CheckPasswordFor(r.Context(), name, body.Password)
 	if err != nil {
 		api.auth.Limiter.Failed(name, address)
+		// Kept in the activity log under the name tried (the sign-in limits bound how many there can be).
+		api.log.Info("sign-in failed: wrong username or password", "user", clipText(name, 60), "address", address, "ok", false)
 		writeError(w, http.StatusUnauthorized, "that username or password isn't right")
 		return
 	}
@@ -254,6 +259,7 @@ func (api *API) secondFactor(w http.ResponseWriter, r *http.Request, check func(
 			return
 		}
 		api.auth.Limiter.Failed(name, address)
+		api.log.Info("sign-in failed: wrong code", "user", u.Username, "address", address, "ok", false)
 		writeError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
@@ -491,6 +497,9 @@ func (api *API) passkeyRegisterFinish(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) signOut(w http.ResponseWriter, r *http.Request) {
+	if u, err := api.currentUser(r); err == nil {
+		api.log.Info("signed out", "user", u.Username)
+	}
 	if token := cookie(r, sessionCookie); token != "" {
 		if err := api.auth.EndSession(r.Context(), token); err != nil {
 			api.fail(w, r, err)
@@ -530,6 +539,7 @@ func (api *API) changePassword(w http.ResponseWriter, r *http.Request, u *auth.U
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("password changed", "user", u.Username)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -549,6 +559,7 @@ func (api *API) newRecoveryCodes(w http.ResponseWriter, r *http.Request, u *auth
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("new recovery codes made", "user", u.Username)
 	writeJSON(w, map[string]any{"recoveryCodes": codes})
 }
 
@@ -562,6 +573,7 @@ func (api *API) deletePasskey(w http.ResponseWriter, r *http.Request, u *auth.Us
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	api.log.Info("passkey removed", "user", u.Username)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -570,6 +582,7 @@ func (api *API) signOutEverywhere(w http.ResponseWriter, r *http.Request, u *aut
 		api.fail(w, r, err)
 		return
 	}
+	api.log.Info("signed out everywhere else", "user", u.Username)
 	w.WriteHeader(http.StatusNoContent)
 }
 

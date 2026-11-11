@@ -20,6 +20,7 @@ import type {
   GameServer,
   BackupStore,
   NotificationRule,
+  ActivityEntry,
   UsageSample,
   Job,
   Schedule,
@@ -214,6 +215,12 @@ export const api = {
     }),
   /** Packs files and folders from one folder into a .tar.gz there. */
   archiveGameFiles: (id: number, path: string, paths: string[], to: string) => request<Job>('POST', `/games/${id}/files/archive`, { path, paths, to }),
+  /** The activity log, newest first, 100 at a time: before an entry's ID for older ones. */
+  activity: (filter: { before?: number; user?: string; q?: string } = {}) =>
+    request<{ entries: ActivityEntry[]; users: string[] }>(
+      'GET',
+      `/activity?${new URLSearchParams(Object.entries(filter).filter(([, v]) => v).map(([k, v]) => [k, String(v)]))}`,
+    ),
   /** A game's use over the last ten minutes, for its charts. */
   gameHistory: (id: number) => request<UsageSample[]>('GET', `/games/${id}/history`),
   notifications: () => request<NotificationRule[]>('GET', '/notifications'),
