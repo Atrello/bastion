@@ -93,7 +93,8 @@ export type GameServer = {
   state: 'starting' | 'running' | 'stopping' | 'stopped' | 'crashed' | 'installing' | 'install-failed' | 'offline';
   /** Where players connect, e.g. "192.168.1.11:25565". */
   address: string;
-  players: { online: number; max: number } | null;
+  /** Who's playing, when the game can be asked (Minecraft and Steam games); names when it gives them. */
+  players: { online: number; max: number; names: string[] } | null;
   image: string;
   ports: number[];
   cpuPercent: number;

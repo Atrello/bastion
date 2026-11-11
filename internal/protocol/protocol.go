@@ -44,6 +44,7 @@ const (
 	OpGameDelete      = "game.delete"      // GameRef → nothing; removes its container, files and backups
 	OpGameFiles       = "game.files"       // GameFileArgs → GameFileResult
 	OpGameBackup      = "game.backup"      // GameBackupArgs → GameBackupResult
+	OpGameQuery       = "game.query"       // GameQueryArgs → GameQueryResult: who's playing
 	OpLogsFollow      = "logs.follow"      // LogsArgs → a stream of log lines until stopped
 	OpExec            = "exec"             // ExecArgs → a terminal stream until stopped
 	OpStreamInput     = "stream.input"     // StreamInput: keys typed into a terminal
@@ -358,6 +359,22 @@ type GameBackupArgs struct {
 	Offset int64  `json:"offset,omitempty"`
 	// Where the backup is kept, if not on this server: made here, then uploaded and the copy here removed.
 	S3 *S3Target `json:"s3,omitempty"`
+}
+
+// GameQueryArgs asks a running game who's playing, in the game's own query protocol: "minecraft" (the
+// server list ping of Minecraft: Java Edition) or "source" (Steam's A2S_INFO, which Valheim, Rust, ARK and
+// Source games answer). Ports are tried in order: the query port isn't always the game's.
+type GameQueryArgs struct {
+	ID    int64  `json:"id"`
+	Kind  string `json:"kind"`
+	Ports []int  `json:"ports"`
+}
+
+type GameQueryResult struct {
+	Online int `json:"online"`
+	Max    int `json:"max"`
+	// Players' names, when the game gives them (Minecraft gives a sample of up to 12).
+	Names []string `json:"names,omitempty"`
 }
 
 // S3Target is an S3 bucket (or a service that speaks S3) and the key a backup has in it.

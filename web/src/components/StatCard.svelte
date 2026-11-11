@@ -7,6 +7,7 @@
     value,
     of = '',
     note = '',
+    detail = '',
     percent,
     tone = 'accent',
     mono = false,
@@ -18,6 +19,8 @@
     /** What it's out of: "/ 8 GiB". */
     of?: string;
     note?: string;
+    /** A small line under the value, wrapping: players' names, say. */
+    detail?: string;
     /** 0 to 100, for the bar along the bottom. */
     percent?: number;
     tone?: 'accent' | 'blue' | 'amber' | 'red';
@@ -35,6 +38,7 @@
   <div class="text">
     <span class="label small muted">{label}</span>
     <span class="value" class:mono>{value}{#if of}<span class="of muted">{' ' + of}</span>{/if}</span>
+    {#if detail}<span class="detail small muted">{detail}</span>{/if}
   </div>
   {#if note}<span class="note small muted">{note}</span>{/if}
   {#if percent !== undefined}
@@ -98,6 +102,9 @@
     font-family: var(--mono);
     font-size: 14px;
     white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .detail {
     overflow-wrap: anywhere;
   }
   .of {

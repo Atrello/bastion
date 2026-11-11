@@ -274,7 +274,7 @@ func (c *conn) handle(m protocol.Message) {
 			c.event(protocol.EventState, state)
 		}
 	}
-	if strings.HasPrefix(m.Op, "game.") && m.Op != protocol.OpGameFiles {
+	if strings.HasPrefix(m.Op, "game.") && m.Op != protocol.OpGameFiles && m.Op != protocol.OpGameQuery {
 		// A game's state has changed: the panel hears it before the answer, so it never shows the old one.
 		c.event(protocol.EventMetrics, c.metrics(context.Background()))
 	}
@@ -408,6 +408,12 @@ func (c *conn) do(m protocol.Message) (any, error) {
 		return gameFiles(a, newTracker(ctx, func(done, total int64) {
 			c.event(protocol.EventProgress, protocol.Progress{ID: m.ID, Done: done, Total: total})
 		}))
+	case protocol.OpGameQuery:
+		var a protocol.GameQueryArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		return queryGame(ctx, a)
 	case protocol.OpGameBackup:
 		var a protocol.GameBackupArgs
 		if err := decode(m.Args, &a); err != nil {

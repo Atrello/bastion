@@ -166,12 +166,12 @@ function demoHistory(): UsageSample[] {
 const games: GameServer[] = [
   game({
     id: 1, name: 'Survival SMP', egg: 'Paper', eggId: 1, warnCommand: 'say %s', serverId: 2, serverName: 'forge', state: 'running',
-    address: 'mc.example.co.uk:25565', players: null,
+    address: 'mc.example.co.uk:25565', players: { online: 7, max: 20, names: ['Alex', 'Jane Cooper', 'Robin', 'Casey', 'Sam', 'Morgan', 'Ellis'] },
     cpuPercent: 38, memUsed: 6.2 * GB, memLimit: 8 * GB, diskUsed: 4.2 * GB, uptimeSecs: 273_600,
   }),
   game({
     id: 2, name: 'Valheim', egg: 'Valheim (BepInEx)', eggId: 4, serverId: 2, serverName: 'forge', state: 'running',
-    address: 'forge.home.lab:2456', players: null,
+    address: 'forge.home.lab:2456', players: { online: 2, max: 10, names: [] },
     cpuPercent: 21, memUsed: 3.1 * GB, memLimit: 6 * GB, diskUsed: 1.9 * GB, uptimeSecs: 86_400,
   }),
   game({

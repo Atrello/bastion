@@ -48,6 +48,7 @@
   const ICONS = {
     address: 'M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
     uptime: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+    players: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a7 7 0 0 1 14 0M17 11a3.5 3.5 0 1 0 0-7M22 21a6 6 0 0 0-4-5.7',
     cpu: 'M8 8h8v8H8zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3M6 6h12v12H6z',
     memory: 'M3 8h18v8H3zM7 8v8M11 8v8M15 8v8M19 8v8M6 16v3M18 16v3',
     disk: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6',
@@ -161,6 +162,9 @@
       <aside class="stats" aria-label="Its figures">
         <StatCard icon={ICONS.address} label="Address" value={g.address} mono />
         <StatCard icon={ICONS.uptime} label="Uptime" value={live ? duration(g.uptimeSecs) : 'Not running'} />
+        {#if g.players}
+          <StatCard icon={ICONS.players} label="Players" value={String(g.players.online)} of="/ {g.players.max}" detail={g.players.names.join(', ')} />
+        {/if}
         <StatCard
           icon={ICONS.cpu}
           label="CPU"

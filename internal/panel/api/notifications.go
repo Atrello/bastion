@@ -45,7 +45,7 @@ type notificationRule struct {
 }
 
 func (api *API) notificationRoutes() {
-	api.gameEvents = &gameStates{last: map[int64]string{}}
+	api.gameEvents = &gameStates{last: map[int64]string{}, players: map[int64]players{}}
 	m := api.mux
 	m.Handle("GET /api/notifications", api.owner(api.listRules))
 	m.Handle("POST /api/notifications", api.owner(api.saveRule))
@@ -282,6 +282,8 @@ func (api *API) revokeBackupLinks(w http.ResponseWriter, r *http.Request, u *aut
 type gameStates struct {
 	mu   sync.Mutex
 	last map[int64]string
+	// Who's playing each running game, as last asked (players.go).
+	players map[int64]players
 }
 
 // checkGameEvents looks at every game's state and sends the notifications for any that changed. Run with
@@ -301,6 +303,7 @@ func (api *API) checkGameEvents(ctx context.Context) {
 			now[gs.ID] = gs.State
 		}
 	}
+	api.askPlayers(ctx, now)
 	api.gameEvents.mu.Lock()
 	changed := map[int64][2]string{}
 	for id, state := range now {

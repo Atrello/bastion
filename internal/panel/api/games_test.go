@@ -428,3 +428,54 @@ func TestSharePermissions(t *testing.T) {
 		t.Errorf("a friend ran a restart schedule: %d", status)
 	}
 }
+
+// A running game is asked who's playing, in the protocol its egg implies, and the answer shows on the game.
+func TestPlayersOnline(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	id, secret := b.joinAgent()
+	ws, _ := b.dialAgent(id+"."+secret, nil)
+	defer ws.Close()
+	asked := make(chan protocol.GameQueryArgs, 4)
+	go func() {
+		for {
+			var m protocol.Message
+			if ws.ReadJSON(&m) != nil {
+				return
+			}
+			ok := true
+			data := json.RawMessage(`{}`)
+			if m.Op == protocol.OpGameQuery {
+				var a protocol.GameQueryArgs
+				_ = json.Unmarshal(m.Args, &a)
+				asked <- a
+				data = json.RawMessage(`{"online":3,"max":20,"names":["Alex","Jane Cooper"]}`)
+			}
+			_ = ws.WriteJSON(protocol.Message{ID: m.ID, OK: &ok, Data: data})
+		}
+	}()
+	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
+	b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)})
+	b.call(b.client, "POST", "/api/games", map[string]any{"name": "Survival", "eggId": 1, "serverId": 1, "memoryMb": 1024, "ports": []int{25570}})
+	metrics, _ := json.Marshal(protocol.Metrics{Games: []protocol.GameStatus{{ID: 1, State: "running"}}})
+	_ = ws.WriteJSON(protocol.Message{Event: protocol.EventMetrics, Data: metrics})
+	deadline := time.Now().Add(2 * time.Second)
+	for b.api.hub.Live(1).Metrics == nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	b.api.checkGameEvents(context.Background())
+	select {
+	case a := <-asked:
+		if a.Kind != "minecraft" || len(a.Ports) != 1 || a.Ports[0] != 25570 {
+			t.Fatalf("asked %+v", a)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the game wasn't asked")
+	}
+	_, g := b.call(b.client, "GET", "/api/games/1", nil)
+	p, _ := g["players"].(map[string]any)
+	if p == nil || p["online"] != float64(3) || p["max"] != float64(20) || len(p["names"].([]any)) != 2 {
+		t.Fatalf("players: %v", g["players"])
+	}
+}

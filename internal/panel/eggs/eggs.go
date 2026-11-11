@@ -34,6 +34,8 @@ type Egg struct {
 		} `json:"installation"`
 	} `json:"scripts"`
 	Variables []Variable `json:"variables"`
+	// What the game needs or supports, as Pterodactyl lists them: "eula", "java_version", "steam_disk_space".
+	Features []string `json:"features"`
 }
 
 // Variable is a setting each game server chooses, passed to it as an environment variable.
@@ -319,4 +321,33 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// Query is the protocol that says who's playing a game from this egg: "minecraft" for Minecraft: Java
+// Edition, "source" for games on Steam's server query (Valheim, Rust, ARK, Source games), or "" when it
+// can't be told. Eggs don't say, so it's read from what they need and how they start.
+func (e *Egg) Query() string {
+	has := func(feature string) bool {
+		for _, f := range e.Features {
+			if f == feature {
+				return true
+			}
+		}
+		return false
+	}
+	startup := strings.ToLower(e.Startup)
+	switch {
+	case strings.Contains(startup, "bedrock"):
+		return "" // Bedrock Edition speaks another protocol
+	case has("eula") || has("java_version") || strings.Contains(startup, ".jar") || strings.Contains(startup, "{{server_jarfile}}"):
+		return "minecraft"
+	case has("steam_disk_space") || has("gsl_token"):
+		return "source"
+	}
+	for _, v := range e.Variables {
+		if v.Env == "SRCDS_APPID" || v.Env == "STEAM_APPID" || v.Env == "APP_ID" {
+			return "source"
+		}
+	}
+	return ""
 }

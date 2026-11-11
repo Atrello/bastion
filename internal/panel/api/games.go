@@ -207,30 +207,30 @@ func (api *API) gameHistory(w http.ResponseWriter, _ *http.Request, _ *auth.User
 
 // gameView is a game server as the web app shows it (web/src/lib/types.ts, GameServer).
 type gameView struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Egg         string    `json:"egg"`
-	EggID       int64     `json:"eggId"`
-	ServerID    int64     `json:"serverId"`
-	ServerName  string    `json:"serverName"`
-	State       string    `json:"state"` // starting until its console says it has started, then running
-	Address     string    `json:"address"`
-	Players     *struct{} `json:"players"`
-	Image       string    `json:"image"`
-	Ports       []int     `json:"ports"`
-	CPUPercent  float64   `json:"cpuPercent"`
-	CPULimit    int       `json:"cpuLimit"`
-	MemUsed     uint64    `json:"memUsed"`
-	MemLimit    uint64    `json:"memLimit"`
-	DiskUsed    uint64    `json:"diskUsed"`
-	DiskLimit   uint64    `json:"diskLimit"`
-	UptimeSecs  int64     `json:"uptimeSecs"`
-	NetIn       uint64    `json:"netIn"`  // bytes received since it started
-	NetOut      uint64    `json:"netOut"` // and sent
-	WarnCommand string    `json:"warnCommand"`
-	Owner       bool      `json:"owner"`       // the viewer can change its limits, delete and share it
-	BackupStore int64     `json:"backupStore"` // where new backups go: 0 for its own server
-	Can         []string  `json:"can"`         // what the viewer may do with it (permissions.go)
+	ID          int64    `json:"id"`
+	Name        string   `json:"name"`
+	Egg         string   `json:"egg"`
+	EggID       int64    `json:"eggId"`
+	ServerID    int64    `json:"serverId"`
+	ServerName  string   `json:"serverName"`
+	State       string   `json:"state"` // starting until its console says it has started, then running
+	Address     string   `json:"address"`
+	Players     *players `json:"players"` // who's playing, when the game can be asked (players.go)
+	Image       string   `json:"image"`
+	Ports       []int    `json:"ports"`
+	CPUPercent  float64  `json:"cpuPercent"`
+	CPULimit    int      `json:"cpuLimit"`
+	MemUsed     uint64   `json:"memUsed"`
+	MemLimit    uint64   `json:"memLimit"`
+	DiskUsed    uint64   `json:"diskUsed"`
+	DiskLimit   uint64   `json:"diskLimit"`
+	UptimeSecs  int64    `json:"uptimeSecs"`
+	NetIn       uint64   `json:"netIn"`  // bytes received since it started
+	NetOut      uint64   `json:"netOut"` // and sent
+	WarnCommand string   `json:"warnCommand"`
+	Owner       bool     `json:"owner"`       // the viewer can change its limits, delete and share it
+	BackupStore int64    `json:"backupStore"` // where new backups go: 0 for its own server
+	Can         []string `json:"can"`         // what the viewer may do with it (permissions.go)
 }
 
 func (api *API) view(g *game, serverName string, owner bool) gameView {
@@ -253,6 +253,9 @@ func (api *API) view(g *game, serverName string, owner bool) gameView {
 				continue
 			}
 			v.State, v.CPUPercent, v.MemUsed, v.DiskUsed, v.NetIn, v.NetOut = s.State, s.CPUPercent, s.MemUsed, s.DiskUsed, s.NetIn, s.NetOut
+			if s.State == "running" {
+				v.Players = api.playersOf(g.ID)
+			}
 			if started, err := time.Parse(time.RFC3339Nano, s.StartedAt); err == nil && (s.State == "running" || s.State == "starting") {
 				v.UptimeSecs = int64(time.Since(started).Seconds())
 			}
