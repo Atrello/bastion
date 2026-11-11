@@ -5,12 +5,12 @@
   import { api } from '../lib/api';
   import { load } from '../lib/load.svelte';
   import { navigate } from '../lib/router.svelte';
-  import type { GameServer } from '../lib/types';
+  import type { GamePermission, GameServer } from '../lib/types';
 
   let { game, onerror, onnote, onchanged }: { game: GameServer; onerror: (m: string) => void; onnote: (m: string) => void; onchanged: () => void } =
     $props();
 
-  const startup = load(() => api.gameStartup(game.id));
+  const startup = load(() => (game.can.includes('startup') ? api.gameStartup(game.id) : Promise.resolve(undefined)));
   const shares = load(() => (game.owner ? api.gameShares(game.id) : Promise.resolve([])));
   const stores = load(() => (game.owner ? api.backupStores() : Promise.resolve([])));
   // svelte-ignore state_referenced_locally
@@ -31,6 +31,15 @@
     ports: game.ports.join(', '),
     warnCommand: game.warnCommand,
   });
+  // What can be shared, as the owner reads it.
+  const PERMISSIONS: [GamePermission, string][] = [
+    ['console', 'Console and commands'],
+    ['power', 'Start and stop'],
+    ['files', 'Files'],
+    ['backups', 'Backups'],
+    ['schedules', 'Schedules'],
+    ['startup', 'Startup settings'],
+  ];
   let invite = $state('');
   let friend = $state('');
 
@@ -140,12 +149,29 @@
     <h2>Shared with</h2>
     <ul class="shares">
       {#each shares.data ?? [] as s (s.userId)}
-        <li class="row">
-          <span class="grow">{s.username}</span>
-          <button class="danger" onclick={() => attempt(() => api.unshareGame(game.id, s.userId), `${s.username} can't see it now.`).then(() => shares.reload())}>Stop sharing</button>
+        <li>
+          <div class="row">
+            <b class="grow">{s.username}</b>
+            <button class="danger" onclick={() => attempt(() => api.unshareGame(game.id, s.userId), `${s.username} can't see it now.`).then(() => shares.reload())}>Stop sharing</button>
+          </div>
+          <div class="can" role="group" aria-label="What {s.username} can do">
+            {#each PERMISSIONS as [p, label] (p)}
+              <label class="check small">
+                <input
+                  type="checkbox"
+                  checked={s.permissions.includes(p)}
+                  onchange={(e) =>
+                    attempt(() => api.setGameShare(game.id, s.userId, e.currentTarget.checked ? [...s.permissions, p] : s.permissions.filter((x) => x !== p))).then(() =>
+                      shares.reload(),
+                    )}
+                />
+                {label}
+              </label>
+            {/each}
+          </div>
         </li>
       {:else}
-        <li class="muted">Nobody yet. A friend sees only the game servers shared with them, and can't change their limits or delete them.</li>
+        <li class="muted">Nobody yet. A friend sees only the game servers shared with them, does only what you tick for them, and can't change their limits or delete them.</li>
       {/each}
     </ul>
     <div class="row share">
@@ -181,6 +207,17 @@
 {/if}
 
 <style>
+  .can {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    margin-top: 6px;
+  }
+  .can .check {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
   .store {
     align-items: end;
   }

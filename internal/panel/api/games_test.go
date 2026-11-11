@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -354,5 +355,76 @@ func TestGameContainerNames(t *testing.T) {
 	second, _ := b.api.loadGame(context.Background(), 2)
 	if a, c := b.api.containerName(context.Background(), first), b.api.containerName(context.Background(), second); a != "bastion-atlas-survival-smp-1" || c != "bastion-atlas-survival-smp-2" {
 		t.Fatalf("names alike: %q and %q", a, c)
+	}
+}
+
+// A friend can do only what their share allows; a schedule can't do for them what they couldn't by hand.
+func TestSharePermissions(t *testing.T) {
+	b := newPanel(t)
+	b.setUp()
+	fakeAgent(t, b)
+	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
+	b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)})
+	b.call(b.client, "POST", "/api/games", map[string]any{"name": "Survival", "eggId": 1, "serverId": 1, "memoryMb": 1024, "ports": []int{25565}})
+	_, invite := b.call(b.client, "POST", "/api/games/1/shares", nil)
+	token := invite["link"].(string)[strings.Index(invite["link"].(string), "#")+1:]
+	friend := b.newClient()
+	b.call(friend, "POST", "/api/setup", map[string]string{"token": token, "username": "jane", "password": "correct horse battery"})
+	_, begun := b.call(friend, "POST", "/api/auth/authenticator/begin", map[string]string{"password": ""})
+	code, _ := totp.GenerateCode(begun["secret"].(string), time.Now())
+	if status, _ := b.call(friend, "POST", "/api/auth/authenticator/finish", map[string]string{"code": code}); status != 200 {
+		t.Fatalf("friend's account: %d", status)
+	}
+
+	// Everything, until the owner chooses.
+	if status, g := b.call(friend, "GET", "/api/games/1", nil); status != 200 || len(g["can"].([]any)) != len(gamePermissions) {
+		t.Fatalf("a new share: %d %v", status, g["can"])
+	}
+	if status, r := b.call(b.client, "PUT", "/api/games/1/shares/2", map[string]any{"permissions": []string{"schedules", "console", "made-up"}}); status != 204 {
+		t.Fatalf("choosing: %d %v", status, r)
+	}
+	_, g := b.call(friend, "GET", "/api/games/1", nil)
+	if can := fmt.Sprint(g["can"]); can != "[console schedules]" {
+		t.Fatalf("now can: %s", can)
+	}
+	for request, want := range map[string]int{
+		"GET /api/games/1/console":         200,
+		"POST /api/games/1/command":        204,
+		"GET /api/games/1/history":         200,
+		"GET /api/games/1/files?path=/":    403,
+		"GET /api/games/1/backups":         403,
+		"POST /api/games/1/backups":        403,
+		"POST /api/games/1/power/stop":     403,
+		"GET /api/games/1/startup":         403,
+		"GET /api/games/1/schedules":       200,
+		"PUT /api/games/1/shares/2":        403,
+		"PUT /api/games/1/backup-store":    403,
+		"DELETE /api/games/1/files?path=x": 403,
+	} {
+		method, path, _ := strings.Cut(request, " ")
+		var body any
+		if method == "POST" && strings.HasSuffix(path, "/command") {
+			body = map[string]string{"command": "list"}
+		}
+		if status, r := b.call(friend, method, path, body); status != want {
+			t.Errorf("%s: %d, want %d (%v)", request, status, want, r)
+		}
+	}
+	// A schedule that runs a command is theirs to make; one that restarts or backs up isn't.
+	schedule := map[string]any{"name": "Say hello", "when": "0 12 * * *", "action": "command", "payload": "say Hello", "enabled": true}
+	if status, r := b.call(friend, "POST", "/api/games/1/schedules", schedule); status != 204 {
+		t.Fatalf("a command schedule: %d %v", status, r)
+	}
+	for _, action := range []string{"restart", "backup"} {
+		schedule["action"], schedule["payload"] = action, ""
+		if status, _ := b.call(friend, "POST", "/api/games/1/schedules", schedule); status != 403 {
+			t.Errorf("a friend without it made a %s schedule: %d", action, status)
+		}
+	}
+	// The owner's restart schedule can't be run by them either.
+	schedule["action"] = "restart"
+	b.call(b.client, "POST", "/api/games/1/schedules", schedule)
+	if status, _ := b.call(friend, "POST", "/api/games/1/schedules/2/run", nil); status != 403 {
+		t.Errorf("a friend ran a restart schedule: %d", status)
 	}
 }

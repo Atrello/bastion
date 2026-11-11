@@ -17,6 +17,7 @@
   import { bitRate, bytes, duration, percent } from '../lib/format';
   import { load } from '../lib/load.svelte';
   import { gameStatus } from '../lib/status';
+  import type { GamePermission } from '../lib/types';
 
   let { id }: { id: number } = $props();
 
@@ -72,6 +73,17 @@
   }
 
   const running = $derived(['running', 'starting', 'stopping'].includes(game.data?.state ?? ''));
+  // What the viewer may do with it: a friend sees only the tabs and buttons shared with them.
+  const can = (p: GamePermission) => !!game.data?.can.includes(p);
+  const tabs = $derived(
+    [
+      { id: 'console', label: 'Console', show: true },
+      { id: 'files', label: 'Files', show: can('files') },
+      { id: 'schedules', label: 'Schedules', show: can('schedules') },
+      { id: 'backups', label: 'Backups', show: can('backups') },
+      { id: 'settings', label: 'Settings', show: !!game.data?.owner || can('startup') },
+    ].filter((t) => t.show),
+  );
 
   async function kill() {
     if (await sure('Kill it?', "It's stopped at once, without saving. Use this only if it won't stop the normal way.", 'Kill')) {
@@ -111,28 +123,21 @@
       <button class="state" disabled><span class="spinner" aria-hidden="true"></span>Stopping…</button>
     {:else if g.state === 'installing'}
       <button class="state" disabled><span class="spinner" aria-hidden="true"></span>Installing…</button>
-    {:else}
+    {:else if can('power')}
       <button class="primary" disabled={g.state === 'offline'} onclick={() => power('start', 'Starting.')}>Start</button>
     {/if}
-    {#if g.state === 'running' || g.state === 'starting'}
-      <button onclick={() => (stopping = 'restart')}>Restart</button>
-      <button onclick={() => (stopping = 'stop')}>Stop</button>
+    {#if can('power')}
+      {#if g.state === 'running' || g.state === 'starting'}
+        <button onclick={() => (stopping = 'restart')}>Restart</button>
+        <button onclick={() => (stopping = 'stop')}>Stop</button>
+      {/if}
+      {#if running}<button class="danger" onclick={kill}>Kill</button>{/if}
     {/if}
-    {#if running}<button class="danger" onclick={kill}>Kill</button>{/if}
   </div>
 
   {#if message}<p class="note" class:error={!message.ok}>{message.text}</p>{/if}
 
-  <Tabs
-    bind:selected={tab}
-    tabs={[
-      { id: 'console', label: 'Console' },
-      { id: 'files', label: 'Files' },
-      { id: 'schedules', label: 'Schedules' },
-      { id: 'backups', label: 'Backups' },
-      { id: 'settings', label: 'Settings' },
-    ]}
-  />
+  <Tabs bind:selected={tab} {tabs} />
 
   {#if tab === 'console'}
     {@const live = g.state === 'running' || g.state === 'starting'}
@@ -147,7 +152,11 @@
             <button class="primary" onclick={acceptEula}>I accept: start it</button>
           </div>
         {/if}
-        <GameConsole game={g} onerror={problem} oneula={(needed) => (eula = needed)} />
+        {#if can('console')}
+          <GameConsole game={g} onerror={problem} oneula={(needed) => (eula = needed)} />
+        {:else}
+          <p class="card muted">Its console isn't shared with you.</p>
+        {/if}
       </div>
       <aside class="stats" aria-label="Its figures">
         <StatCard icon={ICONS.address} label="Address" value={g.address} mono />

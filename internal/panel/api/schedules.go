@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,11 +20,11 @@ import (
 
 func (api *API) scheduleRoutes() {
 	m := api.mux
-	m.Handle("GET /api/games/{id}/schedules", api.gameUser(api.listSchedules))
-	m.Handle("POST /api/games/{id}/schedules", api.gameUser(api.saveSchedule))
-	m.Handle("PUT /api/games/{id}/schedules/{schedule}", api.gameUser(api.saveSchedule))
-	m.Handle("DELETE /api/games/{id}/schedules/{schedule}", api.gameUser(api.deleteSchedule))
-	m.Handle("POST /api/games/{id}/schedules/{schedule}/run", api.gameUser(api.runScheduleNow))
+	m.Handle("GET /api/games/{id}/schedules", api.gameCan("schedules", api.listSchedules))
+	m.Handle("POST /api/games/{id}/schedules", api.gameCan("schedules", api.saveSchedule))
+	m.Handle("PUT /api/games/{id}/schedules/{schedule}", api.gameCan("schedules", api.saveSchedule))
+	m.Handle("DELETE /api/games/{id}/schedules/{schedule}", api.gameCan("schedules", api.deleteSchedule))
+	m.Handle("POST /api/games/{id}/schedules/{schedule}/run", api.gameCan("schedules", api.runScheduleNow))
 }
 
 type schedule struct {
@@ -81,6 +82,10 @@ func (api *API) saveSchedule(w http.ResponseWriter, r *http.Request, u *auth.Use
 	case s.Action == "command" && (s.Payload == "" || strings.ContainsAny(s.Payload, "\r\n") || len(s.Payload) > 1000):
 		writeError(w, http.StatusBadRequest, "the command is one line")
 		return
+	case !slices.Contains(api.permissions(r.Context(), u, g.ID), scheduleNeeds[s.Action]):
+		// A schedule can't do for a friend what they couldn't do by hand.
+		writeError(w, http.StatusForbidden, "that isn't shared with you, so a schedule can't do it for you")
+		return
 	}
 	var err error
 	if id := r.PathValue("schedule"); id != "" {
@@ -114,6 +119,10 @@ func (api *API) runScheduleNow(w http.ResponseWriter, r *http.Request, u *auth.U
 		Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no such schedule")
+		return
+	}
+	if !slices.Contains(api.permissions(r.Context(), u, g.ID), scheduleNeeds[s.Action]) {
+		writeError(w, http.StatusForbidden, "what this schedule does isn't shared with you")
 		return
 	}
 	if err := api.runSchedule(r.Context(), s); err != nil {

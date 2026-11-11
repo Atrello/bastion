@@ -111,6 +111,8 @@ export type GameServer = {
   owner: boolean;
   /** Where its new backups go: a backup storage's ID, or 0 for its own server. */
   backupStore: number;
+  /** What the viewer may do with it: everything for the owner, what's shared for a friend. */
+  can: GamePermission[];
   /** Bytes received and sent over the network since it started. */
   netIn: number;
   netOut: number;
@@ -220,7 +222,10 @@ export type BackupStore = {
   backups: number;
 };
 
-export type GameShare = { userId: number; username: string };
+/** What a friend may do with a game shared with them (internal/panel/api/permissions.go). */
+export type GamePermission = 'console' | 'power' | 'files' | 'backups' | 'schedules' | 'startup';
+
+export type GameShare = { userId: number; username: string; permissions: GamePermission[] };
 
 export type Volume = { name: string; driver: string; size: number; containers: number; usedBy: string[] | null; stack: string };
 export type Image = { id: string; repository: string; tag: string; size: number; uniqueSize: number; containers: number; created: string };

@@ -7,6 +7,7 @@ import type {
   Egg,
   EggDetail,
   EggImage,
+  GamePermission,
   GameShare,
   GitStack,
   Image,
@@ -263,6 +264,8 @@ export const api = {
   gameShares: (id: number) => request<GameShare[]>('GET', `/games/${id}/shares`),
   /** A one-time link for a new friend, or (with a username) shares it with a friend who has an account. */
   shareGame: (id: number, username = '') => request<{ link?: string }>('POST', `/games/${id}/shares`, username ? { username } : undefined),
+  /** What a friend may do with a game shared with them. */
+  setGameShare: (id: number, userId: number, permissions: GamePermission[]) => request<void>('PUT', `/games/${id}/shares/${userId}`, { permissions }),
   unshareGame: (id: number, userId: number) => request<void>('DELETE', `/games/${id}/shares/${userId}`),
   alerts: () => request<AlertsPage>('GET', '/alerts'),
   setAlertKinds: (kinds: string[]) => request<void>('PUT', '/alerts/kinds', { kinds }),

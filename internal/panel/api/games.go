@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,14 +53,15 @@ func (api *API) gameRoutes() {
 	m.Handle("PUT /api/games/{id}", api.gameOwner(api.updateGame))
 	m.Handle("DELETE /api/games/{id}", api.gameOwner(api.deleteGame))
 	m.Handle("POST /api/games/{id}/reinstall", api.gameOwner(api.reinstallGame))
-	m.Handle("POST /api/games/{id}/power/{action}", api.gameUser(api.powerGame))
-	m.Handle("GET /api/games/{id}/console", api.gameUser(api.gameConsole))
-	m.Handle("POST /api/games/{id}/command", api.gameUser(api.gameCommand))
+	m.Handle("POST /api/games/{id}/power/{action}", api.gameCan("power", api.powerGame))
+	m.Handle("GET /api/games/{id}/console", api.gameCan("console", api.gameConsole))
+	m.Handle("POST /api/games/{id}/command", api.gameCan("console", api.gameCommand))
 	m.Handle("GET /api/streams/game", api.signedIn(api.gameStream))
-	m.Handle("GET /api/games/{id}/startup", api.gameUser(api.gameStartup))
-	m.Handle("PUT /api/games/{id}/startup", api.gameUser(api.saveGameStartup))
+	m.Handle("GET /api/games/{id}/startup", api.gameCan("startup", api.gameStartup))
+	m.Handle("PUT /api/games/{id}/startup", api.gameCan("startup", api.saveGameStartup))
 	m.Handle("GET /api/games/{id}/shares", api.gameOwner(api.gameShares))
 	m.Handle("POST /api/games/{id}/shares", api.gameOwner(api.inviteFriend))
+	m.Handle("PUT /api/games/{id}/shares/{user}", api.gameOwner(api.setSharePermissions))
 	m.Handle("DELETE /api/games/{id}/shares/{user}", api.gameOwner(api.unshareGame))
 	m.Handle("PUT /api/games/{id}/backup-store", api.gameOwner(api.setBackupStore))
 	m.Handle("GET /api/games/{id}/history", api.gameUser(api.gameHistory))
@@ -228,6 +230,7 @@ type gameView struct {
 	WarnCommand string    `json:"warnCommand"`
 	Owner       bool      `json:"owner"`       // the viewer can change its limits, delete and share it
 	BackupStore int64     `json:"backupStore"` // where new backups go: 0 for its own server
+	Can         []string  `json:"can"`         // what the viewer may do with it (permissions.go)
 }
 
 func (api *API) view(g *game, serverName string, owner bool) gameView {
@@ -287,7 +290,9 @@ func (api *API) listGames(w http.ResponseWriter, r *http.Request, u *auth.User) 
 		var serverName string
 		g, err := scanGame(scanWithExtra{rows, &serverName})
 		if err == nil {
-			list = append(list, api.view(g, serverName, u.Role == auth.RoleOwner))
+			v := api.view(g, serverName, u.Role == auth.RoleOwner)
+			v.Can = api.permissions(r.Context(), u, g.ID)
+			list = append(list, v)
 		}
 	}
 	writeJSON(w, list)
@@ -302,7 +307,9 @@ type scanWithExtra struct {
 func (s scanWithExtra) Scan(dest ...any) error { return s.rows.Scan(append(dest, s.extra)...) }
 
 func (api *API) getGame(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
-	writeJSON(w, api.view(g, api.serverName(r.Context(), g.ServerID), u.Role == auth.RoleOwner))
+	v := api.view(g, api.serverName(r.Context(), g.ServerID), u.Role == auth.RoleOwner)
+	v.Can = api.permissions(r.Context(), u, g.ID)
+	writeJSON(w, v)
 }
 
 type gameSettings struct {
@@ -409,7 +416,9 @@ func (api *API) createGame(w http.ResponseWriter, r *http.Request, u *auth.User)
 		return
 	}
 	api.log.Info("game server made", "user", u.Username, "game", s.Name, "egg", e.Name)
-	writeJSON(w, api.view(g, api.serverName(r.Context(), g.ServerID), true))
+	v := api.view(g, api.serverName(r.Context(), g.ServerID), true)
+	v.Can = gamePermissions
+	writeJSON(w, v)
 }
 
 func (api *API) install(ctx context.Context, g *game) error {
@@ -632,6 +641,10 @@ func (api *API) gameStream(w http.ResponseWriter, r *http.Request, u *auth.User)
 		writeError(w, http.StatusNotFound, "no such game server")
 		return
 	}
+	if !slices.Contains(api.permissions(r.Context(), u, id), "console") {
+		writeError(w, http.StatusForbidden, "its console isn't shared with you")
+		return
+	}
 	api.relay(w, r, g.ServerID, protocol.OpLogsFollow, protocol.LogsArgs{Game: g.ID, Tail: 0}, false)
 }
 
@@ -699,20 +712,26 @@ func (api *API) saveGameStartup(w http.ResponseWriter, r *http.Request, u *auth.
 }
 
 func (api *API) gameShares(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
-	rows, err := api.db.QueryContext(r.Context(), `SELECT u.id, u.username FROM game_shares s JOIN users u ON u.id = s.user_id WHERE s.game_id = ? ORDER BY u.username`, g.ID)
+	rows, err := api.db.QueryContext(r.Context(), `SELECT u.id, u.username, s.permissions FROM game_shares s JOIN users u ON u.id = s.user_id WHERE s.game_id = ? ORDER BY u.username`, g.ID)
 	if err != nil {
 		api.fail(w, r, err)
 		return
 	}
 	defer rows.Close()
 	type share struct {
-		UserID   int64  `json:"userId"`
-		Username string `json:"username"`
+		UserID      int64    `json:"userId"`
+		Username    string   `json:"username"`
+		Permissions []string `json:"permissions"`
 	}
 	list := []share{}
 	for rows.Next() {
 		var s share
-		if rows.Scan(&s.UserID, &s.Username) == nil {
+		var permissions *string
+		if rows.Scan(&s.UserID, &s.Username, &permissions) == nil {
+			s.Permissions = gamePermissions // not chosen yet: everything
+			if permissions != nil {
+				s.Permissions = checkedPermissions(strings.Split(*permissions, ","))
+			}
 			list = append(list, s)
 		}
 	}

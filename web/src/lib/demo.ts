@@ -146,8 +146,8 @@ const logs = [
 
 const MB = 1024 ** 2;
 
-const game = (g: Omit<GameServer, 'image' | 'ports' | 'cpuLimit' | 'diskLimit' | 'warnCommand' | 'owner' | 'backupStore' | 'netIn' | 'netOut'> & Partial<GameServer>): GameServer => ({
-  image: 'ghcr.io/pterodactyl/yolks:java_21', ports: [Number(g.address.split(':')[1])], cpuLimit: 200, diskLimit: 0, warnCommand: '', owner: true, backupStore: 0,
+const game = (g: Omit<GameServer, 'image' | 'ports' | 'cpuLimit' | 'diskLimit' | 'warnCommand' | 'owner' | 'backupStore' | 'netIn' | 'netOut' | 'can'> & Partial<GameServer>): GameServer => ({
+  image: 'ghcr.io/pterodactyl/yolks:java_21', ports: [Number(g.address.split(':')[1])], cpuLimit: 200, diskLimit: 0, warnCommand: '', owner: true, backupStore: 0, can: ['console', 'power', 'files', 'backups', 'schedules', 'startup'],
   netIn: g.state === 'running' ? 824 * MB : 0, netOut: g.state === 'running' ? 24.3 * GB : 0, ...g,
 });
 
@@ -423,7 +423,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
     if (part === '/startup') return startup;
     if (part === '/schedules') return schedules;
     if (part === '/backups') return backups;
-    if (part === '/shares') return [{ userId: 2, username: 'jane' }];
+    if (part === '/shares') return [{ userId: 2, username: 'jane', permissions: ['console', 'power', 'backups'] }];
     return games.find((g) => g.id === Number(game[1]));
   }
   if (method === 'POST' && path === '/servers') {
