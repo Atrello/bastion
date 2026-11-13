@@ -112,3 +112,9 @@ What still needs testing on real servers is in [docs/testing.md](docs/testing.md
 web/          the panel's web app (Svelte, Vite)
 docs/               the plan, security, the API, development, the roadmap
 ```
+
+## Licence
+
+Bastion is free software under the [GNU Affero General Public License v3.0](LICENSE). You can use, change and
+share it, for yourself or for others. If you share a changed copy, or run one as a service for other people,
+you must publish your changes under the same licence. Running it for your own homelab asks nothing of you.
