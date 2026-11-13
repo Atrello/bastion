@@ -8,7 +8,11 @@ Requires Go (the version in `go.mod`; Go fetches it if yours is older) and Node.
 make            # builds the web app, then the panel into bin/bastion
 make test       # Go tests
 make check      # everything a change must pass: tests, vet, formatting, govulncheck, npm audit, type check
+BASTION_TEST_DOCKER=1 go test ./internal/agent   # also the tests against real Docker (stack backups)
 ```
+
+The web app's demo, on made-up data: `npm run demo` in `web` (for a browser), or `npm run build:demo` for
+the copy published on GitHub Pages (`.github/workflows/demo.yml`).
 
 Run the panel locally:
 

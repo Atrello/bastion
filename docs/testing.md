@@ -14,6 +14,18 @@ domain, devices or accounts. About 20 minutes, most of which is installing it an
       needs a domain pointing at your NPM, which the lab couldn't have.
 - [ ] **Discord alerts**: Alerts, add Discord with a webhook from your server's settings, Send test.
 
+New in 0.5, worth a minute each:
+
+- [ ] **Back up a stack** (a stack's Backups tab, Back up now), then restore it and check its data came
+      back. Tested against real Docker here with a stack and a named volume; your own stacks are the test
+      that counts. Try one to S3 too, if you use it.
+- [ ] **Players online** on a game's console page while you're playing on it (Minecraft; Steam games
+      answer the same way but none was run here).
+- [ ] **A friend's permissions**: share a game, untick Console in its settings, and check they can't see it.
+- [ ] **Activity** (sidebar): your sign-ins and what you did are listed.
+- [ ] **The demo** at https://atrello.github.io/bastion/ once Pages is turned on (Settings, Pages, Source:
+      GitHub Actions).
+
 Optional, if you want to:
 
 - [ ] Join the Paper server from Minecraft itself (the lab answered Minecraft's server-list ping).

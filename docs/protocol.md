@@ -63,6 +63,8 @@ The agent does these and nothing else.
 | `git.sync` | `stack`, `repo`, `branch`, `path`, `key` | Fetches the branch into `/var/lib/bastion/git/<stack>` and copies the compose file into the stack (checked by Docker first). Only `https` and `ssh` repositories; the path can't leave the checkout; `.env` is never touched |
 | `updates.check` | | Checks the images' registries now (otherwise every 6 hours); the results come in the next `state` |
 | `agent.update` | `build`: the SHA-256 of the panel's agent | Downloads `/downloads/bastion-agent-linux-<arch>` from the panel it joined, puts it in place only if its SHA-256 is `build`, answers, then exits for systemd to restart it |
+| `stack.backup` | `stack`, `op` (`make`, `restore`, `delete`, `download`), `name`, `offset`, `stop`, `s3` | A stack's folder and its volumes in one `.tar.gz`, with owners and permissions; stopped meanwhile if `stop`; reports progress |
+| `game.query` | `id`, `kind` (`minecraft` or `source`), `ports` | Who's playing: Minecraft's server list ping or Steam's A2S_INFO, at the game's container address. `online`, `max`, `names` |
 | `cancel` | `id`: a request's message ID | Stops that request if it's still running (archiving, unpacking, moving). Answered at once |
 | `logs.follow` | `stack` or `container`, `tail` | A stream of lines, until `stream.stop` |
 | `exec` | `container`, `cols`, `rows` | A terminal in the container (its shell), as a stream; keys arrive as `stream.input` |

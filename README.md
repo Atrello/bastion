@@ -1,31 +1,50 @@
 # Bastion
 
-A panel for a homelab: the Docker compose stacks on all your servers, Nginx Proxy Manager, and game servers
-run from Pterodactyl's eggs, in one place.
+**One panel for your homelab:** the Docker compose stacks on all your servers, Nginx Proxy Manager, and game
+servers run from Pterodactyl's eggs.
 
-A small agent runs on each server and connects out to the panel, so servers need no open ports. The panel
-shows each server's health, lists every stack and container, and lets you edit a stack's compose file and
-`.env`, deploy it (or follow it from Git), update its images, read its logs live and open a console in its
-containers. It manages Nginx Proxy Manager through NPM's own API, checks each proxy host is answering,
-and runs game servers with a live console, file manager, schedules, backups, and sharing with friends.
+**[Try the demo](https://atrello.github.io/bastion/)** (made-up data, in your browser; nothing to install).
 
 ![The overview](docs/images/overview.png)
 
+A small agent runs on each server and connects out to the panel, so servers need no open ports.
+
+- **Docker:** every compose stack on every server, found as it is. Edit the compose file and `.env`, deploy,
+  follow a Git repository, update images, live logs, a console in any container. Volumes, images and
+  clean-up. Backups of a stack's folder and volumes, scheduled, to the server or S3.
+- **Nginx Proxy Manager (and NPMplus):** everything its own screens do, "Expose this" from a stack, and a
+  health check on every host.
+- **Game servers** from Pterodactyl's eggs (Minecraft, Valheim, Rust, ARK and hundreds more): a live
+  console, file manager, schedules, backups (to S3 too), players online, and sharing with friends with
+  per-friend permissions.
+- **Alerts and notifications:** servers offline, containers crashing, disks filling, certificates expiring,
+  backups done (with a download link), to ntfy, Discord or email.
+- **Safe by default:** two-factor sign-in required (authenticator or passkey), an activity log of who did
+  what, agents that only do what's on their list, and updates to agents from the panel.
+
+### How it compares
+
+| | Bastion | Portainer | Dockge | Pterodactyl |
+|---|---|---|---|---|
+| Compose stacks on many servers | Yes | Yes | Yes | No |
+| Servers need no open ports | Yes (agents connect out) | With its edge agent | No | No |
+| Nginx Proxy Manager built in | Yes | No | No | No |
+| Game servers from eggs | Yes | No | No | Yes |
+| Stack and game backups, to S3 | Yes | Business edition | No | Game backups |
+| Two-factor sign-in required | Yes | Optional | No | Optional |
+| One small container for the panel | Yes | Yes | Yes | No (panel, database, queue, Wings) |
+
 ## Status
 
-Everything in the plan's three milestones is built ([docs/plan.md](docs/plan.md)): Docker stacks (0.1),
-Nginx Proxy Manager (0.2) and game servers (0.3). It's been tested against real Docker, a real Nginx Proxy
-Manager and a game egg in a real container; what couldn't be tested yet (real servers, passkeys on real
-devices, Let's Encrypt, a real Minecraft download) is listed in the plan.
+Version 0.5. Everything on the [roadmap](docs/roadmap.md) is built, tested against real Docker, a real Nginx
+Proxy Manager and a real Paper server; what's left to try on real hardware is in
+[docs/testing.md](docs/testing.md).
 
 | Part | What it is |
 |---|---|
-| Panel web app (`web`) | Svelte. Overview, servers, alerts; Docker (stacks, containers, volumes, images); proxy (Nginx Proxy Manager); game servers and eggs; your account |
-| Panel server (`cmd/bastion`, `internal/panel`) | One Go binary with the web app built in, SQLite, two-factor sign-in with passkeys, the agents' hub, NPM, eggs, schedules |
+| Panel web app (`web`) | Svelte. Overview, servers, alerts, activity; Docker (stacks, containers, volumes, images); proxy (Nginx Proxy Manager); game servers, eggs and backup storage; your account |
+| Panel server (`cmd/bastion`, `internal/panel`) | One Go binary with the web app built in, SQLite, two-factor sign-in with passkeys, the agents' hub, NPM, eggs, schedules, jobs |
 | Agent (`cmd/bastion-agent`, `internal/agent`) | One Go binary on each server: connects out, reports what Docker runs, and does only the operations in `docs/protocol.md` |
-
-What's planned is in [docs/roadmap.md](docs/roadmap.md), and how it's being built, step by step, in
-[docs/plan.md](docs/plan.md).
 
 ## Installing
 

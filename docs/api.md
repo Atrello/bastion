@@ -183,6 +183,32 @@ Up to 5 jobs each at once (`429` past that); a job runs for 6 hours at most.
 | `GET /games/{id}/history` | Its use over the last ten minutes, for its charts: `[{"t", "cpu", "mem", "netIn", "netOut"}]`, about every 10 seconds while it runs. `netIn` and `netOut` are bytes since it started; the rate is the change between samples |
 | `PUT /games/{id}/backup-store` | `{"storeId"}`: where its new backups go (0 for its own server). Owner only. Each backup's `store` says where it is |
 
+### Stack backups (owner only)
+
+A stack's folder and the volumes Docker made for it, in one archive. Under `/servers/{id}/stacks/{name}/backups`:
+
+| Route | What it does |
+|---|---|
+| `GET` | `{"backups", "settings"}`: its backups (`name`, `size`, `state` making/done/failed, `error`, `store`, `locked`), and `settings` (`when`: cron or "" for none, `keep`: the newest this many, 0 for all, `stop`: stopped while backed up, `storeId`: 0 for the server, `nextRun`, `lastError`) |
+| `POST` | `{"name"}` (optional): makes one now, shown as `making` until it's done |
+| `PUT /settings` | `{"when", "keep", "stop", "storeId"}` |
+| `PUT /{backup}` | `{"locked"}`: a locked backup isn't deleted, nor pruned |
+| `DELETE /{backup}` | Deletes it, wherever it's kept |
+| `POST /{backup}/restore` | A job: the stack is stopped, its folder and volumes are emptied and filled from the backup (a deleted volume is made again), and it's started again if it was running |
+| `GET /{backup}/download` | The archive: `stack/...` and `volumes/<name>/...` |
+
+### Activity (owner only)
+
+| Route | What it does |
+|---|---|
+| `GET /activity` | `{"entries", "users"}`: who did what, newest first, 100 at a time. `?before=<id>` for older, `?user=`, `?q=` to search. Each entry: `at`, `user`, `action`, `details` (what it was done to), `ok`. Failed sign-ins too. Kept 90 days |
+
+### Health
+
+| Route | What it does |
+|---|---|
+| `GET /health` | Signed out. `{"ok": true}` while the panel can write its database; `503` and why (full or read-only disk) when it can't. The image's health check asks it |
+
 ### Custom notifications (owner only)
 
 | Route | What it does |
@@ -211,6 +237,7 @@ with the date and time, like `Nightly-2026-11-09-1915`, and its file is named th
 | `POST /games/{id}/schedules/{schedule}/run` | Runs it now |
 | `GET /games/{id}/shares` | Owner. Who it's shared with |
 | `POST /games/{id}/shares` | Owner. `{"username"}` shares it with a friend who has an account; with no body, gives a one-time invite `link` (a week) for a new friend |
+| `PUT /games/{id}/shares/{user}` | Owner. `{"permissions": [...]}`: what the friend may do, from `console`, `power`, `files`, `backups`, `schedules` and `startup`. A share no one has chosen for has all of them. Every route checks; a schedule also needs what it does (`command` needs `console`, `restart` needs `power`, `backup` needs `backups`). A game's `can` says what the viewer may do, and `players` who's playing (`online`, `max`, `names`) when the game can be asked |
 | `DELETE /games/{id}/shares/{user}` | Owner. Stops sharing it with them |
 | `GET /streams/game?id=` | A websocket: its console output, live |
 

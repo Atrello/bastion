@@ -161,3 +161,10 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 9 Nov 2026 | Backups are named "<name>-<date>-<time>", and their files the same | Asked for |
 | 9 Nov 2026 | A game's console page shows its figures in cards (address, uptime, CPU, memory, disk, network in and out) and charts of the last ten minutes; the console has search and text size | Asked for, from a picture of the layout wanted |
 | 9 Nov 2026 | The panel's outgoing connections fall back to public DNS (1.1.1.1, 9.9.9.9) when a lookup fails | ntfy couldn't be reached from the container ("server misbehaving"); names your own DNS knows still go only there |
+| 13 Nov 2026 | An activity log of who did what (sign-ins, changes, jobs), kept 90 days, for the owner | The roadmap's "Later"; written in the background so pages aren't slowed |
+| 13 Nov 2026 | Friends' permissions per game: console, power, files, backups, schedules, startup; a share no one has chosen for has all | The roadmap's "Later" |
+| 13 Nov 2026 | Players online, by Minecraft's server list ping or Steam's A2S_INFO, asked by the agent | The roadmap's "Later" |
+| 13 Nov 2026 | Stack backups: the stack's folder and the volumes compose made for it, in one archive, stopped meanwhile by default, scheduled, kept to the newest few, on the server or S3 | The roadmap's "Later"; game schedules gained "keep the newest" too |
+| 13 Nov 2026 | A full or read-only disk is said in plain words, the image has a health check, and the panel's disk at 90% is an alert | The panel stopped with "disk I/O error" when Docker's disk filled |
+| 13 Nov 2026 | The agent's disk use reading is cached and refreshed in the background | `docker system df -v` takes seconds on a busy server, and slowed the Volumes and Containers pages |
+| 13 Nov 2026 | A demo on GitHub Pages, the web app on made-up data | To help people find and try it |
