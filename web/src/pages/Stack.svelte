@@ -3,6 +3,7 @@
   import Expose from '../components/Expose.svelte';
   import GitStack from '../components/GitStack.svelte';
   import LiveLogs from '../components/LiveLogs.svelte';
+  import StackBackups from '../components/StackBackups.svelte';
   import StatusDot from '../components/StatusDot.svelte';
   import Tabs from '../components/Tabs.svelte';
   import { api, type StackAction } from '../lib/api';
@@ -106,6 +107,7 @@
     { id: 'containers', label: `Containers (${mine.length})` },
     { id: 'logs', label: 'Logs' },
     { id: 'console', label: 'Console' },
+    { id: 'backups', label: 'Backups' },
     { id: 'history', label: 'History' },
     { id: 'git', label: 'Git' },
   ]}
@@ -173,6 +175,8 @@
       {/await}
     {/key}
   {/if}
+{:else if tab === 'backups'}
+  <StackBackups {serverId} {name} onerror={(text) => (message = { ok: false, text })} onnote={(text) => (message = { ok: true, text })} />
 {:else if tab === 'git'}
   <GitStack {serverId} {name} ondeployed={() => void Promise.all([files.reload(), history.reload()])} />
 {:else if tab === 'history'}

@@ -78,6 +78,7 @@ func (api *API) routes() {
 	api.notificationRoutes()
 	api.activityRoutes()
 	api.healthRoutes()
+	api.stackBackupRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {

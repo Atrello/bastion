@@ -55,9 +55,10 @@ func (api *API) jobRoutes() {
 var errTooManyJobs = errors.New("you have 5 things running already: wait for one to finish")
 
 // startJob runs work on a game's server as a job for u, answering 202 with it straight away.
-func (api *API) startJob(w http.ResponseWriter, u *auth.User, g *game, title, detail, stopped string, work func(ctx context.Context, opts agents.RequestOptions) error) {
+// gameID is the game it's about, if any (its file list is refreshed when it's done), or 0.
+func (api *API) startJob(w http.ResponseWriter, u *auth.User, gameID int64, title, detail, stopped string, work func(ctx context.Context, opts agents.RequestOptions) error) {
 	ctx, stop := context.WithTimeout(context.Background(), jobLimit)
-	j := &job{ID: auth.RandomToken()[:16], Title: title, Detail: detail, GameID: g.ID, State: "running", userID: u.ID, stop: stop, stopped: stopped}
+	j := &job{ID: auth.RandomToken()[:16], Title: title, Detail: detail, GameID: gameID, State: "running", userID: u.ID, stop: stop, stopped: stopped}
 
 	api.jobs.mu.Lock()
 	running := 0
@@ -150,7 +151,7 @@ func (api *API) gameFilesJob(w http.ResponseWriter, u *auth.User, g *game, title
 		"archive":   "Stopped: the part-made archive was removed.",
 		"move":      "Stopped: what had moved stays moved.",
 	}[args.Op]
-	api.startJob(w, u, g, title, detail, stopped, func(ctx context.Context, opts agents.RequestOptions) error {
+	api.startJob(w, u, g.ID, title, detail, stopped, func(ctx context.Context, opts agents.RequestOptions) error {
 		args.ID = g.ID
 		var res protocol.GameFileResult
 		return api.hub.RequestWith(ctx, g.ServerID, protocol.OpGameFiles, args, &res, opts)

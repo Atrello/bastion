@@ -296,6 +296,37 @@ func fileName(s string, max int) string {
 	return out
 }
 
+// pruneGameBackups deletes a game's oldest backups past the newest keep, leaving locked ones alone.
+func (api *API) pruneGameBackups(ctx context.Context, g *game, keep int) {
+	rows, err := api.db.QueryContext(ctx, `SELECT id FROM game_backups WHERE game_id = ? AND state = 'done' AND locked = 0 ORDER BY id DESC LIMIT -1 OFFSET ?`, g.ID, keep)
+	if err != nil {
+		return
+	}
+	var old []int64
+	for rows.Next() {
+		var id int64
+		if rows.Scan(&id) == nil {
+			old = append(old, id)
+		}
+	}
+	rows.Close()
+	for _, id := range old {
+		b, err := api.backup(ctx, g, id)
+		if err != nil {
+			continue
+		}
+		target, err := api.s3Target(ctx, b.storeID, g.ID, b.file)
+		if err != nil {
+			continue
+		}
+		if err := api.hub.Request(ctx, g.ServerID, protocol.OpGameBackup, protocol.GameBackupArgs{ID: g.ID, Op: "delete", Name: b.file, S3: target}, nil); err != nil {
+			api.log.Warn("an old backup couldn't be deleted", "game", g.ID, "backup", b.Name, "err", err)
+			continue
+		}
+		_, _ = api.db.ExecContext(ctx, `DELETE FROM game_backups WHERE id = ?`, id)
+	}
+}
+
 // sizeText is a size as people read it: "4.2 GB".
 func sizeText(n int64) string {
 	units := []string{"B", "KB", "MB", "GB", "TB"}
@@ -396,7 +427,7 @@ func (api *API) backup(ctx context.Context, g *game, id int64) (*backupView, err
 // Its name is the one given (or "Backup") with the date and time: "Nightly-2026-11-09-1915". Its file, on
 // the server or in backup storage, is called the same, in letters any file system takes, with a few
 // random ones so two made in the same minute don't clash.
-func (api *API) startBackup(ctx context.Context, g *game, name string) (int64, error) {
+func (api *API) startBackup(ctx context.Context, g *game, name string, keep int) (int64, error) {
 	if name == "" {
 		name = "Backup"
 	}
@@ -430,6 +461,9 @@ func (api *API) startBackup(ctx context.Context, g *game, name string) (int64, e
 			api.notify("backup_failed", g, id, values)
 		} else {
 			api.notify("backup_done", g, id, values)
+			if keep > 0 {
+				api.pruneGameBackups(context.Background(), g, keep)
+			}
 		}
 	}()
 	return id, nil
@@ -440,7 +474,7 @@ func (api *API) makeBackupNow(w http.ResponseWriter, r *http.Request, u *auth.Us
 	if r.ContentLength > 0 && !readJSON(w, r, &body) {
 		return
 	}
-	id, err := api.startBackup(r.Context(), g, strings.TrimSpace(body.Name))
+	id, err := api.startBackup(r.Context(), g, strings.TrimSpace(body.Name), 0)
 	if err != nil {
 		api.fail(w, r, err)
 		return

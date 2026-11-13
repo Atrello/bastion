@@ -20,7 +20,7 @@
     ['0 4 * * 1', 'Mondays at 4am'],
   ];
 
-  let editing = $state<{ id?: number; name: string; when: string; action: Schedule['action']; payload: string; enabled: boolean }>();
+  let editing = $state<{ id?: number; name: string; when: string; action: Schedule['action']; payload: string; enabled: boolean; keep: number }>();
   let busy = $state(false);
 
   async function attempt(work: () => Promise<unknown>, note?: string) {
@@ -47,7 +47,7 @@
 
 <div class="row top">
   <span class="muted small grow">Times are the panel's own clock. A restart warns players a minute before, if the game can be told.</span>
-  <button class="primary" onclick={() => (editing = { name: '', when: '0 4 * * *', action: 'restart', payload: '', enabled: true })}>New schedule</button>
+  <button class="primary" onclick={() => (editing = { name: '', when: '0 4 * * *', action: 'restart', payload: '', enabled: true, keep: 7 })}>New schedule</button>
 </div>
 <div class="card table-card">
   <table>
@@ -65,7 +65,7 @@
           </td>
           <td class="buttons">
             <button onclick={() => attempt(() => api.runSchedule(id, s.id), 'Done.')}>Run now</button>
-            <button onclick={() => (editing = { id: s.id, name: s.name, when: s.when, action: s.action, payload: s.payload, enabled: s.enabled })}>Edit</button>
+            <button onclick={() => (editing = { id: s.id, name: s.name, when: s.when, action: s.action, payload: s.payload, enabled: s.enabled, keep: s.keep })}>Edit</button>
             <button class="danger" onclick={async () => (await sure(`Delete ${s.name}?`, 'It stops running.')) && attempt(() => api.deleteSchedule(id, s.id))}>Delete</button>
           </td>
         </tr>
@@ -89,6 +89,9 @@
       </label>
       {#if s.action === 'command'}
         <label>Command <input required class="mono" placeholder="say Daily reminder: be nice" bind:value={s.payload} /></label>
+      {/if}
+      {#if s.action === 'backup'}
+        <label>Keep the newest <span class="muted small">(0 keeps all; locked ones are always kept)</span> <input type="number" min="0" max="1000" bind:value={s.keep} /></label>
       {/if}
       <label>
         When <span class="muted small">(minute hour day month weekday)</span>

@@ -38,9 +38,10 @@ type schedule struct {
 	LastRunAt string `json:"lastRunAt"`
 	LastError string `json:"lastError"`
 	NextRun   string `json:"nextRun"`
+	Keep      int    `json:"keep"` // a backup schedule keeps only the newest this many; 0 keeps all
 }
 
-const scheduleColumns = `id, game_id, name, cron, action, payload, enabled, COALESCE(last_run_at, ''), last_error`
+const scheduleColumns = `id, game_id, name, cron, action, payload, enabled, COALESCE(last_run_at, ''), last_error, keep`
 
 func (api *API) listSchedules(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
 	rows, err := api.db.QueryContext(r.Context(), `SELECT `+scheduleColumns+` FROM game_schedules WHERE game_id = ? ORDER BY id`, g.ID)
@@ -52,7 +53,7 @@ func (api *API) listSchedules(w http.ResponseWriter, r *http.Request, _ *auth.Us
 	list := []schedule{}
 	for rows.Next() {
 		var s schedule
-		if rows.Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError) == nil {
+		if rows.Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError, &s.Keep) == nil {
 			if c, err := cron.Parse(s.Cron); err == nil && s.Enabled {
 				s.NextRun = c.Next(time.Now()).UTC().Format(time.RFC3339)
 			}
@@ -79,6 +80,9 @@ func (api *API) saveSchedule(w http.ResponseWriter, r *http.Request, u *auth.Use
 	case s.Action != "restart" && s.Action != "command" && s.Action != "backup":
 		writeError(w, http.StatusBadRequest, "a schedule restarts, runs a command or backs up")
 		return
+	case s.Keep < 0 || s.Keep > 1000:
+		writeError(w, http.StatusBadRequest, "keep from 0 (all) to 1,000 backups")
+		return
 	case s.Action == "command" && (s.Payload == "" || strings.ContainsAny(s.Payload, "\r\n") || len(s.Payload) > 1000):
 		writeError(w, http.StatusBadRequest, "the command is one line")
 		return
@@ -89,11 +93,11 @@ func (api *API) saveSchedule(w http.ResponseWriter, r *http.Request, u *auth.Use
 	}
 	var err error
 	if id := r.PathValue("schedule"); id != "" {
-		_, err = api.db.ExecContext(r.Context(), `UPDATE game_schedules SET name = ?, cron = ?, action = ?, payload = ?, enabled = ? WHERE id = ? AND game_id = ?`,
-			s.Name, s.Cron, s.Action, s.Payload, s.Enabled, id, g.ID)
+		_, err = api.db.ExecContext(r.Context(), `UPDATE game_schedules SET name = ?, cron = ?, action = ?, payload = ?, enabled = ?, keep = ? WHERE id = ? AND game_id = ?`,
+			s.Name, s.Cron, s.Action, s.Payload, s.Enabled, s.Keep, id, g.ID)
 	} else {
-		_, err = api.db.ExecContext(r.Context(), `INSERT INTO game_schedules (game_id, name, cron, action, payload, enabled) VALUES (?, ?, ?, ?, ?, ?)`,
-			g.ID, s.Name, s.Cron, s.Action, s.Payload, s.Enabled)
+		_, err = api.db.ExecContext(r.Context(), `INSERT INTO game_schedules (game_id, name, cron, action, payload, enabled, keep) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			g.ID, s.Name, s.Cron, s.Action, s.Payload, s.Enabled, s.Keep)
 	}
 	if err != nil {
 		api.fail(w, r, err)
@@ -116,7 +120,7 @@ func (api *API) runScheduleNow(w http.ResponseWriter, r *http.Request, u *auth.U
 	id, _ := strconv.ParseInt(r.PathValue("schedule"), 10, 64)
 	var s schedule
 	err := api.db.QueryRowContext(r.Context(), `SELECT `+scheduleColumns+` FROM game_schedules WHERE id = ? AND game_id = ?`, id, g.ID).
-		Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError)
+		Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError, &s.Keep)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no such schedule")
 		return
@@ -144,7 +148,7 @@ func (api *API) runSchedule(ctx context.Context, s schedule) error {
 	case "command":
 		err = api.hub.Request(ctx, g.ServerID, protocol.OpGamePower, protocol.GamePowerArgs{ID: g.ID, Action: "command", Command: s.Payload}, nil)
 	case "backup":
-		_, err = api.startBackup(ctx, g, s.Name)
+		_, err = api.startBackup(ctx, g, s.Name, s.Keep)
 	}
 	message := ""
 	if err != nil {
@@ -171,7 +175,7 @@ func (api *API) runSchedules(ctx context.Context) {
 		var due []schedule
 		for rows.Next() {
 			var s schedule
-			if rows.Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError) != nil {
+			if rows.Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError, &s.Keep) != nil {
 				continue
 			}
 			if c, err := cron.Parse(s.Cron); err == nil && c.Matches(minute) {
@@ -188,6 +192,7 @@ func (api *API) runSchedules(ctx context.Context) {
 				}
 			}()
 		}
+		api.runStackBackupSchedules(ctx, minute)
 		api.enforceDisk(ctx)
 	}
 }

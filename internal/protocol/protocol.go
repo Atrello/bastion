@@ -45,6 +45,7 @@ const (
 	OpGameFiles       = "game.files"       // GameFileArgs → GameFileResult
 	OpGameBackup      = "game.backup"      // GameBackupArgs → GameBackupResult
 	OpGameQuery       = "game.query"       // GameQueryArgs → GameQueryResult: who's playing
+	OpStackBackup     = "stack.backup"     // StackBackupArgs → GameBackupResult: a stack's folder and volumes
 	OpLogsFollow      = "logs.follow"      // LogsArgs → a stream of log lines until stopped
 	OpExec            = "exec"             // ExecArgs → a terminal stream until stopped
 	OpStreamInput     = "stream.input"     // StreamInput: keys typed into a terminal
@@ -359,6 +360,18 @@ type GameBackupArgs struct {
 	Offset int64  `json:"offset,omitempty"`
 	// Where the backup is kept, if not on this server: made here, then uploaded and the copy here removed.
 	S3 *S3Target `json:"s3,omitempty"`
+}
+
+// StackBackupArgs makes, restores, deletes or reads a backup of a stack: its folder (compose file, .env and
+// anything kept beside them) and the volumes it made, with their owners and permissions.
+type StackBackupArgs struct {
+	Stack  string `json:"stack"`
+	Op     string `json:"op"`   // make, restore, delete or download
+	Name   string `json:"name"` // the backup's file name, chosen by the panel
+	Offset int64  `json:"offset,omitempty"`
+	// Stop the stack while it's copied (and while it's restored), so a database in it is copied whole.
+	Stop bool      `json:"stop,omitempty"`
+	S3   *S3Target `json:"s3,omitempty"`
 }
 
 // GameQueryArgs asks a running game who's playing, in the game's own query protocol: "minecraft" (the

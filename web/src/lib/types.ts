@@ -174,7 +174,25 @@ export type Schedule = {
   nextRun: string;
   lastRunAt: string;
   lastError: string;
+  /** A backup schedule keeps only the newest this many; 0 keeps all. */
+  keep: number;
 };
+
+/** A backup of a compose stack: its folder and the volumes it made. */
+export type StackBackup = {
+  id: number;
+  name: string;
+  size: number;
+  locked: boolean;
+  state: 'making' | 'done' | 'failed';
+  error: string;
+  /** The backup storage it's in; empty when it's on the stack's server. */
+  store: string;
+  createdAt: string;
+};
+
+/** How a stack is backed up: on a schedule (cron, or "" for none), keeping the newest few, stopped or not. */
+export type StackBackupSettings = { when: string; keep: number; stop: boolean; storeId: number; lastRunAt: string; lastError: string; nextRun: string };
 
 export type GameBackup = {
   id: number;

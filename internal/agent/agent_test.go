@@ -161,3 +161,21 @@ func TestDiskUsageKept(t *testing.T) {
 		t.Fatal("clean-up didn't make the next reading fresh")
 	}
 }
+
+// A stack backup's entries are split into the part they belong to; anything else is no part of one.
+func TestSplitPart(t *testing.T) {
+	for name, want := range map[string][2]string{
+		"stack/":                   {"stack", ""},
+		"stack/data/a.db":          {"stack", "data/a.db"},
+		"volumes/immich_db/":       {"volumes/immich_db", ""},
+		"volumes/immich_db/base/1": {"volumes/immich_db", "base/1"},
+		"stacked/x":                {"", ""},
+		"../etc/passwd":            {"", ""},
+		"volumes/":                 {"", ""},
+	} {
+		part, rel := splitPart(name)
+		if part != want[0] || rel != want[1] {
+			t.Errorf("%s: %q %q", name, part, rel)
+		}
+	}
+}

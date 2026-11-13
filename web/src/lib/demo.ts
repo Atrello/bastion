@@ -246,9 +246,9 @@ const startup = {
 };
 
 const schedules: Schedule[] = [
-  { id: 1, name: 'Nightly restart', when: '0 5 * * *', action: 'restart', payload: '', nextRun: new Date(now + 10 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 14), lastError: '' },
-  { id: 2, name: 'World backup', when: '0 3 * * *', action: 'backup', payload: '', nextRun: new Date(now + 8 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 16), lastError: '' },
-  { id: 3, name: 'Weekend whitelist off', when: '0 18 * * 5', action: 'command', payload: 'whitelist off', nextRun: '', enabled: false, lastRunAt: '', lastError: '' },
+  { id: 1, name: 'Nightly restart', when: '0 5 * * *', action: 'restart', payload: '', nextRun: new Date(now + 10 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 14), lastError: '', keep: 0 },
+  { id: 2, name: 'World backup', when: '0 3 * * *', action: 'backup', payload: '', nextRun: new Date(now + 8 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 16), lastError: '', keep: 7 },
+  { id: 3, name: 'Weekend whitelist off', when: '0 18 * * 5', action: 'command', payload: 'whitelist off', nextRun: '', enabled: false, lastRunAt: '', lastError: '', keep: 0 },
 ];
 
 const backups: GameBackup[] = [
@@ -307,6 +307,15 @@ function demoJob(path: string, body: unknown): Job {
 }
 
 export function demo(method: string, path: string, body?: unknown): unknown {
+  if (/^\/servers\/\d+\/stacks\/[^/]+\/backups$/.test(path) && method === 'GET')
+    return {
+      settings: { when: '0 4 * * *', keep: 7, stop: true, storeId: 0, lastRunAt: minutesAgo(60 * 9), lastError: '', nextRun: new Date(Date.now() + 15 * 3600_000).toISOString() },
+      backups: [
+        { id: 3, name: 'Scheduled-2026-11-13-0400', size: 2.4 * GB, locked: false, state: 'done', error: '', store: '', createdAt: minutesAgo(60 * 9) },
+        { id: 2, name: 'Before the upgrade-2026-11-12-2010', size: 2.3 * GB, locked: true, state: 'done', error: '', store: 'Backblaze', createdAt: minutesAgo(60 * 17) },
+        { id: 1, name: 'Scheduled-2026-11-12-0400', size: 2.3 * GB, locked: false, state: 'done', error: '', store: '', createdAt: minutesAgo(60 * 33) },
+      ],
+    };
   if (path.startsWith('/activity'))
     return {
       users: ['jane', 'robin'],

@@ -21,6 +21,8 @@ import type {
   GameServer,
   BackupStore,
   NotificationRule,
+  StackBackup,
+  StackBackupSettings,
   ActivityEntry,
   UsageSample,
   Job,
@@ -149,6 +151,18 @@ export const api = {
     request<{ lines: string[] }>('GET', `${stackPath(serverId, name)}/logs?tail=${tail}`),
   createStack: (serverId: number, name: string, compose: string, env: string | null) =>
     request<{ output: string }>('POST', `/servers/${serverId}/stacks`, { name, compose, env }),
+  stackBackups: (serverId: number, name: string) =>
+    request<{ backups: StackBackup[]; settings: StackBackupSettings }>('GET', `${stackPath(serverId, name)}/backups`),
+  makeStackBackup: (serverId: number, name: string, backupName = '') =>
+    request<StackBackup>('POST', `${stackPath(serverId, name)}/backups`, backupName ? { name: backupName } : undefined),
+  saveStackBackupSettings: (serverId: number, name: string, s: Pick<StackBackupSettings, 'when' | 'keep' | 'stop' | 'storeId'>) =>
+    request<void>('PUT', `${stackPath(serverId, name)}/backups/settings`, s),
+  lockStackBackup: (serverId: number, name: string, id: number, locked: boolean) =>
+    request<void>('PUT', `${stackPath(serverId, name)}/backups/${id}`, { locked }),
+  deleteStackBackup: (serverId: number, name: string, id: number) => request<void>('DELETE', `${stackPath(serverId, name)}/backups/${id}`),
+  /** Puts a backup back, as a job in the corner of the page. */
+  restoreStackBackup: (serverId: number, name: string, id: number) => request<Job>('POST', `${stackPath(serverId, name)}/backups/${id}/restore`),
+  stackBackupDownload: (serverId: number, name: string, id: number) => `/api${stackPath(serverId, name)}/backups/${id}/download`,
   git: (serverId: number, name: string) => request<GitStack | null>('GET', `${stackPath(serverId, name)}/git`),
   setGit: (serverId: number, name: string, git: { repo: string; branch: string; path: string; autoDeploy: boolean }) =>
     request<GitStack>('PUT', `${stackPath(serverId, name)}/git`, git),
@@ -251,7 +265,7 @@ export const api = {
     request<{ command: string; image: string; images: EggImage[]; variables: StartupVariable[] }>('GET', `/games/${id}/startup`),
   saveGameStartup: (id: number, values: Record<string, string>) => request<void>('PUT', `/games/${id}/startup`, values),
   gameSchedules: (id: number) => request<Schedule[]>('GET', `/games/${id}/schedules`),
-  saveSchedule: (id: number, s: Pick<Schedule, 'name' | 'when' | 'action' | 'payload' | 'enabled'>, scheduleId?: number) =>
+  saveSchedule: (id: number, s: Pick<Schedule, 'name' | 'when' | 'action' | 'payload' | 'enabled' | 'keep'>, scheduleId?: number) =>
     request<void>(scheduleId ? 'PUT' : 'POST', `/games/${id}/schedules${scheduleId ? `/${scheduleId}` : ''}`, s),
   deleteSchedule: (id: number, scheduleId: number) => request<void>('DELETE', `/games/${id}/schedules/${scheduleId}`),
   runSchedule: (id: number, scheduleId: number) => request<void>('POST', `/games/${id}/schedules/${scheduleId}/run`),

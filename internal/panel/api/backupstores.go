@@ -63,7 +63,7 @@ func (api *API) store(ctx context.Context, id int64) (*backupStore, error) {
 }
 
 func (api *API) listBackupStores(w http.ResponseWriter, r *http.Request, _ *auth.User) {
-	rows, err := api.db.QueryContext(r.Context(), `SELECT `+storeColumns+`, (SELECT COUNT(*) FROM game_backups WHERE store_id = backup_stores.id) FROM backup_stores ORDER BY name`)
+	rows, err := api.db.QueryContext(r.Context(), `SELECT `+storeColumns+`, (SELECT COUNT(*) FROM game_backups WHERE store_id = backup_stores.id) + (SELECT COUNT(*) FROM stack_backups WHERE store_id = backup_stores.id) FROM backup_stores ORDER BY name`)
 	if err != nil {
 		api.fail(w, r, err)
 		return
@@ -192,7 +192,7 @@ func (api *API) saveBackupStore(w http.ResponseWriter, r *http.Request, u *auth.
 	}
 	if old != nil && (s.Endpoint != old.Endpoint || s.Bucket != old.Bucket || s.Prefix != old.Prefix) {
 		var n int
-		_ = api.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM game_backups WHERE store_id = ?`, s.ID).Scan(&n)
+		_ = api.db.QueryRowContext(r.Context(), `SELECT (SELECT COUNT(*) FROM game_backups WHERE store_id = ?) + (SELECT COUNT(*) FROM stack_backups WHERE store_id = ?)`, s.ID, s.ID).Scan(&n)
 		if n > 0 {
 			// The backups in it are found by where it is: moved, they'd be lost track of.
 			writeError(w, http.StatusBadRequest, "it has backups in it, so its address, bucket and folder can't change: add new storage for somewhere else")
@@ -226,7 +226,7 @@ func (api *API) saveBackupStore(w http.ResponseWriter, r *http.Request, u *auth.
 func (api *API) deleteBackupStore(w http.ResponseWriter, r *http.Request, u *auth.User) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var n int
-	_ = api.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM game_backups WHERE store_id = ?`, id).Scan(&n)
+	_ = api.db.QueryRowContext(r.Context(), `SELECT (SELECT COUNT(*) FROM game_backups WHERE store_id = ?) + (SELECT COUNT(*) FROM stack_backups WHERE store_id = ?)`, id, id).Scan(&n)
 	if n > 0 {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("it has %d backup%s in it: delete those first, so they aren't lost track of", n, map[bool]string{true: "", false: "s"}[n == 1]))
 		return
@@ -265,6 +265,11 @@ func (api *API) setBackupStore(w http.ResponseWriter, r *http.Request, u *auth.U
 
 // s3Target is where a backup is in its store, for the agent; nil for one on the game's own server.
 func (api *API) s3Target(ctx context.Context, storeID sql.NullInt64, gameID int64, file string) (*protocol.S3Target, error) {
+	return api.s3TargetAt(ctx, storeID, "game-"+strconv.FormatInt(gameID, 10)+"/"+file)
+}
+
+// s3TargetAt is where a backup is in its store, under key (after the store's folder).
+func (api *API) s3TargetAt(ctx context.Context, storeID sql.NullInt64, key string) (*protocol.S3Target, error) {
 	if !storeID.Valid {
 		return nil, nil
 	}
@@ -273,7 +278,7 @@ func (api *API) s3Target(ctx context.Context, storeID sql.NullInt64, gameID int6
 		return nil, err
 	}
 	return &protocol.S3Target{
-		Endpoint: s.Endpoint, Region: s.Region, Bucket: s.Bucket, Key: s.Prefix + "game-" + strconv.FormatInt(gameID, 10) + "/" + file,
+		Endpoint: s.Endpoint, Region: s.Region, Bucket: s.Bucket, Key: s.Prefix + key,
 		AccessKey: s.AccessKey, SecretKey: s.SecretKey, PathStyle: s.PathStyle, PlainHTTP: s.PlainHTTP,
 	}, nil
 }

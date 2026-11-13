@@ -295,7 +295,7 @@ func (c *conn) handle(m protocol.Message) {
 // backups (unpacking a big archive, uploading a backup) up to 6 hours. Any can be stopped with OpCancel.
 func (c *conn) do(m protocol.Message) (any, error) {
 	limit := 15 * time.Minute
-	if m.Op == protocol.OpGameFiles || m.Op == protocol.OpGameBackup {
+	if m.Op == protocol.OpGameFiles || m.Op == protocol.OpGameBackup || m.Op == protocol.OpStackBackup {
 		limit = 6 * time.Hour
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
@@ -407,6 +407,14 @@ func (c *conn) do(m protocol.Message) (any, error) {
 			return nil, err
 		}
 		return gameFiles(a, newTracker(ctx, func(done, total int64) {
+			c.event(protocol.EventProgress, protocol.Progress{ID: m.ID, Done: done, Total: total})
+		}))
+	case protocol.OpStackBackup:
+		var a protocol.StackBackupArgs
+		if err := decode(m.Args, &a); err != nil {
+			return nil, err
+		}
+		return stackBackup(ctx, dir, a, newTracker(ctx, func(done, total int64) {
 			c.event(protocol.EventProgress, protocol.Progress{ID: m.ID, Done: done, Total: total})
 		}))
 	case protocol.OpGameQuery:
