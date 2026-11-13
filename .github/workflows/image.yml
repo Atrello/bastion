@@ -1,12 +1,18 @@
 # Builds the panel's image (the web app and both agents in it) for amd64 and arm64 and publishes it to
 # GitHub's container registry as ghcr.io/atrello/bastion, tagged latest and with the VERSION file's version,
-# on each push to main. deploy/compose.yaml uses it.
+# on each push to main that changes the program (not the docs). deploy/compose.yaml uses it. A newer push
+# stops a build still running, so an older build can't finish last and leave "latest" out of date.
 name: Image
 
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', '.github/workflows/demo.yml']
   workflow_dispatch:
+
+concurrency:
+  group: image
+  cancel-in-progress: true
 
 permissions:
   contents: read
