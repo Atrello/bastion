@@ -18,7 +18,14 @@ docker compose logs bastion      # shows the one-time setup link
 ```
 
 To build the image yourself instead of pulling it: `docker build -t ghcr.io/atrello/bastion:latest .` in the
-repository, then `docker compose up -d` as above.
+repository, then `docker compose up -d` as above. Building leaves gigabytes of cache behind (Go and Node
+downloads): pull the published image on a server, or clear the cache after with `docker builder prune -a`.
+A full disk stops the panel: it says so in its log, `docker ps` shows it unhealthy, and an alert warns when
+its disk passes 90%.
+
+The proxy settings above stream big uploads and downloads (the agent's program, game backups) straight
+through rather than storing them on the proxy's disk first: without `proxy_buffering off`, NPM can cut a
+download off part-way (`curl: (92) HTTP/2 stream reset`).
 
 In your reverse proxy, point the panel's address (e.g. `bastion.home.lab`) at port 8080 on that host, with
 **websockets turned on** (live logs, consoles and the agents use them). Port 8080 listens only on
@@ -29,6 +36,7 @@ configuration (in Nginx Proxy Manager, the host's Advanced tab):
 ```nginx
 client_max_body_size 0;
 proxy_request_buffering off;
+proxy_buffering off;
 proxy_read_timeout 3600s;
 proxy_send_timeout 3600s;
 ```

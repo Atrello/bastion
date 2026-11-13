@@ -5,11 +5,14 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/Atrello/bastion/internal/panel/netdial"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,11 +28,39 @@ import (
 var version = "dev"
 
 func main() {
+	// `bastion healthcheck`, for the image's HEALTHCHECK: asks the panel running here if it works.
+	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
+		os.Exit(healthcheck())
+	}
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if err := run(log); err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
+}
+
+// healthcheck asks this machine's panel for /api/health: 0 if it works, 1 (and why) if not.
+func healthcheck() int {
+	addr := os.Getenv("BASTION_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	res, err := client.Get("http://" + addr + "/api/health")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "the panel isn't answering:", err)
+		return 1
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		fmt.Fprintln(os.Stderr, strings.TrimSpace(string(body)))
+		return 1
+	}
+	return 0
 }
 
 func run(log *slog.Logger) error {

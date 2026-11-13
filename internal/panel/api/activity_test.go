@@ -62,3 +62,13 @@ func mustJSON(v any) []byte {
 	raw, _ := json.Marshal(v)
 	return raw
 }
+
+// The health check answers signed out, and only says whether the panel works.
+func TestHealth(t *testing.T) {
+	b := newPanel(t)
+	res, err := b.newClient().Get(b.server.URL + "/api/health")
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("health: %v %v", err, res)
+	}
+	res.Body.Close()
+}

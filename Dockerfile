@@ -30,6 +30,8 @@ COPY --from=go /out/agents /agents
 COPY --from=go --chown=65532:65532 /out/data /data
 ENV BASTION_ADDR=:8080 BASTION_DATA_DIR=/data BASTION_AGENT_BINARIES=/agents
 VOLUME /data
+# Healthy while it can write its database; otherwise `docker ps` says unhealthy, and the logs say why.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 CMD ["/bastion", "healthcheck"]
 EXPOSE 8080
 USER nonroot
 ENTRYPOINT ["/bastion"]

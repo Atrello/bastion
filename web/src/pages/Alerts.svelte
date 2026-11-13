@@ -12,7 +12,7 @@
     ['offline', 'A server goes offline (for 2 minutes)'],
     ['crash', 'A container keeps restarting'],
     ['unhealthy', 'A container fails its health check'],
-    ['disk', "A server's disk is over 90% full"],
+    ['disk', "A server's disk, or the panel's, is over 90% full"],
     ['update', 'An image update is available'],
     ['host', "A proxy host stops answering"],
     ['certificate', 'A certificate expires within 14 days'],

@@ -342,6 +342,9 @@ func (api *API) findProblems(ctx context.Context) ([]problem, error) {
 		return nil, err
 	}
 	var found []problem
+	if p := api.panelProblem(); p != nil {
+		found = append(found, *p)
+	}
 	for _, s := range servers {
 		live := api.hub.Live(s.ID)
 		if !live.Online {

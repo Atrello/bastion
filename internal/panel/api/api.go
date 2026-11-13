@@ -65,8 +65,6 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 }
 
 func (api *API) routes() {
-	m := api.mux
-	m.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, map[string]bool{"ok": true}) })
 	api.authRoutes()
 	api.serverRoutes()
 	api.streamRoutes()
@@ -79,6 +77,7 @@ func (api *API) routes() {
 	api.backupStoreRoutes()
 	api.notificationRoutes()
 	api.activityRoutes()
+	api.healthRoutes()
 }
 
 func (api *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
