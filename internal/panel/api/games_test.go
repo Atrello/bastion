@@ -437,6 +437,12 @@ func TestPlayersOnline(t *testing.T) {
 	ws, _ := b.dialAgent(id+"."+secret, nil)
 	defer ws.Close()
 	asked := make(chan protocol.GameQueryArgs, 4)
+	var writeMu sync.Mutex // one writer at a time on the agent's connection
+	write := func(m protocol.Message) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		_ = ws.WriteJSON(m)
+	}
 	go func() {
 		for {
 			var m protocol.Message
@@ -451,14 +457,14 @@ func TestPlayersOnline(t *testing.T) {
 				asked <- a
 				data = json.RawMessage(`{"online":3,"max":20,"names":["Alex","Jane Cooper"]}`)
 			}
-			_ = ws.WriteJSON(protocol.Message{ID: m.ID, OK: &ok, Data: data})
+			write(protocol.Message{ID: m.ID, OK: &ok, Data: data})
 		}
 	}()
 	paper, _ := os.ReadFile("../eggs/testdata/egg-paper.json")
 	b.call(b.client, "POST", "/api/eggs", map[string]any{"json": string(paper)})
 	b.call(b.client, "POST", "/api/games", map[string]any{"name": "Survival", "eggId": 1, "serverId": 1, "memoryMb": 1024, "ports": []int{25570}})
 	metrics, _ := json.Marshal(protocol.Metrics{Games: []protocol.GameStatus{{ID: 1, State: "running"}}})
-	_ = ws.WriteJSON(protocol.Message{Event: protocol.EventMetrics, Data: metrics})
+	write(protocol.Message{Event: protocol.EventMetrics, Data: metrics})
 	deadline := time.Now().Add(2 * time.Second)
 	for b.api.hub.Live(1).Metrics == nil && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
