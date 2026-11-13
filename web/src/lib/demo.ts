@@ -24,7 +24,7 @@ const daysAhead = (d: number) => new Date(now + d * 86_400_000).toISOString().sl
 
 const servers: Server[] = [
   {
-    id: 1, name: 'atlas', hostname: 'atlas', address: '192.168.1.10', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.4.0', agentUpdate: false, arch: 'amd64', cpus: 8, docker: '27.3.1', games: 0, online: true,
+    id: 1, name: 'atlas', hostname: 'atlas', address: '192.168.1.10', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.5.0', agentUpdate: false, arch: 'amd64', cpus: 8, docker: '27.3.1', games: 0, online: true,
     lastSeen: minutesAgo(0), stacks: 4, containers: 11,
     metrics: { cpuPercent: 18, memUsed: 9.1 * GB, memTotal: 16 * GB, diskUsed: 312 * GB, diskTotal: 500 * GB, uptimeSecs: 1_209_600 },
   },
@@ -34,12 +34,12 @@ const servers: Server[] = [
     metrics: { cpuPercent: 46, memUsed: 27.4 * GB, memTotal: 32 * GB, diskUsed: 640 * GB, diskTotal: 1863 * GB, uptimeSecs: 273_600 },
   },
   {
-    id: 3, name: 'vault', hostname: 'vault', address: '192.168.1.12', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.4.0', agentUpdate: false, arch: 'amd64', cpus: 8, docker: '27.3.1', games: 0, online: true,
+    id: 3, name: 'vault', hostname: 'vault', address: '192.168.1.12', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.5.0', agentUpdate: false, arch: 'amd64', cpus: 8, docker: '27.3.1', games: 0, online: true,
     lastSeen: minutesAgo(0), stacks: 3, containers: 7,
     metrics: { cpuPercent: 7, memUsed: 3.2 * GB, memTotal: 8 * GB, diskUsed: 14_100 * GB, diskTotal: 24_000 * GB, uptimeSecs: 4_060_800 },
   },
   {
-    id: 4, name: 'edge-vps', hostname: 'edge-vps', address: '10.8.0.2', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.4.0', agentUpdate: false, arch: 'amd64', cpus: 2, docker: '27.3.1', games: 0, online: false,
+    id: 4, name: 'edge-vps', hostname: 'edge-vps', address: '10.8.0.2', os: 'Debian GNU/Linux 12 (bookworm)', agentVersion: '0.5.0', agentUpdate: false, arch: 'amd64', cpus: 2, docker: '27.3.1', games: 0, online: false,
     lastSeen: minutesAgo(26), stacks: 2, containers: 2, metrics: null,
   },
 ];
@@ -353,7 +353,7 @@ export function demo(method: string, path: string, body?: unknown): unknown {
     return undefined;
   }
   if (method === 'POST' && /^\/games\/\d+\/files\/(unarchive|archive|move)$/.test(path)) return demoJob(path, body);
-  if (path === '/auth/state') return { setupNeeded: false, signedIn: true, username: 'robin', passkeys: true, version: '0.4.0' };
+  if (path === '/auth/state') return { setupNeeded: false, signedIn: true, username: 'robin', passkeys: true, version: '0.5.0' };
   if (path === '/account')
     return {
       username: 'robin',
