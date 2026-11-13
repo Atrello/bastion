@@ -33,7 +33,8 @@ import type {
   StartupVariable,
 } from './types';
 
-const DEMO = import.meta.env.VITE_DEMO === '1';
+/** The demo: answers made up in the browser (lib/demo.ts), no panel behind it. */
+export const DEMO = import.meta.env.VITE_DEMO === '1';
 
 export class ApiError extends Error {
   constructor(

@@ -6,6 +6,7 @@
     "dev": "vite",
     "demo": "VITE_DEMO=1 vite",
     "build": "vite build && touch dist/.gitkeep",
+    "build:demo": "VITE_DEMO=1 vite build --base=/bastion/ --outDir demo-dist && cp demo-dist/index.html demo-dist/404.html",
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "dependencies": {

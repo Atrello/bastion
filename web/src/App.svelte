@@ -5,7 +5,7 @@
   import Tasks from './components/Tasks.svelte';
   import { watchJobs } from './lib/tasks.svelte';
   import Sidebar from './components/Sidebar.svelte';
-  import { api, type AuthState } from './lib/api';
+  import { DEMO, api, type AuthState } from './lib/api';
   import Account from './pages/Account.svelte';
   import Setup from './pages/Setup.svelte';
   import SignIn from './pages/SignIn.svelte';
@@ -62,6 +62,13 @@
 
 <Ask />
 <Tasks />
+
+{#if DEMO}
+  <div class="demo" role="note">
+    A demo with made-up servers, stacks and games: nothing here is real, and changes aren't kept.
+    <a href="https://github.com/Atrello/bastion" target="_blank" rel="noreferrer">Install Bastion</a>
+  </div>
+{/if}
 
 {#if updated}
   <div class="updated" role="status">
@@ -131,6 +138,18 @@
 {/if}
 
 <style>
+  .demo {
+    background: var(--accent-bg);
+    color: var(--text);
+    border-bottom: 1px solid var(--line);
+    padding: 8px 16px;
+    text-align: center;
+    font-size: 13px;
+  }
+  .demo a {
+    margin-left: 8px;
+    font-weight: 600;
+  }
   .updated {
     position: fixed;
     right: 16px;

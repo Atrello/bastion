@@ -1,7 +1,7 @@
 <!-- The menu down the left: the logo and each area of the panel. On a phone it's a bar along the top, and
      the menu slides in from the left when its button is pressed. -->
 <script lang="ts">
-  import { route } from '../lib/router.svelte';
+  import { route, asset } from '../lib/router.svelte';
 
   let { username, version = '', friend = false, onsignout }: { username: string; version?: string; friend?: boolean; onsignout: () => void } = $props();
 
@@ -55,13 +55,13 @@
   <button class="menu" aria-label="Menu" aria-expanded={open} onclick={() => (open = !open)}>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
   </button>
-  <a class="logo" href="/"><img src="/favicon.svg" alt="" width="24" height="24" /> Bastion</a>
+  <a class="logo" href="/"><img src={asset('favicon.svg')} alt="" width="24" height="24" /> Bastion</a>
 </header>
 {#if open}<button class="backdrop" aria-label="Close the menu" onclick={() => (open = false)}></button>{/if}
 
 <nav class:open>
   <a class="logo" href="/">
-    <img src="/favicon.svg" alt="" width="26" height="26" />
+    <img src={asset('favicon.svg')} alt="" width="26" height="26" />
     Bastion
   </a>
   {#each shown as group, i (i)}

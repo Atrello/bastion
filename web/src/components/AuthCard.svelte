@@ -1,12 +1,13 @@
 <!-- The centred card the setup and sign-in screens sit in, with the logo above. -->
 <script lang="ts">
+  import { asset } from '../lib/router.svelte';
   import type { Snippet } from 'svelte';
 
   let { title, children }: { title: string; children: Snippet } = $props();
 </script>
 
 <main class="auth">
-  <div class="logo"><img src="/favicon.svg" alt="" width="30" height="30" /> Bastion</div>
+  <div class="logo"><img src={asset('favicon.svg')} alt="" width="30" height="30" /> Bastion</div>
   <section class="card">
     <h1>{title}</h1>
     {@render children()}

@@ -13,3 +13,6 @@ web/dist/*
 
 # Your own settings for deploy/compose.yaml
 deploy/.env
+
+# The demo for GitHub Pages, built by npm run build:demo.
+web/demo-dist/
