@@ -1,12 +1,14 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/Atrello/bastion/internal/protocol"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPanelAddress(t *testing.T) {
@@ -139,5 +141,23 @@ func TestDiskUsageEitherWay(t *testing.T) {
 		if du.BuildCache[0].InUse != "false" || du.Volumes[0].Links != "0" {
 			t.Fatalf("%s: read as %+v", raw, du)
 		}
+	}
+}
+
+// A recent measurement is given at once; after clean-up, it isn't.
+func TestDiskUsageKept(t *testing.T) {
+	kept := &diskUsage{}
+	duCache.Lock()
+	duCache.du, duCache.at, duCache.stale = kept, time.Now(), false
+	duCache.Unlock()
+	if du, err := readDiskUsage(context.Background()); err != nil || du != kept {
+		t.Fatalf("a recent measurement wasn't used: %v", err)
+	}
+	forgetDiskUsage()
+	duCache.Lock()
+	stale := duCache.stale
+	duCache.Unlock()
+	if !stale {
+		t.Fatal("clean-up didn't make the next reading fresh")
 	}
 }

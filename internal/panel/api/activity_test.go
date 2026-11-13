@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 )
 
 // What people do is kept with who did it, named rather than numbered; failed sign-ins too. Only the owner
@@ -16,6 +17,7 @@ func TestActivity(t *testing.T) {
 	b.call(b.client, "POST", "/api/servers/1/join-command", nil)
 	b.call(b.newClient(), "POST", "/api/auth/signin", map[string]string{"username": "robin", "password": "not it"})
 
+	time.Sleep(200 * time.Millisecond) // kept in the background
 	list := func(query string) (entries []map[string]any) {
 		res, err := b.client.Get(b.server.URL + "/api/activity" + query)
 		if err != nil {

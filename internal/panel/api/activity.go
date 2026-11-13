@@ -21,25 +21,50 @@ import (
 
 const activityKept = 90 * 24 * time.Hour
 
-// activityHandler passes every log line on, and keeps those that name a user.
+// activityHandler passes every log line on, and keeps those that name a user. Keeping them is done in the
+// background, by one writer: the panel has one database connection, and a log line written while it's in
+// use (in the middle of reading rows, say) must never wait for it.
 type activityHandler struct {
 	slog.Handler
-	db *sql.DB
+	db     *sql.DB
+	writes chan slog.Record
+}
+
+func newActivityHandler(next slog.Handler, db *sql.DB) *activityHandler {
+	h := &activityHandler{Handler: next, db: db, writes: make(chan slog.Record, 1000)}
+	go func() {
+		for rec := range h.writes {
+			h.keep(rec)
+		}
+	}()
+	return h
 }
 
 func (h *activityHandler) Handle(ctx context.Context, rec slog.Record) error {
-	if rec.Level == slog.LevelInfo {
-		h.keep(rec)
+	if rec.Level == slog.LevelInfo && namesUser(rec) {
+		select {
+		case h.writes <- rec.Clone():
+		default: // a thousand waiting: the database is stuck, and the log line is still in the log
+		}
 	}
 	return h.Handler.Handle(ctx, rec)
 }
 
+func namesUser(rec slog.Record) bool {
+	found := false
+	rec.Attrs(func(a slog.Attr) bool {
+		found = a.Key == "user"
+		return !found
+	})
+	return found
+}
+
 func (h *activityHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &activityHandler{Handler: h.Handler.WithAttrs(attrs), db: h.db}
+	return &activityHandler{Handler: h.Handler.WithAttrs(attrs), db: h.db, writes: h.writes}
 }
 
 func (h *activityHandler) WithGroup(name string) slog.Handler {
-	return &activityHandler{Handler: h.Handler.WithGroup(name), db: h.db}
+	return &activityHandler{Handler: h.Handler.WithGroup(name), db: h.db, writes: h.writes}
 }
 
 func (h *activityHandler) keep(rec slog.Record) {

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Atrello/bastion/internal/protocol"
 )
@@ -25,7 +27,69 @@ type diskUsage struct {
 	}
 }
 
+// `docker system df -v` measures every volume and image, which takes a while on a server with big ones (a
+// game world, a photo library): tens of seconds. So the last measurement is kept and given at once, and
+// measured again in the background once it's a minute old; after clean-up, the next one waits for a fresh
+// measurement. The first after the agent starts is made straight away (warmDiskUsage).
+var duCache struct {
+	sync.Mutex
+	du         *diskUsage
+	at         time.Time
+	refreshing bool
+	stale      bool
+}
+
+const (
+	duFresh = time.Minute      // younger than this is given as it is
+	duOld   = 15 * time.Minute // older than this is measured again before answering
+)
+
 func readDiskUsage(ctx context.Context) (*diskUsage, error) {
+	duCache.Lock()
+	du, age, stale := duCache.du, time.Since(duCache.at), duCache.stale
+	if du != nil && !stale && age < duOld {
+		if age > duFresh && !duCache.refreshing {
+			duCache.refreshing = true
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				_, _ = measureDiskUsage(ctx)
+			}()
+		}
+		duCache.Unlock()
+		return du, nil
+	}
+	duCache.Unlock()
+	return measureDiskUsage(ctx)
+}
+
+// forgetDiskUsage makes the next reading a fresh one: after clean-up, what was there has changed.
+func forgetDiskUsage() {
+	duCache.Lock()
+	duCache.stale = true
+	duCache.Unlock()
+}
+
+// warmDiskUsage measures once when the agent starts, so the first look at volumes is quick too.
+func warmDiskUsage() {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	_, _ = measureDiskUsage(ctx)
+}
+
+func measureDiskUsage(ctx context.Context) (*diskUsage, error) {
+	du, err := runDiskUsage(ctx)
+	duCache.Lock()
+	defer duCache.Unlock()
+	duCache.refreshing = false
+	if err != nil {
+		return nil, err
+	}
+	duCache.du, duCache.at, duCache.stale = du, time.Now(), false
+	return du, nil
+}
+
+func runDiskUsage(ctx context.Context) (*diskUsage, error) {
 	out, err := docker(ctx, "", "system", "df", "-v", "--format", "{{json .}}")
 	if err != nil {
 		return nil, err
@@ -162,6 +226,7 @@ func cleanupPreview(ctx context.Context) (protocol.Cleanup, error) {
 
 // cleanup removes what nothing uses: images, and if asked volumes (which may hold data) and build cache.
 func cleanup(ctx context.Context, args protocol.CleanupArgs) (protocol.ActionResult, error) {
+	defer forgetDiskUsage() // what's there has changed
 	var out []string
 	run := func(cmd ...string) error {
 		text, err := docker(ctx, "", cmd...)

@@ -40,7 +40,7 @@ func New(ctx context.Context, cfg *config.Config, db *store.Store, log *slog.Log
 		return nil, err
 	}
 	// The API's own log lines that name a user are the activity log too (activity.go).
-	acts := slog.New(&activityHandler{Handler: log.Handler(), db: db.DB})
+	acts := slog.New(newActivityHandler(log.Handler(), db.DB))
 	api := &API{cfg: cfg, db: db.DB, auth: a, hub: agents.NewHub(db.DB, log), log: acts, mux: http.NewServeMux()}
 	api.routes()
 

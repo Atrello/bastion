@@ -77,6 +77,7 @@ func (c *conn) answer(id string, data any, err error) {
 // Run keeps the agent connected to the panel until ctx ends.
 func Run(ctx context.Context, cfg *Config, log *slog.Logger) {
 	go measureGames(ctx)
+	go warmDiskUsage()
 	wait := time.Second
 	for ctx.Err() == nil {
 		started := time.Now()
