@@ -168,3 +168,4 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 13 Nov 2026 | A full or read-only disk is said in plain words, the image has a health check, and the panel's disk at 90% is an alert | The panel stopped with "disk I/O error" when Docker's disk filled |
 | 13 Nov 2026 | The agent's disk use reading is cached and refreshed in the background | `docker system df -v` takes seconds on a busy server, and slowed the Volumes and Containers pages |
 | 13 Nov 2026 | A demo on GitHub Pages, the web app on made-up data | To help people find and try it |
+| 13 Nov 2026 | Licence: PolyForm Noncommercial 1.0.0 (free for homelabs, hobbies and non-profits; no selling it or running a business on it) | Asked for ("I don't want people to be able to monetise it"); it replaces AGPL-3.0, which allowed selling it |

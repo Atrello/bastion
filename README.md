@@ -115,6 +115,11 @@ docs/               the plan, security, the API, development, the roadmap
 
 ## Licence
 
-Bastion is free software under the [GNU Affero General Public License v3.0](LICENSE). You can use, change and
-share it, for yourself or for others. If you share a changed copy, or run one as a service for other people,
-you must publish your changes under the same licence. Running it for your own homelab asks nothing of you.
+Bastion is free, and stays free: it's under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- **You can** use it for your own homelab, hobby projects, study, or a charity, school or other
+  non-profit; change it; and share it, changed or not, as long as the licence goes with it.
+- **You can't** make money from it: no selling it, no charging for it as a hosted service, and no using it
+  to run a business.
+
+Want to use it in a way the licence doesn't cover? Open an issue and ask.
