@@ -423,18 +423,18 @@ func (api *API) backup(ctx context.Context, g *game, id int64) (*backupView, err
 	return &b, nil
 }
 
-// startBackup makes a backup in the background: a big world takes a while.
+// startBackup makes a backup in the background, kept in store (none: on the game's server): a big world
+// takes a while.
 // Its name is the one given (or "Backup") with the date and time: "Nightly-2026-11-09-1915". Its file, on
 // the server or in backup storage, is called the same, in letters any file system takes, with a few
 // random ones so two made in the same minute don't clash.
-func (api *API) startBackup(ctx context.Context, g *game, name string, keep int) (int64, error) {
+func (api *API) startBackup(ctx context.Context, g *game, name string, keep int, store sql.NullInt64) (int64, error) {
 	if name == "" {
 		name = "Backup"
 	}
 	stamp := time.Now().Format("2006-01-02-1504")
 	name = clipText(name, 60) + "-" + stamp
 	file := fmt.Sprintf("%s-%04x.tar.gz", fileName(name, 50), rand.IntN(1<<16)) // the name has the date already
-	store := sql.NullInt64{Int64: g.BackupStore, Valid: g.BackupStore != 0}
 	target, err := api.s3Target(ctx, store, g.ID, file)
 	if err != nil {
 		return 0, err
@@ -469,12 +469,27 @@ func (api *API) startBackup(ctx context.Context, g *game, name string, keep int)
 	return id, nil
 }
 
+// makeBackupNow makes a backup by hand: {"name", "storeId"}. storeId picks where it goes (0 for the game's
+// server, or a backup storage) instead of the game's usual place; only the owner can pick, as only they
+// see the storage.
 func (api *API) makeBackupNow(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
-	var body struct{ Name string }
+	var body struct {
+		Name    string
+		StoreID *int64 `json:"storeId"`
+	}
 	if r.ContentLength > 0 && !readJSON(w, r, &body) {
 		return
 	}
-	id, err := api.startBackup(r.Context(), g, strings.TrimSpace(body.Name), 0)
+	if body.StoreID != nil && u.Role != auth.RoleOwner {
+		writeError(w, http.StatusForbidden, "only the panel's owner can choose where a backup goes")
+		return
+	}
+	store, err := api.chosenStore(r.Context(), body.StoreID, g.BackupStore)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	id, err := api.startBackup(r.Context(), g, strings.TrimSpace(body.Name), 0, store)
 	if err != nil {
 		api.fail(w, r, err)
 		return

@@ -111,19 +111,23 @@ func stackKey(server int64, stack, file string) string {
 
 // startStackBackup makes a backup in the background, named like game backups ("Nightly-2026-11-09-0400"),
 // then keeps only the newest the stack's settings say.
-func (api *API) startStackBackup(ctx context.Context, server int64, stack, name string) (int64, error) {
+// store is where it goes; nil for where the stack's settings say.
+func (api *API) startStackBackup(ctx context.Context, server int64, stack, name string, store *int64) (int64, error) {
 	settings := api.stackSettings(ctx, server, stack)
 	if name == "" {
 		name = "Backup"
 	}
 	name = clipText(name, 60) + "-" + time.Now().Format("2006-01-02-1504")
 	file := fmt.Sprintf("%s-%04x.tar.gz", fileName(name, 50), rand.IntN(1<<16))
-	store := sql.NullInt64{Int64: settings.StoreID, Valid: settings.StoreID != 0}
-	target, err := api.s3TargetAt(ctx, store, stackKey(server, stack, file))
+	place, err := api.chosenStore(ctx, store, settings.StoreID)
 	if err != nil {
 		return 0, err
 	}
-	res, err := api.db.ExecContext(ctx, `INSERT INTO stack_backups (server_id, stack, file, name, store_id) VALUES (?, ?, ?, ?, ?)`, server, stack, file, name, store)
+	target, err := api.s3TargetAt(ctx, place, stackKey(server, stack, file))
+	if err != nil {
+		return 0, err
+	}
+	res, err := api.db.ExecContext(ctx, `INSERT INTO stack_backups (server_id, stack, file, name, store_id) VALUES (?, ?, ?, ?, ?)`, server, stack, file, name, place)
 	if err != nil {
 		return 0, err
 	}
@@ -192,15 +196,24 @@ func (api *API) makeStackBackupNow(w http.ResponseWriter, r *http.Request, u *au
 	if !ok {
 		return
 	}
-	var body struct{ Name string }
+	var body struct {
+		Name    string
+		StoreID *int64 `json:"storeId"` // 0 for the server, a backup storage, or left out for the usual place
+	}
 	if r.ContentLength > 0 && !readJSON(w, r, &body) {
 		return
+	}
+	if body.StoreID != nil && *body.StoreID != 0 {
+		if _, err := api.store(r.Context(), *body.StoreID); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	if !api.hub.Live(id).Online {
 		writeError(w, http.StatusServiceUnavailable, "that server's agent isn't connected")
 		return
 	}
-	backup, err := api.startStackBackup(r.Context(), id, name, strings.TrimSpace(body.Name))
+	backup, err := api.startStackBackup(r.Context(), id, name, strings.TrimSpace(body.Name), body.StoreID)
 	if err != nil {
 		api.fail(w, r, err)
 		return
@@ -364,7 +377,7 @@ func (api *API) runStackBackupSchedules(ctx context.Context, minute time.Time) {
 		message := ""
 		if !api.hub.Live(d.server).Online {
 			message = "its server's agent wasn't connected"
-		} else if _, err := api.startStackBackup(ctx, d.server, d.stack, "Scheduled"); err != nil {
+		} else if _, err := api.startStackBackup(ctx, d.server, d.stack, "Scheduled", nil); err != nil {
 			message = err.Error()
 		}
 		_, _ = api.db.ExecContext(ctx, `UPDATE stack_backup_settings SET last_run_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), last_error = ? WHERE server_id = ? AND stack = ?`, message, d.server, d.stack)

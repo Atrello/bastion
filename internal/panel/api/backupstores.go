@@ -239,6 +239,23 @@ func (api *API) deleteBackupStore(w http.ResponseWriter, r *http.Request, u *aut
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// chosenStore is where a backup goes when someone picks: asked is 0 for the server itself or a backup
+// storage's ID, and nil for the usual place (usual, in the same terms). A storage that doesn't exist is an
+// error to show them.
+func (api *API) chosenStore(ctx context.Context, asked *int64, usual int64) (sql.NullInt64, error) {
+	id := usual
+	if asked != nil {
+		id = *asked
+	}
+	if id == 0 {
+		return sql.NullInt64{}, nil
+	}
+	if _, err := api.store(ctx, id); err != nil {
+		return sql.NullInt64{}, err
+	}
+	return sql.NullInt64{Int64: id, Valid: true}, nil
+}
+
 // setBackupStore chooses where a game's new backups go: storeId 0 for its own server.
 func (api *API) setBackupStore(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
 	var body struct {

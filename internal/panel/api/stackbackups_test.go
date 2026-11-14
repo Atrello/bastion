@@ -46,7 +46,10 @@ func TestStackBackups(t *testing.T) {
 	if status, _ := b.call(b.client, "PUT", base+"/settings", map[string]any{"when": "every day", "keep": 2, "stop": true, "storeId": 0}); status != 400 {
 		t.Fatal("a schedule that isn't one was saved")
 	}
-	status, made := b.call(b.client, "POST", base, map[string]string{"name": "Before the upgrade"})
+	if status, r := b.call(b.client, "POST", base, map[string]any{"storeId": 99}); status != 400 {
+		t.Fatalf("a backup to storage that doesn't exist: %d %v", status, r)
+	}
+	status, made := b.call(b.client, "POST", base, map[string]any{"name": "Before the upgrade", "storeId": 0})
 	if status != 200 || !strings.HasPrefix(made["name"].(string), "Before the upgrade-") {
 		t.Fatalf("making one: %d %v", status, made)
 	}

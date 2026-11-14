@@ -427,6 +427,37 @@ func TestSharePermissions(t *testing.T) {
 	if status, _ := b.call(friend, "POST", "/api/games/1/schedules/2/run", nil); status != 403 {
 		t.Errorf("a friend ran a restart schedule: %d", status)
 	}
+
+	// Where backups go is the owner's to choose: with backups shared, a friend can back up and keep a
+	// backup schedule, but not pick a place, and their change keeps the owner's choice.
+	b.call(b.client, "PUT", "/api/games/1/shares/2", map[string]any{"permissions": []string{"schedules", "backups"}})
+	if status, r := b.call(friend, "POST", "/api/games/1/backups", map[string]any{"name": "Mine", "storeId": 0}); status != 403 {
+		t.Errorf("a friend chose where a backup goes: %d %v", status, r)
+	}
+	if status, r := b.call(b.client, "POST", "/api/games/1/schedules", map[string]any{"name": "Nightly", "when": "0 4 * * *", "action": "backup", "enabled": true, "storeId": 99}); status != 400 {
+		t.Errorf("a schedule to storage that doesn't exist: %d %v", status, r)
+	}
+	backup := map[string]any{"name": "Nightly", "when": "0 4 * * *", "action": "backup", "enabled": true, "storeId": 0}
+	if status, r := b.call(b.client, "POST", "/api/games/1/schedules", backup); status != 204 {
+		t.Fatalf("the owner's backup schedule: %d %v", status, r)
+	}
+	backup["storeId"], backup["keep"] = nil, 3
+	if status, r := b.call(friend, "PUT", "/api/games/1/schedules/3", backup); status != 204 {
+		t.Fatalf("the friend's change: %d %v", status, r)
+	}
+	var onServer bool
+	var keep int
+	_ = b.api.db.QueryRow(`SELECT on_server, keep FROM game_schedules WHERE id = 3`).Scan(&onServer, &keep)
+	if !onServer || keep != 3 {
+		t.Errorf("after the friend's change: on the server %v, keep %d", onServer, keep)
+	}
+	var list []map[string]any
+	res, _ := friend.Get(b.server.URL + "/api/games/1/schedules")
+	_ = json.NewDecoder(res.Body).Decode(&list)
+	res.Body.Close()
+	if len(list) != 3 || list[2]["storeId"] != float64(0) || list[0]["storeId"] != nil {
+		t.Errorf("schedules listed: %v", list)
+	}
 }
 
 // A running game is asked who's playing, in the protocol its egg implies, and the answer shows on the game.

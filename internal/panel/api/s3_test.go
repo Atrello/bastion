@@ -160,6 +160,33 @@ func TestBackupsInS3(t *testing.T) {
 		t.Fatalf("downloading: %d, %d bytes of %d", res.StatusCode, len(got), len(want))
 	}
 
+	// Made by hand, a backup can go somewhere else: here the server, though the game's set to S3. A
+	// schedule can choose too.
+	_, onServer := b.call(b.client, "POST", "/api/games/1/backups", map[string]any{"name": "Local", "storeId": 0})
+	if status, r := b.call(b.client, "POST", "/api/games/1/backups", map[string]any{"storeId": 99}); status != 400 {
+		t.Fatalf("a backup to storage that doesn't exist: %d %v", status, r)
+	}
+	b.call(b.client, "POST", "/api/games/1/schedules", map[string]any{"name": "Local nightly", "when": "0 4 * * *", "action": "backup", "enabled": true, "storeId": 0})
+	if status, r := b.call(b.client, "POST", "/api/games/1/schedules/1/run", nil); status != 204 {
+		t.Fatalf("running the schedule: %d %v", status, r)
+	}
+	deadline = time.Now().Add(10 * time.Second)
+	for {
+		var making, inS3 int
+		_ = b.api.db.QueryRow(`SELECT COUNT(*) FILTER (WHERE state = 'making'), COUNT(*) FILTER (WHERE store_id IS NOT NULL) FROM game_backups`).Scan(&making, &inS3)
+		if making == 0 || time.Now().After(deadline) {
+			if making != 0 || inS3 != 1 {
+				t.Fatalf("backups to the server: %d still making, %d in S3", making, inS3)
+			}
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, "backups", "1", "*")); len(left) != 2 {
+		t.Fatalf("on the server: %v", left)
+	}
+	b.call(b.client, "DELETE", fmt.Sprintf("/api/games/1/backups/%v", onServer["id"]), nil)
+
 	_ = os.WriteFile(filepath.Join(world, "level.dat"), []byte("griefed"), 0o644)
 	if status, r := b.call(b.client, "POST", backup+"/restore", nil); status != 204 {
 		t.Fatalf("restoring: %d %v", status, r)

@@ -176,6 +176,8 @@ export type Schedule = {
   lastError: string;
   /** A backup schedule keeps only the newest this many; 0 keeps all. */
   keep: number;
+  /** Where a backup schedule puts them: 0 the game's server, a backup storage, or null for the game's usual place. */
+  storeId: number | null;
 };
 
 /** A backup of a compose stack: its folder and the volumes it made. */

@@ -246,9 +246,9 @@ const startup = {
 };
 
 const schedules: Schedule[] = [
-  { id: 1, name: 'Nightly restart', when: '0 5 * * *', action: 'restart', payload: '', nextRun: new Date(now + 10 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 14), lastError: '', keep: 0 },
-  { id: 2, name: 'World backup', when: '0 3 * * *', action: 'backup', payload: '', nextRun: new Date(now + 8 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 16), lastError: '', keep: 7 },
-  { id: 3, name: 'Weekend whitelist off', when: '0 18 * * 5', action: 'command', payload: 'whitelist off', nextRun: '', enabled: false, lastRunAt: '', lastError: '', keep: 0 },
+  { id: 1, name: 'Nightly restart', when: '0 5 * * *', action: 'restart', payload: '', nextRun: new Date(now + 10 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 14), lastError: '', keep: 0, storeId: null },
+  { id: 2, name: 'World backup', when: '0 3 * * *', action: 'backup', payload: '', nextRun: new Date(now + 8 * 3600_000).toISOString(), enabled: true, lastRunAt: minutesAgo(60 * 16), lastError: '', keep: 7, storeId: 1 },
+  { id: 3, name: 'Weekend whitelist off', when: '0 18 * * 5', action: 'command', payload: 'whitelist off', nextRun: '', enabled: false, lastRunAt: '', lastError: '', keep: 0, storeId: null },
 ];
 
 const backups: GameBackup[] = [

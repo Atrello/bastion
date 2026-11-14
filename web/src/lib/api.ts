@@ -154,8 +154,9 @@ export const api = {
     request<{ output: string }>('POST', `/servers/${serverId}/stacks`, { name, compose, env }),
   stackBackups: (serverId: number, name: string) =>
     request<{ backups: StackBackup[]; settings: StackBackupSettings }>('GET', `${stackPath(serverId, name)}/backups`),
-  makeStackBackup: (serverId: number, name: string, backupName = '') =>
-    request<StackBackup>('POST', `${stackPath(serverId, name)}/backups`, backupName ? { name: backupName } : undefined),
+  /** storeId: 0 for the server, a backup storage, or null for where the stack's settings say. */
+  makeStackBackup: (serverId: number, name: string, backupName = '', storeId: number | null = null) =>
+    request<StackBackup>('POST', `${stackPath(serverId, name)}/backups`, { name: backupName, ...(storeId === null ? {} : { storeId }) }),
   saveStackBackupSettings: (serverId: number, name: string, s: Pick<StackBackupSettings, 'when' | 'keep' | 'stop' | 'storeId'>) =>
     request<void>('PUT', `${stackPath(serverId, name)}/backups/settings`, s),
   lockStackBackup: (serverId: number, name: string, id: number, locked: boolean) =>
@@ -266,12 +267,14 @@ export const api = {
     request<{ command: string; image: string; images: EggImage[]; variables: StartupVariable[] }>('GET', `/games/${id}/startup`),
   saveGameStartup: (id: number, values: Record<string, string>) => request<void>('PUT', `/games/${id}/startup`, values),
   gameSchedules: (id: number) => request<Schedule[]>('GET', `/games/${id}/schedules`),
-  saveSchedule: (id: number, s: Pick<Schedule, 'name' | 'when' | 'action' | 'payload' | 'enabled' | 'keep'>, scheduleId?: number) =>
+  saveSchedule: (id: number, s: Pick<Schedule, 'name' | 'when' | 'action' | 'payload' | 'enabled' | 'keep' | 'storeId'>, scheduleId?: number) =>
     request<void>(scheduleId ? 'PUT' : 'POST', `/games/${id}/schedules${scheduleId ? `/${scheduleId}` : ''}`, s),
   deleteSchedule: (id: number, scheduleId: number) => request<void>('DELETE', `/games/${id}/schedules/${scheduleId}`),
   runSchedule: (id: number, scheduleId: number) => request<void>('POST', `/games/${id}/schedules/${scheduleId}/run`),
   gameBackups: (id: number) => request<GameBackup[]>('GET', `/games/${id}/backups`),
-  createGameBackup: (id: number, name = '') => request<GameBackup>('POST', `/games/${id}/backups`, { name }),
+  /** storeId: 0 for the game's server, a backup storage, or null for the game's usual place. Owner only. */
+  createGameBackup: (id: number, name = '', storeId: number | null = null) =>
+    request<GameBackup>('POST', `/games/${id}/backups`, { name, ...(storeId === null ? {} : { storeId }) }),
   lockGameBackup: (id: number, backupId: number, locked: boolean) => request<void>('PUT', `/games/${id}/backups/${backupId}`, { locked }),
   deleteGameBackup: (id: number, backupId: number) => request<void>('DELETE', `/games/${id}/backups/${backupId}`),
   restoreGameBackup: (id: number, backupId: number) => request<void>('POST', `/games/${id}/backups/${backupId}/restore`),

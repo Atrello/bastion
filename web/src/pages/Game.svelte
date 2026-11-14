@@ -221,7 +221,7 @@
   {:else if tab === 'files'}
     <GameFiles {id} name={game.data?.name ?? ''} onerror={problem} onnote={note} />
   {:else if tab === 'schedules'}
-    <GameSchedules {id} onerror={problem} onnote={note} />
+    <GameSchedules game={g} onerror={problem} onnote={note} />
   {:else if tab === 'backups'}
     <GameBackups game={g} onerror={problem} onnote={note} />
   {:else}

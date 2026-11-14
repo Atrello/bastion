@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"slices"
@@ -39,9 +40,39 @@ type schedule struct {
 	LastError string `json:"lastError"`
 	NextRun   string `json:"nextRun"`
 	Keep      int    `json:"keep"` // a backup schedule keeps only the newest this many; 0 keeps all
+	// Where a backup schedule puts its backups: 0 the game's server, a backup storage's ID, or null for
+	// wherever the game's settings say.
+	StoreID *int64 `json:"storeId"`
 }
 
-const scheduleColumns = `id, game_id, name, cron, action, payload, enabled, COALESCE(last_run_at, ''), last_error, keep`
+const scheduleColumns = `id, game_id, name, cron, action, payload, enabled, COALESCE(last_run_at, ''), last_error, keep, store_id, on_server`
+
+type scanner interface{ Scan(...any) error }
+
+func scanSchedule(row scanner) (schedule, error) {
+	var s schedule
+	var store sql.NullInt64
+	var onServer bool
+	err := row.Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError, &s.Keep, &store, &onServer)
+	switch {
+	case onServer:
+		s.StoreID = new(int64)
+	case store.Valid:
+		s.StoreID = &store.Int64
+	}
+	return s, err
+}
+
+// placeColumns is how a schedule's StoreID is kept: store_id and on_server.
+func (s schedule) placeColumns() (store sql.NullInt64, onServer bool) {
+	if s.Action != "backup" || s.StoreID == nil {
+		return sql.NullInt64{}, false
+	}
+	if *s.StoreID == 0 {
+		return sql.NullInt64{}, true
+	}
+	return sql.NullInt64{Int64: *s.StoreID, Valid: true}, false
+}
 
 func (api *API) listSchedules(w http.ResponseWriter, r *http.Request, _ *auth.User, g *game) {
 	rows, err := api.db.QueryContext(r.Context(), `SELECT `+scheduleColumns+` FROM game_schedules WHERE game_id = ? ORDER BY id`, g.ID)
@@ -52,8 +83,7 @@ func (api *API) listSchedules(w http.ResponseWriter, r *http.Request, _ *auth.Us
 	defer rows.Close()
 	list := []schedule{}
 	for rows.Next() {
-		var s schedule
-		if rows.Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError, &s.Keep) == nil {
+		if s, err := scanSchedule(rows); err == nil {
 			if c, err := cron.Parse(s.Cron); err == nil && s.Enabled {
 				s.NextRun = c.Next(time.Now()).UTC().Format(time.RFC3339)
 			}
@@ -91,13 +121,30 @@ func (api *API) saveSchedule(w http.ResponseWriter, r *http.Request, u *auth.Use
 		writeError(w, http.StatusForbidden, "that isn't shared with you, so a schedule can't do it for you")
 		return
 	}
+	if s.Action != "backup" {
+		s.StoreID = nil
+	}
+	id := r.PathValue("schedule")
+	if u.Role != auth.RoleOwner {
+		// Only the owner sees backup storage, so a friend's change keeps where it was going.
+		s.StoreID = nil
+		if old, err := scanSchedule(api.db.QueryRowContext(r.Context(), `SELECT `+scheduleColumns+` FROM game_schedules WHERE id = ? AND game_id = ?`, id, g.ID)); err == nil && s.Action == "backup" {
+			s.StoreID = old.StoreID
+		}
+	} else if s.StoreID != nil && *s.StoreID != 0 {
+		if _, err := api.store(r.Context(), *s.StoreID); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	store, onServer := s.placeColumns()
 	var err error
-	if id := r.PathValue("schedule"); id != "" {
-		_, err = api.db.ExecContext(r.Context(), `UPDATE game_schedules SET name = ?, cron = ?, action = ?, payload = ?, enabled = ?, keep = ? WHERE id = ? AND game_id = ?`,
-			s.Name, s.Cron, s.Action, s.Payload, s.Enabled, s.Keep, id, g.ID)
+	if id != "" {
+		_, err = api.db.ExecContext(r.Context(), `UPDATE game_schedules SET name = ?, cron = ?, action = ?, payload = ?, enabled = ?, keep = ?, store_id = ?, on_server = ? WHERE id = ? AND game_id = ?`,
+			s.Name, s.Cron, s.Action, s.Payload, s.Enabled, s.Keep, store, onServer, id, g.ID)
 	} else {
-		_, err = api.db.ExecContext(r.Context(), `INSERT INTO game_schedules (game_id, name, cron, action, payload, enabled, keep) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			g.ID, s.Name, s.Cron, s.Action, s.Payload, s.Enabled, s.Keep)
+		_, err = api.db.ExecContext(r.Context(), `INSERT INTO game_schedules (game_id, name, cron, action, payload, enabled, keep, store_id, on_server) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			g.ID, s.Name, s.Cron, s.Action, s.Payload, s.Enabled, s.Keep, store, onServer)
 	}
 	if err != nil {
 		api.fail(w, r, err)
@@ -118,9 +165,7 @@ func (api *API) deleteSchedule(w http.ResponseWriter, r *http.Request, u *auth.U
 
 func (api *API) runScheduleNow(w http.ResponseWriter, r *http.Request, u *auth.User, g *game) {
 	id, _ := strconv.ParseInt(r.PathValue("schedule"), 10, 64)
-	var s schedule
-	err := api.db.QueryRowContext(r.Context(), `SELECT `+scheduleColumns+` FROM game_schedules WHERE id = ? AND game_id = ?`, id, g.ID).
-		Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError, &s.Keep)
+	s, err := scanSchedule(api.db.QueryRowContext(r.Context(), `SELECT `+scheduleColumns+` FROM game_schedules WHERE id = ? AND game_id = ?`, id, g.ID))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no such schedule")
 		return
@@ -148,7 +193,10 @@ func (api *API) runSchedule(ctx context.Context, s schedule) error {
 	case "command":
 		err = api.hub.Request(ctx, g.ServerID, protocol.OpGamePower, protocol.GamePowerArgs{ID: g.ID, Action: "command", Command: s.Payload}, nil)
 	case "backup":
-		_, err = api.startBackup(ctx, g, s.Name, s.Keep)
+		var store sql.NullInt64
+		if store, err = api.chosenStore(ctx, s.StoreID, g.BackupStore); err == nil {
+			_, err = api.startBackup(ctx, g, s.Name, s.Keep, store)
+		}
 	}
 	message := ""
 	if err != nil {
@@ -174,8 +222,8 @@ func (api *API) runSchedules(ctx context.Context) {
 		}
 		var due []schedule
 		for rows.Next() {
-			var s schedule
-			if rows.Scan(&s.ID, &s.GameID, &s.Name, &s.Cron, &s.Action, &s.Payload, &s.Enabled, &s.LastRunAt, &s.LastError, &s.Keep) != nil {
+			s, err := scanSchedule(rows)
+			if err != nil {
 				continue
 			}
 			if c, err := cron.Parse(s.Cron); err == nil && c.Matches(minute) {

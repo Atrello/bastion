@@ -169,3 +169,4 @@ Alerts, backups of stack volumes, an activity log. Kept in `docs/roadmap.md`, pl
 | 13 Nov 2026 | The agent's disk use reading is cached and refreshed in the background | `docker system df -v` takes seconds on a busy server, and slowed the Volumes and Containers pages |
 | 13 Nov 2026 | A demo on GitHub Pages, the web app on made-up data | To help people find and try it |
 | 13 Nov 2026 | Licence: PolyForm Noncommercial 1.0.0 (free for homelabs, hobbies and non-profits; no selling it or running a business on it) | Asked for ("I don't want people to be able to monetise it"); it replaces AGPL-3.0, which allowed selling it |
+| 14 Nov 2026 | A backup made by hand, and a game's backup schedule, can choose where it goes (the server or any backup storage) instead of the usual place; only the owner chooses, as only they see the storage | Asked for |

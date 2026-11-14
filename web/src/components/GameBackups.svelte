@@ -1,6 +1,9 @@
-<!-- A game's backups, kept on the server it runs on: make one, lock it, restore it, download or delete it. -->
+<!-- A game's backups, kept on the server it runs on or in backup storage: make one (the owner can choose
+     where), lock it, restore it, download or delete it. -->
 <script lang="ts">
-  import { ask, sure } from '../lib/ask.svelte';
+  import BackupPlace from './BackupPlace.svelte';
+  import Modal from './Modal.svelte';
+  import { sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago, bytes } from '../lib/format';
   import { load } from '../lib/load.svelte';
@@ -9,6 +12,9 @@
   let { game, onerror, onnote }: { game: GameServer; onerror: (message: string) => void; onnote: (message: string) => void } = $props();
 
   const backups = load(() => api.gameBackups(game.id));
+  // Only the owner sees backup storage, so only they choose where one goes.
+  const stores = load(() => (game.owner ? api.backupStores() : Promise.resolve([])));
+  const usual = $derived(game.backupStore ? (stores.data?.find((s) => s.id === game.backupStore)?.name ?? 'backup storage') : game.serverName);
   // A backup being made shows as such until it's done.
   $effect(() => {
     if (!backups.data?.some((b) => b.state === 'making')) return;
@@ -36,9 +42,14 @@
     }
   }
 
-  async function make() {
-    const name = await ask({ title: 'Back up now', input: { label: 'Name it (optional)', placeholder: 'e.g. Before the update' }, confirm: 'Back up' });
-    if (name !== null) void attempt(() => api.createGameBackup(game.id, name.trim()), 'Backing up: it shows here when done.');
+  let making = $state<{ name: string; storeId: number | null }>();
+
+  function make(e: SubmitEvent) {
+    e.preventDefault();
+    if (!making) return;
+    const { name, storeId } = making;
+    making = undefined;
+    void attempt(() => api.createGameBackup(game.id, name.trim(), storeId), 'Backing up: it shows here when done.');
   }
 </script>
 
@@ -47,7 +58,7 @@
     {game.backupStore ? 'New backups go to backup storage (set in Settings).' : `New backups are kept on ${game.serverName}, beside the game.`}
     A locked one can't be deleted.
   </span>
-  <button class="primary" onclick={make}>Back up now</button>
+  <button class="primary" onclick={() => (making = { name: '', storeId: null })}>Back up now</button>
 </div>
 <div class="card table-card">
   <table>
@@ -83,6 +94,21 @@
     </tbody>
   </table>
 </div>
+
+{#if making}
+  <Modal title="Back up now" onclose={() => (making = undefined)}>
+    <form id="make-backup" class="form" onsubmit={make}>
+      <label>Name it <span class="muted small">(optional)</span> <input maxlength="60" placeholder="e.g. Before the update" bind:value={making.name} /></label>
+      {#if game.owner}
+        <BackupPlace bind:value={making.storeId} stores={stores.data ?? []} server={`On ${game.serverName}`} {usual} />
+      {/if}
+    </form>
+    {#snippet footer()}
+      <button onclick={() => (making = undefined)}>Cancel</button>
+      <button type="submit" form="make-backup" class="primary">Back up</button>
+    {/snippet}
+  </Modal>
+{/if}
 
 <style>
   .top {

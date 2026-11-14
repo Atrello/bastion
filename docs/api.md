@@ -176,8 +176,9 @@ it at once. A job carries on whatever the browser does; its progress is in `GET 
 
 Up to 5 jobs each at once (`429` past that); a job runs for 6 hours at most.
 | `GET /games/{id}/files/download?path=` | The file, as a download |
-| `GET` / `POST /games/{id}/backups` | Its backups; or starts one (`{"name"}`, optional), which shows as `making` until it's `done` or `failed` |
+| `GET` / `POST /games/{id}/backups` | Its backups; or starts one (`{"name", "storeId"}`, both optional), which shows as `making` until it's `done` or `failed` |
 | `PUT /games/{id}/backups/{backup}` | `{"locked"}`: a locked backup can't be deleted |
+| | `storeId` puts it somewhere other than the game's usual place: `0` for the game's server, or a backup storage's ID. Only the owner can choose |
 | `POST /games/{id}/backups/{backup}/restore` | Empties its files and unpacks the backup. It has to be stopped |
 | `GET /games/{id}/backups/{backup}/download` | The backup as a `.tar.gz` |
 | `GET /games/{id}/history` | Its use over the last ten minutes, for its charts: `[{"t", "cpu", "mem", "netIn", "netOut"}]`, about every 10 seconds while it runs. `netIn` and `netOut` are bytes since it started; the rate is the change between samples |
@@ -190,7 +191,7 @@ A stack's folder and the volumes Docker made for it, in one archive. Under `/ser
 | Route | What it does |
 |---|---|
 | `GET` | `{"backups", "settings"}`: its backups (`name`, `size`, `state` making/done/failed, `error`, `store`, `locked`), and `settings` (`when`: cron or "" for none, `keep`: the newest this many, 0 for all, `stop`: stopped while backed up, `storeId`: 0 for the server, `nextRun`, `lastError`) |
-| `POST` | `{"name"}` (optional): makes one now, shown as `making` until it's done |
+| `POST` | `{"name", "storeId"}` (both optional): makes one now, shown as `making` until it's done. `storeId` (`0` for the server, or a backup storage) puts it somewhere other than the settings say |
 | `PUT /settings` | `{"when", "keep", "stop", "storeId"}` |
 | `PUT /{backup}` | `{"locked"}`: a locked backup isn't deleted, nor pruned |
 | `DELETE /{backup}` | Deletes it, wherever it's kept |
@@ -232,7 +233,7 @@ with the date and time, like `Nightly-2026-11-09-1915`, and its file is named th
 | `PUT /backup-stores/{id}` | The same; an empty `secretKey` keeps the one it has. With backups in it, its address, bucket and folder can't change |
 | `DELETE /backup-stores/{id}` | Forgets it, if it has no backups in it. Nothing in the bucket is touched |
 | `DELETE /games/{id}/backups/{backup}` | |
-| `GET` / `POST /games/{id}/schedules` | Its schedules; or a new one: `{"name", "when", "action", "payload", "enabled"}`. `when` is cron (minute hour day month weekday, in the panel's time zone); `action` is `restart` (players are warned a minute before), `command` (`payload` is the command) or `backup` |
+| `GET` / `POST /games/{id}/schedules` | Its schedules; or a new one: `{"name", "when", "action", "payload", "enabled"}`. `when` is cron (minute hour day month weekday, in the panel's time zone); `action` is `restart` (players are warned a minute before), `command` (`payload` is the command) or `backup`. A backup schedule has `keep` (the newest this many; 0 for all) and `storeId`: `0` for the game's server, a backup storage's ID, or `null` for the game's usual place. Only the owner chooses `storeId`; a friend's change keeps it |
 | `PUT` / `DELETE /games/{id}/schedules/{schedule}` | |
 | `POST /games/{id}/schedules/{schedule}/run` | Runs it now |
 | `GET /games/{id}/shares` | Owner. Who it's shared with |

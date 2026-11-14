@@ -1,7 +1,9 @@
 <!-- A stack's backups: its folder (compose file, .env, anything beside them) and the volumes it made, in one
      archive. Make one now, or on a schedule keeping the newest few; restore, download, lock or delete. -->
 <script lang="ts">
-  import { ask, sure } from '../lib/ask.svelte';
+  import BackupPlace from './BackupPlace.svelte';
+  import Modal from './Modal.svelte';
+  import { sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago, bytes } from '../lib/format';
   import { load } from '../lib/load.svelte';
@@ -45,9 +47,14 @@
     await backups.reload();
   }
 
-  async function make() {
-    const label = await ask({ title: 'Back up now', input: { label: 'Name it (optional)', placeholder: 'e.g. Before the upgrade' }, confirm: 'Back up' });
-    if (label !== null) void attempt(() => api.makeStackBackup(serverId, name, label.trim()), 'Backing up: it shows here when done.');
+  let making = $state<{ name: string; storeId: number | null }>();
+
+  function make(e: SubmitEvent) {
+    e.preventDefault();
+    if (!making) return;
+    const { name: label, storeId } = making;
+    making = undefined;
+    void attempt(() => api.makeStackBackup(serverId, name, label.trim(), storeId), 'Backing up: it shows here when done.');
   }
 
   async function restore(b: StackBackup) {
@@ -123,7 +130,7 @@
       volume Docker made for it, with their owners and permissions. Volumes it shares with other stacks, and
       folders elsewhere on the server, aren't included. New backups go to {where(settings.storeId)}.
     </p>
-    <button class="primary" onclick={make}>Back up now</button>
+    <button class="primary" onclick={() => (making = { name: '', storeId: null })}>Back up now</button>
   </section>
 </div>
 
@@ -164,6 +171,19 @@
     </tbody>
   </table>
 </div>
+
+{#if making}
+  <Modal title="Back up now" onclose={() => (making = undefined)}>
+    <form id="make-stack-backup" class="form" onsubmit={make}>
+      <label>Name it <span class="muted small">(optional)</span> <input maxlength="60" placeholder="e.g. Before the upgrade" bind:value={making.name} /></label>
+      <BackupPlace bind:value={making.storeId} stores={stores.data ?? []} server="The server" usual={where(backups.data?.settings.storeId ?? 0)} />
+    </form>
+    {#snippet footer()}
+      <button onclick={() => (making = undefined)}>Cancel</button>
+      <button type="submit" form="make-stack-backup" class="primary">Back up</button>
+    {/snippet}
+  </Modal>
+{/if}
 
 <style>
   .grid {

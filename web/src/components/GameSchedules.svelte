@@ -1,16 +1,24 @@
 <!-- A game's schedules: a restart (players warned a minute before), a console command, or a backup, at
      times written as cron: minute, hour, day of the month, month, day of the week. -->
 <script lang="ts">
+  import BackupPlace from './BackupPlace.svelte';
   import Modal from './Modal.svelte';
   import { sure } from '../lib/ask.svelte';
   import { api } from '../lib/api';
   import { ago } from '../lib/format';
   import { load } from '../lib/load.svelte';
-  import type { Schedule } from '../lib/types';
+  import type { GameServer, Schedule } from '../lib/types';
 
-  let { id, onerror, onnote }: { id: number; onerror: (message: string) => void; onnote: (message: string) => void } = $props();
+  let { game, onerror, onnote }: { game: GameServer; onerror: (message: string) => void; onnote: (message: string) => void } = $props();
+  const id = $derived(game.id);
 
-  const schedules = load(() => api.gameSchedules(id));
+  const schedules = load(() => api.gameSchedules(game.id));
+  // Only the owner sees backup storage, so only they choose where a backup schedule's backups go.
+  const stores = load(() => (game.owner ? api.backupStores() : Promise.resolve([])));
+  const storeName = (storeId: number) => stores.data?.find((s) => s.id === storeId)?.name ?? 'backup storage';
+  const usual = $derived(game.backupStore ? storeName(game.backupStore) : game.serverName);
+  /** Where a backup schedule's backups go, for its row. */
+  const place = (s: Schedule) => (s.storeId === null ? '' : s.storeId === 0 ? ` to ${game.serverName}` : ` to ${storeName(s.storeId)}`);
   const DOES = { restart: 'Restart', command: 'Run a command', backup: 'Back up' };
   // Common times, so cron needn't be learnt for them.
   const PRESETS: [string, string][] = [
@@ -20,7 +28,7 @@
     ['0 4 * * 1', 'Mondays at 4am'],
   ];
 
-  let editing = $state<{ id?: number; name: string; when: string; action: Schedule['action']; payload: string; enabled: boolean; keep: number }>();
+  let editing = $state<{ id?: number; name: string; when: string; action: Schedule['action']; payload: string; enabled: boolean; keep: number; storeId: number | null }>();
   let busy = $state(false);
 
   async function attempt(work: () => Promise<unknown>, note?: string) {
@@ -47,7 +55,7 @@
 
 <div class="row top">
   <span class="muted small grow">Times are the panel's own clock. A restart warns players a minute before, if the game can be told.</span>
-  <button class="primary" onclick={() => (editing = { name: '', when: '0 4 * * *', action: 'restart', payload: '', enabled: true, keep: 7 })}>New schedule</button>
+  <button class="primary" onclick={() => (editing = { name: '', when: '0 4 * * *', action: 'restart', payload: '', enabled: true, keep: 7, storeId: null })}>New schedule</button>
 </div>
 <div class="card table-card">
   <table>
@@ -57,7 +65,7 @@
         <tr class:off={!s.enabled}>
           <td><b>{s.name}</b></td>
           <td class="mono">{PRESETS.find(([c]) => c === s.when)?.[1] ?? s.when}</td>
-          <td>{DOES[s.action]}{s.action === 'command' ? `: ${s.payload}` : ''}</td>
+          <td>{DOES[s.action]}{s.action === 'command' ? `: ${s.payload}` : ''}{s.action === 'backup' ? place(s) : ''}</td>
           <td>{s.enabled && s.nextRun ? new Date(s.nextRun).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Off'}</td>
           <td>
             {#if s.lastError}<span class="badge red" title={s.lastError}>Failed</span>
@@ -65,7 +73,7 @@
           </td>
           <td class="buttons">
             <button onclick={() => attempt(() => api.runSchedule(id, s.id), 'Done.')}>Run now</button>
-            <button onclick={() => (editing = { id: s.id, name: s.name, when: s.when, action: s.action, payload: s.payload, enabled: s.enabled, keep: s.keep })}>Edit</button>
+            <button onclick={() => (editing = { id: s.id, name: s.name, when: s.when, action: s.action, payload: s.payload, enabled: s.enabled, keep: s.keep, storeId: s.storeId })}>Edit</button>
             <button class="danger" onclick={async () => (await sure(`Delete ${s.name}?`, 'It stops running.')) && attempt(() => api.deleteSchedule(id, s.id))}>Delete</button>
           </td>
         </tr>
@@ -92,6 +100,9 @@
       {/if}
       {#if s.action === 'backup'}
         <label>Keep the newest <span class="muted small">(0 keeps all; locked ones are always kept)</span> <input type="number" min="0" max="1000" bind:value={s.keep} /></label>
+        {#if game.owner}
+          <BackupPlace bind:value={s.storeId} stores={stores.data ?? []} server={`On ${game.serverName}`} {usual} />
+        {/if}
       {/if}
       <label>
         When <span class="muted small">(minute hour day month weekday)</span>
